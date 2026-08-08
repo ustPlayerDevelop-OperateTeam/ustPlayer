@@ -1,0 +1,25 @@
+# ==================== 核心依赖 ====================
+
+# Qt for Python — UI 框架
+#   QtWidgets: QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog
+#   QtCore:    Qt, QTimer, Signal, QObject, QRectF, QPointF
+#   QtGui:     QPainter, QColor, QFont, QFontMetrics, QPen, QPolygonF, QIcon
+PySide6>=6.5.0
+
+# Fluent Design 组件库 — 现代 UI 控件
+#   MSFluentWindow, NavigationInterface, FluentIcon     (主窗口 + 侧边导航)
+#   LineEdit, TextEdit, ComboBox, CheckBox               (输入控件)
+#   PrimaryPushButton, PushButton, ColorPickerButton     (按钮 + 取色器)
+#   BodyLabel, StrongBodyLabel, HorizontalSeparator      (标签 + 分隔线)
+#   InfoBar, InfoBarPosition, MessageBox                 (通知 + 对话框)
+PySide6-Fluent-Widgets[full]>=1.11.2
+
+# 日志库 — 彩色控制台 + 文件轮转
+#   logger.info / logger.debug / logger.exception
+loguru>=0.7.0
+
+
+# ==================== 标准库 (无需安装) ====================
+# os, sys, re, time, subprocess, webbrowser
+# datetime.timedelta, configparser
+# typing (List, Dict, Tuple, Optional, Union)
