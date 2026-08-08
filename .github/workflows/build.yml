@@ -41,6 +41,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # 项目本体必须安装，否则 Nuitka 找不到 src/ 布局下的 ustplayer 包，
+          # 产出的 exe 启动即崩（ModuleNotFoundError）
+          pip install . --no-deps
 
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main

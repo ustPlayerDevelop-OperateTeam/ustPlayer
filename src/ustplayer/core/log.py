@@ -25,4 +25,6 @@ logger.add(
     retention="7 days",
 )
 
-logger.add(sys.stdout, level="INFO", colorize=True)
+# 打包后的 GUI 程序无控制台，sys.stdout 为 None，直接 add 会抛 TypeError
+if sys.stdout is not None:
+    logger.add(sys.stdout, level="INFO", colorize=True)
