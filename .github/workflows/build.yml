@@ -29,10 +29,10 @@ jobs:
         shell: bash
         run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: 设置 Python 3.12.9
+      - name: 设置 Python 3.13.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12.9"
+          python-version: "3.13.12"
           architecture: "x64"
           cache: "pip"
           cache-dependency-path: "requirements.txt"
@@ -128,7 +128,8 @@ jobs:
       - name: 打包产物
         run: |
           $name = "ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip"
-          Compress-Archive -Path build/main.dist/* -DestinationPath $name
+          $files = (Get-ChildItem -Path build/main.dist -Force).FullName
+          Compress-Archive -Path $files -DestinationPath $name -Force
           "Artifact: $name" | Write-Host
 
       - name: 创建 tag（commit 消息触发时）
