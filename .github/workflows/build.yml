@@ -52,6 +52,7 @@ jobs:
           include-data-files: |
             ERcode.txt=ERcode.txt
             Terms.txt=Terms.txt
+            LICENSE=LICENSE
             icon.ico=icon.ico
           windows-icon-from-ico: icon.ico
           enable-plugins: pyside6
