@@ -38,7 +38,7 @@ class OtherPage(QWidget):
         layout.addWidget(StrongBodyLabel("/ 关于软件"))
 
         # 版权信息（可点击）
-        copyright_lbl = BodyLabel("ustPlayer - 1.0.0(v26f19) (c) 2026 SYEternal_R & 灰棱HiRenG")
+        copyright_lbl = BodyLabel("ustPlayer - 1.0.0 (v26f19) by SYEternal_R")
         copyright_lbl.setStyleSheet("color: #0066CC;")
         copyright_lbl.setCursor(Qt.PointingHandCursor)
         copyright_lbl.mousePressEvent = lambda e: self._open_url(
@@ -106,13 +106,13 @@ class OtherPage(QWidget):
         lic_row = QHBoxLayout()
         lic_row.setSpacing(12)
 
-        terms_btn = PushButton("使用协议")
+        terms_btn = PushButton("开源协议")
         terms_btn.clicked.connect(self._open_terms)
         lic_row.addWidget(terms_btn)
 
         gh_btn = PushButton("GitHub仓库")
         gh_btn.clicked.connect(
-            lambda: self._open_url("https://github.com/SYEternalR/ustPlayer")
+            lambda: self._open_url("https://github.com/ustPlayerDevelop-OperateTeam/ustPlayer")
         )
         lic_row.addWidget(gh_btn)
         lic_row.addStretch()
@@ -248,7 +248,7 @@ class OtherPage(QWidget):
                 stdin=subprocess.PIPE,
             )
         except Exception as e:
-            InfoBar.error("ERcode009", f"打开Terms.txt失败：{e}", 5000,
+            InfoBar.error("ERcode009", f"打开LICENSE失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     # ===================== 同步 =====================
