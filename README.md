@@ -45,7 +45,7 @@
 
 如果你有什么好的想法/想修复Bug，请复刻（Fork）本仓库，修改完后也请不要忘记提交[拉取请求（Pull Request）](https://github.com/ustPlayerDevelop-OperateTeam/ustPlayer/pulls)，或者简单的在[议题（Issue）](https://github.com/ustPlayerDevelop-OperateTeam/ustPlayer/issues)说说你的想法/遇到的Bug。
 
-我们会由衷的感谢您为仓库做出贡献！<!--更多对贡献的说明请看<a href="CONTRIBUTING.md">贡献指南</a>--->
+我们会由衷的感谢您为仓库做出贡献！
 
 ---
 感谢使用，玩得开心！
