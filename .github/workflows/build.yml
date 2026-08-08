@@ -116,7 +116,7 @@ jobs:
           $tag = '${{ steps.ver.outputs.tag }}'
           $content = Get-Content UPDATELOG.md -Raw -Encoding UTF8
           if ($content -match "(?ms)^(# $tag\b[^\n]*)\n(.*?)(?=\r?\n# |\Z)") {
-              $heading = ($matches[1] -replace '^## v?', '').Trim()
+              $heading = ($matches[1] -replace '^# v?', '').Trim()
               $section = $matches[2].Trim()
               "Found changelog section for $tag" | Write-Host
           } else {
