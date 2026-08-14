@@ -1,7 +1,6 @@
 # other_page.py — "其他" 导航页
 """版权信息、外部工具、使用协议入口、主题与强调色设置。"""
 
-import os
 import subprocess
 import webbrowser
 from typing import Optional
@@ -16,15 +15,17 @@ from qfluentwidgets import (
     InfoBar, InfoBarPosition,
 )
 
-from ustplayer.core.settings_manager import SettingsManager
+from ustplayer.context import AppContext
+from ustplayer.core.contracts import APP_COPYRIGHT
 
 
 class OtherPage(QWidget):
     """其他标签页 — 关于软件 / 工具 / 协议 / 主题与强调色。"""
 
-    def __init__(self, settings: SettingsManager, parent: Optional[QWidget] = None):
+    def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self._s = settings
+        self._ctx = ctx
+        self._s = ctx.settings
         self._setup_ui()
         self._connect_signals()
 
@@ -38,7 +39,7 @@ class OtherPage(QWidget):
         layout.addWidget(StrongBodyLabel("/ 关于软件"))
 
         # 版权信息（可点击）
-        copyright_lbl = BodyLabel("ustPlayer - 1.0.0 (v26f19) by SYEternal_R")
+        copyright_lbl = BodyLabel(APP_COPYRIGHT)
         copyright_lbl.setStyleSheet("color: #0066CC;")
         copyright_lbl.setCursor(Qt.PointingHandCursor)
         copyright_lbl.mousePressEvent = lambda e: self._open_url(
@@ -221,32 +222,24 @@ class OtherPage(QWidget):
             InfoBar.error("ERcode003", f"打开网页失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
+    @staticmethod
+    def _open_with_notepad(path: str):
+        """用记事本打开文本文件（无需 shell 中转，避免路径特殊字符被二次解析）。"""
+        return subprocess.Popen(
+            ["notepad.exe", path],
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+
     def _open_ercode(self):
         try:
-            path = self._s.ercode_file_path
-            subprocess.Popen(
-                ["notepad.exe", path],
-                shell=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-            )
+            self._open_with_notepad(self._s.ercode_file_path)
         except Exception as e:
             InfoBar.error("ERcode008", f"打开ERcode.txt失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _open_terms(self):
         try:
-            path = self._s.terms_file_path
-            subprocess.Popen(
-                ["notepad.exe", path],
-                shell=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-            )
+            self._open_with_notepad(self._s.terms_file_path)
         except Exception as e:
             InfoBar.error("ERcode009", f"打开LICENSE失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
@@ -264,5 +257,5 @@ class OtherPage(QWidget):
         self._update_accent_custom_visible(s.accent_color_mode)
 
     def sync_all_from_settings(self):
-        """导入 uplr 或导航切换后同步 UI。"""
+        """导入 uplr 或导航切换后同步 UI（信号驱动的兜底）。"""
         self._sync_ui_from_settings()

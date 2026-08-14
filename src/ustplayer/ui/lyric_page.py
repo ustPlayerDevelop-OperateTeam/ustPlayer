@@ -11,17 +11,20 @@ from qfluentwidgets import (
     BodyLabel, StrongBodyLabel, HorizontalSeparator,
 )
 
-from ustplayer.core.settings_manager import SettingsManager
+from ustplayer.context import AppContext
 
 
 class LyricPage(QWidget):
     """歌词标签页 — LRC 文件路径 + 显示开关。"""
 
-    def __init__(self, settings: SettingsManager, parent: Optional[QWidget] = None):
+    def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self._s = settings
+        self._ctx = ctx
+        self._s = ctx.settings
         self._setup_ui()
         self._connect_signals()
+
+    # ===================== UI 构建 =====================
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -50,15 +53,23 @@ class LyricPage(QWidget):
 
         layout.addStretch()
 
+    # ===================== 信号绑定 =====================
+
     def _connect_signals(self):
         self.cb_show_lyric.setChecked(self._s.show_lyric)
         self.lrc_edit.setText(self._s.lrc_path)
 
         self.cb_show_lyric.checkStateChanged.connect(
-            lambda v: setattr(self._s, "show_lyric", v == Qt.Checked)
+            lambda v: setattr(self._s, "show_lyric", v == Qt.CheckState.Checked)
         )
         self.lrc_edit.textChanged.connect(lambda v: setattr(self._s, "lrc_path", v))
         self.select_btn.clicked.connect(self._on_select_lrc)
+
+        # settings → UI（信号驱动实时同步）
+        self._s.show_lyric_changed.connect(lambda v: self.cb_show_lyric.setChecked(v))
+        self._s.lrc_path_changed.connect(lambda v: self.lrc_edit.setText(v))
+
+    # ===================== 业务逻辑 =====================
 
     def _on_select_lrc(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -70,6 +81,6 @@ class LyricPage(QWidget):
             self.lrc_edit.setText(file_path)
 
     def sync_all_from_settings(self):
-        """导入 uplr 后同步 UI。"""
+        """导入 uplr 后同步 UI（信号驱动的兜底）。"""
         self.cb_show_lyric.setChecked(self._s.show_lyric)
         self.lrc_edit.setText(self._s.lrc_path)

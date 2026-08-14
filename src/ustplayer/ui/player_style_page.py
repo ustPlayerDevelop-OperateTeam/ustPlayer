@@ -11,15 +11,22 @@ from qfluentwidgets import (
     BodyLabel, StrongBodyLabel, HorizontalSeparator,
 )
 
-from ustplayer.core.settings_manager import SettingsManager
+from ustplayer.context import AppContext
 
 
 class PlayerStylePage(QWidget):
     """播放器样式标签页 — 6 个颜色选择 + 歌词位置 + 静默/结束显示。"""
 
-    def __init__(self, settings: SettingsManager, parent: Optional[QWidget] = None):
+    # 颜色字段列表（行序与 _setup_ui 保持一致）
+    _COLOR_ATTRS = [
+        "bg_color", "note_color", "lyric_color", "lyric_text_color",
+        "other_text_color", "pitch_curve_color",
+    ]
+
+    def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self._s = settings
+        self._ctx = ctx
+        self._s = ctx.settings
         self._setup_ui()
         self._connect_signals()
 
@@ -131,7 +138,7 @@ class PlayerStylePage(QWidget):
         s = self._s
 
         # 颜色：LineEdit ↔ ColorPickerButton ↔ Settings 三向同步
-        for attr in ["bg_color", "note_color", "lyric_color", "lyric_text_color", "other_text_color", "pitch_curve_color"]:
+        for attr in self._COLOR_ATTRS:
             _edit: LineEdit = getattr(self, f"edit_{attr}")
             _picker: ColorPickerButton = getattr(self, f"picker_{attr}")
 
@@ -156,14 +163,27 @@ class PlayerStylePage(QWidget):
             _edit.textChanged.connect(bind_edit())
             _picker.colorChanged.connect(bind_picker())
 
+            # settings → UI（信号驱动实时同步）
+            s_changed = getattr(s, f"{attr}_changed")
+            s_changed.connect(self._make_color_sync(attr))
+
         # 歌词位置
         self.lyric_pos_combo.currentTextChanged.connect(lambda v: setattr(s, "lyric_pos", v))
         self.lyric_pos_combo.setCurrentText(s.lyric_pos)
+        s.lyric_pos_changed.connect(lambda v: self.lyric_pos_combo.setCurrentText(v))
 
         # 下拉框 + 自定义文字联动
         self._bind_combo_with_custom("pitch_placeholder", "pitch_custom")
         self._bind_combo_with_custom("silent_display", "silent_custom")
         self._bind_combo_with_custom("end_display", "end_custom")
+
+        # settings → UI：下拉框与自定义文字
+        s.pitch_placeholder_changed.connect(self._make_combo_sync("pitch_placeholder", "pitch_custom"))
+        s.silent_display_changed.connect(self._make_combo_sync("silent_display", "silent_custom"))
+        s.end_display_changed.connect(self._make_combo_sync("end_display", "end_custom"))
+        s.pitch_custom_text_changed.connect(lambda v: getattr(self, "edit_pitch_custom").setText(v))
+        s.silent_custom_text_changed.connect(lambda v: getattr(self, "edit_silent_custom").setText(v))
+        s.end_custom_text_changed.connect(lambda v: getattr(self, "edit_end_custom").setText(v))
 
         # 自定义文字初始化
         edit_pitch = getattr(self, "edit_pitch_custom")
@@ -177,6 +197,30 @@ class PlayerStylePage(QWidget):
         edit_end = getattr(self, "edit_end_custom")
         edit_end.setText(s.end_custom_text)
         edit_end.textChanged.connect(lambda v: setattr(s, "end_custom_text", v))
+
+    def _make_color_sync(self, attr: str):
+        """构造 settings 颜色信号 → UI 同步回调。"""
+        def on_change(color: str):
+            edit: LineEdit = getattr(self, f"edit_{attr}")
+            picker: ColorPickerButton = getattr(self, f"picker_{attr}")
+            edit.blockSignals(True)
+            edit.setText(color)
+            edit.blockSignals(False)
+            picker.blockSignals(True)
+            picker.setColor(QColor(color) if color else QColor("#FFFFFF"))
+            picker.blockSignals(False)
+        return on_change
+
+    def _make_combo_sync(self, attr: str, custom_attr: str):
+        """构造 settings 下拉框信号 → UI 同步回调。"""
+        def on_change(value: str):
+            combo: ComboBox = getattr(self, f"combo_{attr}")
+            custom_edit: LineEdit = getattr(self, f"edit_{custom_attr}")
+            combo.blockSignals(True)
+            combo.setCurrentText(value)
+            combo.blockSignals(False)
+            custom_edit.setVisible(value == "自定义文字")
+        return on_change
 
     def _bind_combo_with_custom(self, attr: str, custom_attr: str):
         """下拉框选择变更时，显示/隐藏自定义输入框并同步 settings。"""
@@ -193,9 +237,9 @@ class PlayerStylePage(QWidget):
     # ===================== 同步 =====================
 
     def sync_all_from_settings(self):
-        """导入 uplr 后同步 UI。"""
+        """导入 uplr 后同步 UI（信号驱动的兜底）。"""
         s = self._s
-        for attr in ["bg_color", "note_color", "lyric_color", "lyric_text_color", "other_text_color", "pitch_curve_color"]:
+        for attr in self._COLOR_ATTRS:
             color = getattr(s, attr)
             edit: LineEdit = getattr(self, f"edit_{attr}")
             picker: ColorPickerButton = getattr(self, f"picker_{attr}")

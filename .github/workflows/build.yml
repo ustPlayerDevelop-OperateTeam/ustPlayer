@@ -35,15 +35,14 @@ jobs:
           python-version: "3.13.12"
           architecture: "x64"
           cache: "pip"
-          cache-dependency-path: "requirements.txt"
+          cache-dependency-path: "pyproject.toml"
 
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # 项目本体必须安装，否则 Nuitka 找不到 src/ 布局下的 ustplayer 包，
-          # 产出的 exe 启动即崩（ModuleNotFoundError）
-          pip install . --no-deps
+          # 依赖与项目本体统一由 pyproject.toml 声明，
+          # 同时安装 build backend（uv_build），Nuitka 可找到 src/ 布局下的 ustplayer 包
+          pip install .
 
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main
@@ -54,7 +53,6 @@ jobs:
           output-file: ustPlayer
           include-data-files: |
             ERcode.txt=ERcode.txt
-            Terms.txt=Terms.txt
             LICENSE=LICENSE
             icon.ico=icon.ico
           windows-icon-from-ico: icon.ico
@@ -70,12 +68,35 @@ jobs:
           include-hidden-files: true
 
   # ============================================================
+  # 旧版 → 新版 .uplr 转换器（C++17，windows-latest 自带 MSVC）
+  # ============================================================
+  uplr-converter:
+    if: |
+      github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'pass')
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 构建转换器
+        run: |
+          cmake -S tools/uplr_converter -B build/converter
+          cmake --build build/converter --config Release
+
+      - name: 上传转换器
+        uses: actions/upload-artifact@v4
+        with:
+          name: uplr-converter-Windows
+          path: build/converter/Release/uplr_converter.exe
+
+  # ============================================================
   # 发版：tag 推送 或 commit 消息以 v 开头时触发
   # ============================================================
   release:
     if: |
       (startsWith(github.ref, 'refs/tags/') || startsWith(github.event.head_commit.message, 'v')) && !startsWith(github.event.head_commit.message, 'pass')
-    needs: build
+    needs: [build, uplr-converter]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -89,6 +110,12 @@ jobs:
         with:
           name: ${{ needs.build.outputs.artifact_name }}
           path: build/main.dist/
+
+      - name: 下载转换器
+        uses: actions/download-artifact@v4
+        with:
+          name: uplr-converter-Windows
+          path: build/converter/
 
       - name: 解析版本号
         id: ver
@@ -131,7 +158,14 @@ jobs:
       - name: 打包产物
         run: |
           $name = "ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip"
-          $files = (Get-ChildItem -Path build/main.dist -Force).FullName
+          $files = @(Get-ChildItem -Path build/main.dist -Force).FullName
+          $converter = "build/converter/uplr_converter.exe"
+          if (Test-Path $converter) {
+              Copy-Item $converter "build/main.dist/uplr_converter.exe"
+              "转换器已并入发布包" | Write-Host
+          } else {
+              "WARNING: 未找到 uplr_converter.exe" | Write-Host
+          }
           Compress-Archive -Path $files -DestinationPath $name -Force
           "Artifact: $name" | Write-Host
 

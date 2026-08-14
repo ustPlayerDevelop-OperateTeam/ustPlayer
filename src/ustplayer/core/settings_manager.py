@@ -2,14 +2,28 @@
 """Settings.ini 配置读写 + .uplr 工程文件导入/导出。
 
 通过 Qt Signal 通知 UI 所有配置变更，替代 tkinter 的 StringVar/BooleanVar 机制。
+UI 页面经 AppContext 获取本管理器实例，不直接构造。
 """
 
-import os
-import sys
 import configparser
+import hashlib
+import json
+import os
+import zipfile
 from typing import Optional
 
 from PySide6.QtCore import QObject, Signal
+
+from ustplayer.core.contracts import (
+    PlayerLaunchParams,
+    PlayerStyle,
+    ProjectInfo,
+    ShowConfig,
+    UstInfo,
+    is_valid_hex_color,
+    resolve_program_root,
+)
+from ustplayer.core.log import logger
 
 
 class SettingsManager(QObject):
@@ -21,7 +35,7 @@ class SettingsManager(QObject):
 
     # ===================== 信号定义 =====================
     # 字符串信号
-    ustx_path_changed = Signal(str)
+    ust_path_changed = Signal(str)
     project_name_changed = Signal(str)
     song_name_changed = Signal(str)
     song_author_changed = Signal(str)
@@ -35,6 +49,7 @@ class SettingsManager(QObject):
     pitch_curve_color_changed = Signal(str)
     lyric_pos_changed = Signal(str)
     lrc_path_changed = Signal(str)
+    music_path_changed = Signal(str)
     silent_display_changed = Signal(str)
     silent_custom_text_changed = Signal(str)
     end_display_changed = Signal(str)
@@ -48,21 +63,28 @@ class SettingsManager(QObject):
     show_song_name_changed = Signal(bool)
     show_song_author_changed = Signal(bool)
     show_ust_author_changed = Signal(bool)
-    show_phoneme_changed = Signal(bool)
-    show_midinote_changed = Signal(bool)
-    show_waveform_changed = Signal(bool)
     fullscreen_changed = Signal(bool)
     show_lyric_changed = Signal(bool)
     curve_show_changed = Signal(bool)
+    show_phoneme_changed = Signal(bool)
+    show_midinote_changed = Signal(bool)
+    show_waveform_changed = Signal(bool)
     theme_mode_changed = Signal(str)
     accent_color_mode_changed = Signal(str)
     custom_accent_color_changed = Signal(str)
+
+    # ===================== 枚举/颜色合法值 =====================
+    _ENCODINGS = ("UTF-8", "GBK", "Shift-JIS")
+    _LYRIC_POSITIONS = ("上", "下")
+    _SILENT_DISPLAYS = ("R", "-", "自定义文字", "什么都不显示")
+    _END_DISPLAYS = ("END", "-", "自定义文字", "什么都不显示")
+    _PITCH_PLACEHOLDERS = ("无", "-", "自定义文字")
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
 
         # 程序根目录
-        self.program_root = os.path.dirname(os.path.abspath(sys.argv[0]))
+        self.program_root = resolve_program_root()
         self.settings_path = os.path.join(self.program_root, "Settings.ini")
 
         # 文本文件路径
@@ -74,13 +96,8 @@ class SettingsManager(QObject):
         self.last_open_dir = default_desktop
         self.last_export_dir = default_desktop
 
-        # 额外字段
-        self.OPU_site = ""
-        self.default_singer = ""
-        self.default_phenomizer = ""
-
         # ===== 字符串属性 =====
-        self._ustx_path = ""
+        self._ust_path = ""
         self._project_name = ""
         self._song_name = ""
         self._song_author = ""
@@ -94,6 +111,7 @@ class SettingsManager(QObject):
         self._pitch_curve_color = "#FFFFFF"
         self._lyric_pos = "上"
         self._lrc_path = ""
+        self._music_path = ""
         self._silent_display = "R"
         self._silent_custom_text = ""
         self._end_display = "END"
@@ -107,12 +125,12 @@ class SettingsManager(QObject):
         self._show_song_name = True
         self._show_song_author = True
         self._show_ust_author = True
-        self._show_phoneme = False
-        self._show_midinote = False
-        self._show_waveform = False
         self._fullscreen = True
         self._show_lyric = False
         self._curve_show = False
+        self._show_phoneme = False
+        self._show_midinote = False
+        self._show_waveform = False
 
         # 主题模式（用户级 UI 偏好，不参与 uplr 导入导出）
         self._theme_mode = "auto"  # auto=跟随系统, light=亮色, dark=暗色
@@ -128,14 +146,14 @@ class SettingsManager(QObject):
     # ===================== 字符串属性（getter/setter + signal） =====================
 
     @property
-    def ustx_path(self) -> str:
-        return self._ustx_path
+    def ust_path(self) -> str:
+        return self._ust_path
 
-    @ustx_path.setter
-    def ustx_path(self, v: str):
-        if self._ustx_path != v:
-            self._ustx_path = v
-            self.ustx_path_changed.emit(v)
+    @ust_path.setter
+    def ust_path(self, v: str):
+        if self._ust_path != v:
+            self._ust_path = v
+            self.ust_path_changed.emit(v)
 
     @property
     def project_name(self) -> str:
@@ -268,6 +286,16 @@ class SettingsManager(QObject):
             self.lrc_path_changed.emit(v)
 
     @property
+    def music_path(self) -> str:
+        return self._music_path
+
+    @music_path.setter
+    def music_path(self, v: str):
+        if self._music_path != v:
+            self._music_path = v
+            self.music_path_changed.emit(v)
+
+    @property
     def silent_display(self) -> str:
         return self._silent_display
 
@@ -380,36 +408,6 @@ class SettingsManager(QObject):
             self.show_ust_author_changed.emit(v)
 
     @property
-    def show_phoneme(self) -> bool:
-        return self._show_phoneme
-
-    @show_phoneme.setter
-    def show_phoneme(self, v: bool):
-        if self._show_phoneme != v:
-            self._show_phoneme = v
-            self.show_phoneme_changed.emit(v)
-
-    @property
-    def show_midinote(self) -> bool:
-        return self._show_midinote
-
-    @show_midinote.setter
-    def show_midinote(self, v: bool):
-        if self._show_midinote != v:
-            self._show_midinote = v
-            self.show_midinote_changed.emit(v)
-
-    @property
-    def show_waveform(self) -> bool:
-        return self._show_waveform
-
-    @show_waveform.setter
-    def show_waveform(self, v: bool):
-        if self._show_waveform != v:
-            self._show_waveform = v
-            self.show_waveform_changed.emit(v)
-
-    @property
     def fullscreen(self) -> bool:
         return self._fullscreen
 
@@ -438,6 +436,36 @@ class SettingsManager(QObject):
         if self._curve_show != v:
             self._curve_show = v
             self.curve_show_changed.emit(v)
+
+    @property
+    def show_phoneme(self) -> bool:
+        return self._show_phoneme
+
+    @show_phoneme.setter
+    def show_phoneme(self, v: bool):
+        if self._show_phoneme != v:
+            self._show_phoneme = v
+            self.show_phoneme_changed.emit(v)
+
+    @property
+    def show_midinote(self) -> bool:
+        return self._show_midinote
+
+    @show_midinote.setter
+    def show_midinote(self, v: bool):
+        if self._show_midinote != v:
+            self._show_midinote = v
+            self.show_midinote_changed.emit(v)
+
+    @property
+    def show_waveform(self) -> bool:
+        return self._show_waveform
+
+    @show_waveform.setter
+    def show_waveform(self, v: bool):
+        if self._show_waveform != v:
+            self._show_waveform = v
+            self.show_waveform_changed.emit(v)
 
     # ===================== 主题模式属性 =====================
 
@@ -480,7 +508,7 @@ class SettingsManager(QObject):
     # ===================== Settings.ini 读写 =====================
 
     def read_settings(self):
-        """读取配置文件，恢复上次的导入/导出路径。"""
+        """读取配置文件，恢复上次的导入/导出路径与主题偏好。"""
         default_desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         try:
             if os.path.exists(self.settings_path):
@@ -502,8 +530,9 @@ class SettingsManager(QObject):
                     self._theme_mode = mode if mode in ("auto", "light", "dark") else "auto"
                     amode = self._config["ThemeSettings"].get("accent_color_mode", "auto")
                     self._accent_color_mode = amode if amode in ("auto", "custom") else "auto"
-                    self._custom_accent_color = self._config["ThemeSettings"].get(
-                        "custom_accent_color", "#009faa"
+                    raw = self._config["ThemeSettings"].get("custom_accent_color", "#009faa")
+                    self._custom_accent_color = (
+                        raw if is_valid_hex_color(raw) else "#009faa"
                     )
             else:
                 self.last_open_dir = default_desktop
@@ -511,7 +540,7 @@ class SettingsManager(QObject):
         except Exception as e:
             self.last_open_dir = default_desktop
             self.last_export_dir = default_desktop
-            print(f"读取配置文件失败：{e}")
+            logger.exception(f"读取配置文件失败：{e}")
 
     def write_settings(self):
         """将当前路径和主题偏好写入配置文件。"""
@@ -530,67 +559,155 @@ class SettingsManager(QObject):
             with open(self.settings_path, "w", encoding="utf-8") as f:
                 self._config.write(f)
         except Exception as e:
-            print(f"写入配置文件失败：{e}")
+            logger.exception(f"写入配置文件失败：{e}")
 
     # ===================== .uplr 工程文件导入/导出 =====================
 
     def export_uplr(self, output_file: str):
-        """导出所有配置到 .uplr 工程文件。"""
-        with open(output_file, "w", encoding="utf-8") as f:
-            # 编码配置
-            f.write("#Encoding\n")
-            f.write(f"encoding={self.encoding}\n\n")
+        """导出所有配置与资源到新版 .uplr（ZIP 容器）工程文件。
 
-            # 基础设置
-            f.write("#BasicSettings\n")
-            f.write(f"project_name={self.project_name}\n")
-            f.write(f"ust_path={self.ustx_path}\n")
-            f.write(f"song_name={self.song_name}\n")
-            f.write(f"song_author={self.song_author}\n")
-            f.write(f"ust_author={self.ust_author}\n\n")
+        资源文件（ust/lrc/music）存在时一并打包，Info.json 内路径记录包内文件名；
+        缺失的资源对应 null。使用 ZIP_STORED（不压缩），flac 等已压缩格式体积不变。
+        """
+        members = {}  # 属性名 → 包内文件名
+        for attr in ("ust_path", "lrc_path", "music_path"):
+            local = getattr(self, attr).strip()
+            if local and os.path.exists(local):
+                members[attr] = os.path.basename(local)
 
-            # 显示设置
-            f.write("#DisplaySettings\n")
-            f.write(f"show_bpm={1 if self.show_bpm else 0}\n")
-            f.write(f"show_play_time={1 if self.show_play_time else 0}\n")
-            f.write(f"show_song_name={1 if self.show_song_name else 0}\n")
-            f.write(f"show_song_author={1 if self.show_song_author else 0}\n")
-            f.write(f"show_ust_author={1 if self.show_ust_author else 0}\n")
-            f.write(f"show_phoneme={1 if self.show_phoneme else 0}\n")
-            f.write(f"show_midinote={1 if self.show_midinote else 0}\n")
-            f.write(f"show_waveform={1 if self.show_waveform else 0}\n")
-            f.write(f"fullscreen={1 if self.fullscreen else 0}\n")
-            f.write(f"show_lyric={1 if self.show_lyric else 0}\n\n")
+        info = self._settings_to_info_json(members)
 
-            # 颜色设置
-            f.write("#ColorSettings\n")
-            f.write(f"bg_color={self.bg_color}\n")
-            f.write(f"note_color={self.note_color}\n")
-            f.write(f"lyric_color={self.lyric_color}\n")
-            f.write(f"lyric_text_color={self.lyric_text_color}\n")
-            f.write(f"other_text_color={self.other_text_color}\n")
-            f.write(f"pitch_curve_color={self.pitch_curve_color}\n\n")
+        with zipfile.ZipFile(output_file, "w", zipfile.ZIP_STORED) as zf:
+            zf.writestr("Info.json", json.dumps(info, ensure_ascii=False, indent=4))
+            for attr, name in members.items():
+                zf.write(getattr(self, attr).strip(), arcname=name)
 
-            # 歌词与额外配置
-            f.write("#LyricAndExtra\n")
-            f.write(f"lyric_pos={self.lyric_pos}\n")
-            f.write(f"lrc_path={self.lrc_path}\n")
-            f.write(f"silent_display={self.silent_display}\n")
-            f.write(f"silent_custom_text={self.silent_custom_text}\n")
-            f.write(f"end_display={self.end_display}\n")
-            f.write(f"end_custom_text={self.end_custom_text}\n")
-            f.write(f"curve_show={1 if self.curve_show else 0}\n")
-            f.write(f"pitch_placeholder={self.pitch_placeholder}\n")
-            f.write(f"pitch_custom_text={self.pitch_custom_text}\n")
-            f.write(f"")
+    @staticmethod
+    def _as_bool(value, default: bool = False) -> bool:
+        """宽松布尔转换：整数 0/1、bool、字符串 true/yes/on/1。"""
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        return str(value).strip().lower() in ("1", "true", "yes", "on")
 
+    def _settings_to_info_json(self, members: dict) -> dict:
+        """当前设置 → Info.json 结构（路径字段写包内文件名，缺失为 None）。"""
+        def name_or_none(attr: str):
+            return members.get(attr) or None
+
+        return {
+            "encoding": self.encoding,
+            "basic": {
+                "project_name": self.project_name or None,
+                "ust_path": name_or_none("ust_path"),
+                "music_path": name_or_none("music_path"),
+                "song_name": self.song_name or None,
+                "song_author": self.song_author or None,
+                "ust_author": self.ust_author or None,
+            },
+            "display": {
+                "show_bpm": 1 if self.show_bpm else 0,
+                "show_play_time": 1 if self.show_play_time else 0,
+                "show_song_name": 1 if self.show_song_name else 0,
+                "show_song_author": 1 if self.show_song_author else 0,
+                "show_ust_author": 1 if self.show_ust_author else 0,
+                "show_phoneme": 1 if self.show_phoneme else 0,
+                "show_midinote": 1 if self.show_midinote else 0,
+                "show_waveform": 1 if self.show_waveform else 0,
+                "fullscreen": 1 if self.fullscreen else 0,
+                "show_lyric": 1 if self.show_lyric else 0,
+                "curve_show": 1 if self.curve_show else 0,
+            },
+            "color": {
+                "bg_color": self.bg_color,
+                "note_color": self.note_color,
+                "lyric_color": self.lyric_color,
+                "lyric_text_color": self.lyric_text_color,
+                "other_text_color": self.other_text_color,
+                "pitch_curve_color": self.pitch_curve_color,
+            },
+            "else": {
+                "lyric_pos": self.lyric_pos,
+                "lrc_path": name_or_none("lrc_path"),
+                "silent_display": self.silent_display,
+                "silent_custom_text": self.silent_custom_text or None,
+                "end_display": self.end_display,
+                "end_custom_text": self.end_custom_text or None,
+                "pitch_placeholder": self.pitch_placeholder,
+                "pitch_custom_text": self.pitch_custom_text or None,
+            },
+        }
+
+    def _apply_info_json(self, info: dict, base_dir: str):
+        """Info.json → 设置。路径字段解析为缓存目录中的完整路径。"""
+        def resolve(name):
+            return os.path.join(base_dir, name) if name else ""
+
+        basic = info.get("basic", {}) or {}
+        display = info.get("display", {}) or {}
+        color = info.get("color", {}) or {}
+        else_ = info.get("else", {}) or {}
+
+        self.encoding = info.get("encoding") or "Shift-JIS"
+        self.project_name = basic.get("project_name") or ""
+        self.ust_path = resolve(basic.get("ust_path") or "")
+        self.music_path = resolve(basic.get("music_path") or "")
+        self.song_name = basic.get("song_name") or ""
+        self.song_author = basic.get("song_author") or ""
+        self.ust_author = basic.get("ust_author") or ""
+
+        self.show_bpm = self._as_bool(display.get("show_bpm"), True)
+        self.show_play_time = self._as_bool(display.get("show_play_time"), True)
+        self.show_song_name = self._as_bool(display.get("show_song_name"), True)
+        self.show_song_author = self._as_bool(display.get("show_song_author"), True)
+        self.show_ust_author = self._as_bool(display.get("show_ust_author"), True)
+        self.show_phoneme = self._as_bool(display.get("show_phoneme"), False)
+        self.show_midinote = self._as_bool(display.get("show_midinote"), False)
+        self.show_waveform = self._as_bool(display.get("show_waveform"), False)
+        self.fullscreen = self._as_bool(display.get("fullscreen"), True)
+        self.show_lyric = self._as_bool(display.get("show_lyric"), False)
+        # 样例将 curve_show 放在 else 分组，导出并入 display；导入时 display 优先、else 兜底
+        self.curve_show = self._as_bool(
+            display.get("curve_show", else_.get("curve_show")), False
+        )
+
+        self.bg_color = color.get("bg_color") or "#000000"
+        self.note_color = color.get("note_color") or "#6c6c6c"
+        self.lyric_color = color.get("lyric_color") or "#FFFFFF"
+        self.lyric_text_color = color.get("lyric_text_color") or "#FFFFFF"
+        self.other_text_color = color.get("other_text_color") or "#FFFFFF"
+        self.pitch_curve_color = color.get("pitch_curve_color") or "#FFFFFF"
+
+        self.lyric_pos = else_.get("lyric_pos") or "上"
+        self.lrc_path = resolve(else_.get("lrc_path") or "")
+        self.silent_display = else_.get("silent_display") or "R"
+        self.silent_custom_text = else_.get("silent_custom_text") or ""
+        self.end_display = else_.get("end_display") or "END"
+        self.end_custom_text = else_.get("end_custom_text") or ""
+        self.pitch_placeholder = else_.get("pitch_placeholder") or "无"
+        self.pitch_custom_text = else_.get("pitch_custom_text") or ""
 
     def import_uplr(self, input_file: str):
-        """从 .uplr 工程文件导入全部配置。"""
+        """从 .uplr 工程文件导入全部配置（自动识别 ZIP / 旧文本格式）。"""
+        with open(input_file, "rb") as f:
+            head = f.read(4)
+        if head.startswith(b"PK\x03\x04"):
+            self._import_uplr_zip(input_file)
+        else:
+            self._import_uplr_text(input_file)
+
+    # ===================== 旧版文本格式（仅导入兼容） =====================
+
+    def _import_uplr_text(self, input_file: str):
+        """解析旧版纯文本 .uplr（key=value）。"""
         # 字段映射：key → (setter, type)
         str_keys = {
             "project_name": "project_name",
-            "ust_path": "ustx_path",
+            "ust_path": "ust_path",
+            "music_path": "music_path",
             "song_name": "song_name",
             "song_author": "song_author",
             "ust_author": "ust_author",
@@ -616,13 +733,14 @@ class SettingsManager(QObject):
             "show_song_name": "show_song_name",
             "show_song_author": "show_song_author",
             "show_ust_author": "show_ust_author",
-            "show_phoneme": "show_phoneme",
-            "show_midinote": "show_midinote",
-            "show_waveform": "show_waveform",
             "fullscreen": "fullscreen",
             "show_lyric": "show_lyric",
             "curve_show": "curve_show",
+            "show_phoneme": "show_phoneme",
+            "show_midinote": "show_midinote",
+            "show_waveform": "show_waveform",
         }
+        truthy = ("1", "true", "yes", "on")
 
         with open(input_file, "r", encoding="utf-8") as f:
             for line in f:
@@ -638,56 +756,113 @@ class SettingsManager(QObject):
                 if key in str_keys:
                     setattr(self, str_keys[key], value)
                 elif key in bool_keys:
-                    setattr(self, bool_keys[key], value == "1")
+                    setattr(self, bool_keys[key], value.lower() in truthy)
 
-    # ===================== 构建播放器需要的 ust_info 字典 =====================
+        self._sanitize_imported()
 
-    def build_ust_info(self, core_ust_info: dict) -> dict:
-        """组装传递给播放器的完整参数 dict（兼容原 ustplayer.py 的接口）。"""
-        silent_disp = self.silent_display if self.silent_display != "什么都不显示" else ""
-        end_disp = self.end_display if self.end_display != "什么都不显示" else ""
+    # ===================== 新版 ZIP 格式 =====================
 
-        return {
-            "version": core_ust_info.get("version", "未知版本"),
-            "tempo": core_ust_info.get("tempo", 120.0),
-            "tracks": core_ust_info.get("tracks", 1),
-            "notes": core_ust_info.get("notes", []),
-            "show_config": {
-                "bpm": self.show_bpm,
-                "play_time": self.show_play_time,
-                "song_name": self.show_song_name,
-                "song_author": self.show_song_author,
-                "ust_author": self.show_ust_author,
-                "lyric": self.show_lyric,
-                "curve_show": self.curve_show,
-            },
-            "project_info": {
-                "project_name": self.project_name,
-                "song_name": self.song_name,
-                "song_author": self.song_author,
-                "ust_author": self.ust_author,
-            },
-            "encoding": self.encoding,
-            "player_style": {
-                "bg_color": self.bg_color,
-                "note_color": self.note_color,
-                "lyric_color": self.lyric_color,
-                "lyric_text_color": self.lyric_text_color,
-                "other_text_color": self.other_text_color,
-                "lyric_pos": self.lyric_pos,
-                "show_phoneme": self.show_phoneme,
-                "show_midinote": self.show_midinote,
-                "show_waveform": self.show_waveform,
-                "fullscreen": self.fullscreen,
-                "lrc_path": self.lrc_path,
-                "lrc_gray_level": 180,
-                "lrc_font_scale": 0.03,
-                "silent_display": silent_disp,
-                "silent_custom_text": self.silent_custom_text,
-                "end_display": end_disp,
-                "end_custom_text": self.end_custom_text,
-                "pitch_placeholder": self.pitch_placeholder,
-                "pitch_custom_text": self.pitch_custom_text,
-                "pitch_curve_color": self.pitch_curve_color,
-            },
-        }
+    def _import_uplr_zip(self, input_file: str):
+        """解析新版 ZIP .uplr：读取 Info.json 并把资源解压到缓存目录。"""
+        cache_dir = self._uplr_cache_dir(input_file)
+        with zipfile.ZipFile(input_file, "r") as zf:
+            if "Info.json" not in zf.namelist():
+                raise ValueError("ZIP 工程文件缺少 Info.json")
+            info = json.loads(zf.read("Info.json").decode("utf-8"))
+            for name in zf.namelist():
+                if name == "Info.json":
+                    continue
+                self._extract_member_safe(zf, name, cache_dir)
+        self._apply_info_json(info, cache_dir)
+        self._sanitize_imported()
+
+    @staticmethod
+    def _uplr_cache_dir(uplr_path: str) -> str:
+        """计算 uplr 解压缓存目录：%LOCALAPPDATA%\\ustPlayer\\projects\\<stem>-<hash8>。"""
+        stem = os.path.splitext(os.path.basename(uplr_path))[0]
+        digest = hashlib.sha1(os.path.abspath(uplr_path).encode("utf-8")).hexdigest()[:8]
+        base = os.path.join(
+            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+            "ustPlayer", "projects",
+        )
+        return os.path.join(base, f"{stem}-{digest}")
+
+    @staticmethod
+    def _extract_member_safe(zf: zipfile.ZipFile, name: str, dest_dir: str):
+        """解压单个成员，阻止 zip slip（绝对路径 / .. 穿越）。"""
+        normalized = name.replace("\\", "/")
+        if normalized.startswith("/") or ".." in normalized.split("/"):
+            raise ValueError(f"工程文件包含不安全路径: {name}")
+        target = os.path.join(dest_dir, normalized)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with zf.open(name) as src, open(target, "wb") as dst:
+            dst.write(src.read())
+
+    def _sanitize_imported(self):
+        """校验导入的枚举/颜色值，非法时回退默认（通过 setter 保证信号同步）。"""
+        if self.encoding not in self._ENCODINGS:
+            self.encoding = "Shift-JIS"
+        if self.lyric_pos not in self._LYRIC_POSITIONS:
+            self.lyric_pos = "上"
+        if self.silent_display not in self._SILENT_DISPLAYS:
+            self.silent_display = "R"
+        if self.end_display not in self._END_DISPLAYS:
+            self.end_display = "END"
+        if self.pitch_placeholder not in self._PITCH_PLACEHOLDERS:
+            self.pitch_placeholder = "无"
+        for attr in ("bg_color", "note_color", "lyric_color",
+                     "lyric_text_color", "other_text_color", "pitch_curve_color"):
+            value = getattr(self, attr)
+            if not is_valid_hex_color(value):
+                setattr(self, attr, {
+                    "bg_color": "#000000",
+                    "note_color": "#6c6c6c",
+                    "lyric_color": "#FFFFFF",
+                    "lyric_text_color": "#FFFFFF",
+                    "other_text_color": "#FFFFFF",
+                    "pitch_curve_color": "#FFFFFF",
+                }[attr])
+
+    # ===================== 构建播放器启动参数 =====================
+
+    def build_ust_info(self, core_ust_info: UstInfo) -> PlayerLaunchParams:
+        """将解析结果与当前设置组装为播放器启动参数（统一接口）。"""
+        return PlayerLaunchParams(
+            ust=core_ust_info,
+            show=ShowConfig(
+                bpm=self.show_bpm,
+                play_time=self.show_play_time,
+                song_name=self.show_song_name,
+                song_author=self.show_song_author,
+                ust_author=self.show_ust_author,
+                lyric=self.show_lyric,
+                curve_show=self.curve_show,
+                phoneme=self.show_phoneme,
+                midinote=self.show_midinote,
+                waveform=self.show_waveform,
+            ),
+            project=ProjectInfo(
+                project_name=self.project_name,
+                song_name=self.song_name,
+                song_author=self.song_author,
+                ust_author=self.ust_author,
+            ),
+            style=PlayerStyle(
+                bg_color=self.bg_color,
+                note_color=self.note_color,
+                lyric_color=self.lyric_color,
+                lyric_text_color=self.lyric_text_color,
+                other_text_color=self.other_text_color,
+                lyric_pos=self.lyric_pos,
+                fullscreen=self.fullscreen,
+                lrc_path=self.lrc_path,
+                music_path=self.music_path,
+                silent_display=self.silent_display,
+                silent_custom_text=self.silent_custom_text,
+                end_display=self.end_display,
+                end_custom_text=self.end_custom_text,
+                pitch_placeholder=self.pitch_placeholder,
+                pitch_custom_text=self.pitch_custom_text,
+                pitch_curve_color=self.pitch_curve_color,
+            ),
+        )

@@ -14,15 +14,16 @@ from qfluentwidgets import (
     BodyLabel, HorizontalSeparator, InfoBar, InfoBarPosition,
 )
 
-from ustplayer.core.settings_manager import SettingsManager
+from ustplayer.context import AppContext
 
 
 class FilePage(QWidget):
     """文件标签页 — UST 路径选择 + 编码 + 内容预览。"""
 
-    def __init__(self, settings: SettingsManager, parent: Optional[QWidget] = None):
+    def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self._s = settings
+        self._ctx = ctx
+        self._s = ctx.settings
         self._setup_ui()
         self._connect_signals()
 
@@ -72,10 +73,10 @@ class FilePage(QWidget):
     # ===================== 信号绑定 =====================
 
     def _connect_signals(self):
-        self.ust_edit.setText(self._s.ustx_path)
+        self.ust_edit.setText(self._s.ust_path)
         self.cb_curve.setChecked(self._s.curve_show)
 
-        self.ust_edit.textChanged.connect(lambda v: setattr(self._s, "ustx_path", v))
+        self.ust_edit.textChanged.connect(lambda v: setattr(self._s, "ust_path", v))
         self.select_btn.clicked.connect(self._on_select_ust)
         self.encoding_combo.currentTextChanged.connect(self._on_encoding_change)
         self.encoding_check_btn.clicked.connect(self._on_encoding_check)
@@ -83,12 +84,24 @@ class FilePage(QWidget):
             lambda v: setattr(self._s, "curve_show", v == Qt.CheckState.Checked)
         )
 
+        # settings → UI（信号驱动实时同步）
+        self._s.ust_path_changed.connect(self._on_ust_path_changed)
+        self._s.encoding_changed.connect(
+            lambda v: self.encoding_combo.setCurrentText(v)
+        )
+        self._s.curve_show_changed.connect(lambda v: self.cb_curve.setChecked(v))
+
     # ===================== 业务逻辑 =====================
+
+    def _on_ust_path_changed(self, path: str):
+        """设置端 UST 路径变化 → 更新输入框并自动刷新预览。"""
+        self.ust_edit.setText(path)
+        self.refresh_preview()
 
     def _on_select_ust(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "选择ust文件",
-            os.path.dirname(self._s.ustx_path) if self._s.ustx_path else "",
+            os.path.dirname(self._s.ust_path) if self._s.ust_path else "",
             "UST文件 (*.ust);;所有文件 (*.*)",
         )
         if file_path:
@@ -98,36 +111,60 @@ class FilePage(QWidget):
         self._s.encoding = encoding
 
     def _on_encoding_check(self):
-        """手动触发编码检查，使用当前编码重新读取并预览文件。"""
-        path = self._s.ustx_path.strip()
+        """手动触发编码检查：以当前编码严格模式试读，验证编码是否正确。"""
+        path = self._s.ust_path.strip()
         if not path:
             InfoBar.warning("提示", "请先选择 UST 文件", 3000,
-                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
+                            parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
         if not os.path.exists(path):
             InfoBar.error("ERcode001", "UST 文件不存在", 5000,
-                         parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
+                          parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
-        self._preview(path)
+        self._preview(path, strict=True)
 
-    def _preview(self, file_path: str):
+    def _preview(self, file_path: str, strict: bool = False):
+        """读取并预览 UST 内容。
+
+        strict=False: 以 errors="replace" 宽松显示（供常规预览）；
+        strict=True: 以 errors="strict" 严格验证编码，失败时提示切换编码。
+        """
         try:
-            with open(file_path, "r", encoding=self._s.encoding, errors="replace") as f:
+            with open(file_path, "r", encoding=self._s.encoding,
+                      errors="strict" if strict else "replace") as f:
                 content = f.read()
             self.preview_edit.setPlainText(content)
+            if strict:
+                InfoBar.success(
+                    "编码正确", f"使用 {self._s.encoding} 可以正常读取该文件", 3000,
+                    parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+                )
+        except UnicodeDecodeError:
+            self.preview_edit.setPlainText("")
+            if strict:
+                InfoBar.error(
+                    "ERcode004",
+                    f"当前编码 {self._s.encoding} 无法读取该文件，请尝试其他编码",
+                    5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+                )
+            else:
+                InfoBar.error(
+                    "ERcode002", f"读取文件失败：编码 {self._s.encoding} 不匹配", 5000,
+                    parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+                )
         except Exception as e:
             InfoBar.error("ERcode002", f"读取文件失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def refresh_preview(self):
-        """供 main.py 调用，加载 uplr 后刷新预览。"""
-        path = self._s.ustx_path.strip()
+        """刷新预览（路径变化或导入 uplr 后自动调用）。"""
+        path = self._s.ust_path.strip()
         if path and os.path.exists(path):
             self._preview(path)
 
     def sync_all_from_settings(self):
-        """导入 uplr 后同步 UI。"""
-        self.ust_edit.setText(self._s.ustx_path)
+        """导入 uplr 后同步 UI（信号驱动的兜底）。"""
+        self.ust_edit.setText(self._s.ust_path)
         self.encoding_combo.setCurrentText(self._s.encoding)
         self.cb_curve.setChecked(self._s.curve_show)
         self.refresh_preview()
