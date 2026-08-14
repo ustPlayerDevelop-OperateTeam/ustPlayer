@@ -1,14 +1,15 @@
 // uplr_converter.cpp — 旧版 .uplr（纯文本）→ 新版 .uplr（ZIP 容器）转换器
 //
-// 零第三方依赖，C++17。
+// 零第三方依赖，C++17，仅 Windows。
+//
+// 两种运行模式：
+//   1) TUI 模式（无参数启动）：鼠标可点击的交互菜单，选择输入/输出、执行转换；
+//   2) 命令行模式：uplr_converter.exe <input.uplr> <output.uplr>
+//
 // ZIP 使用 STORE（不压缩）写入，UTF-8 文件名（bit 11 置位）。
-//
-// 用法: uplr_converter.exe <input.uplr> <output.uplr>
-//   input.uplr  旧版纯文本 .uplr（UTF-8，key=value）
-//   output.uplr 新版 ZIP .uplr（内含 Info.json + 资源文件）
-//
-// 资源文件（ust/lrc/music）按旧文件中的路径解析（相对路径相对于 input 所在目录），
-// 存在才打包；Info.json 中缺失资源对应 null。旧格式没有 music_path → 恒为 null。
+
+#include <windows.h>
+#include <wchar.h>
 
 #include <cctype>
 #include <cstdint>
@@ -326,21 +327,12 @@ static bool collect_resource(const fs::path& base, const std::string& raw,
     return true;
 }
 
-// ===================== main =====================
+// ===================== 转换入口（命令行与 TUI 共用） =====================
+// 返回值：0=成功，1=读取失败，2=写入失败
 
-int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::cerr << "用法: uplr_converter.exe <input.uplr> <output.uplr>\n";
-        return 2;
-    }
-    const fs::path input = fs::u8path(argv[1]);
-    const fs::path output = fs::u8path(argv[2]);
-
+static int convert_file(const fs::path& input, const fs::path& output) {
     std::map<std::string, std::string> settings;
-    if (!parse_old_uplr(input, settings)) {
-        std::cerr << "无法读取旧版工程文件: " << input.string() << "\n";
-        return 1;
-    }
+    if (!parse_old_uplr(input, settings)) return 1;
 
     const fs::path base = input.parent_path().empty() ? fs::current_path() : input.parent_path();
 
@@ -368,12 +360,237 @@ int main(int argc, char** argv) {
     entries.insert(entries.begin(), {"Info.json",
         std::vector<uint8_t>(info_json.begin(), info_json.end())});
 
-    if (!write_zip(output, entries)) {
-        std::cerr << "无法写入新版工程文件: " << output.string() << "\n";
-        return 1;
+    if (!write_zip(output, entries)) return 2;
+    return 0;
+}
+
+// ===================== TUI（鼠标交互菜单） =====================
+
+class Tui {
+public:
+    void run() {
+        h_in_ = GetStdHandle(STD_INPUT_HANDLE);
+        h_out_ = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (h_in_ == INVALID_HANDLE_VALUE || h_out_ == INVALID_HANDLE_VALUE) {
+            std::cerr << "无法获取控制台句柄\n";
+            return;
+        }
+        DWORD old_in = 0, old_out = 0;
+        GetConsoleMode(h_in_, &old_in);
+        GetConsoleMode(h_out_, &old_out);
+
+        // 启用鼠标输入；输出启用 ANSI VT 转义
+        SetConsoleMode(h_in_, ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_PROCESSED_INPUT);
+        SetConsoleMode(h_out_, old_out | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        SetConsoleOutputCP(CP_UTF8);
+
+        running_ = true;
+        while (running_) {
+            render();
+            INPUT_RECORD rec{};
+            DWORD n = 0;
+            if (!ReadConsoleInput(h_in_, &rec, 1, &n)) break;
+            if (rec.EventType == KEY_EVENT && rec.Event.KeyEvent.bKeyDown) {
+                handle_key(rec.Event.KeyEvent);
+            } else if (rec.EventType == MOUSE_EVENT) {
+                handle_mouse(rec.Event.MouseEvent);
+            }
+        }
+
+        // 恢复控制台模式
+        SetConsoleMode(h_in_, old_in);
+        SetConsoleMode(h_out_, old_out);
+        write_out("\x1b[0m");
     }
 
-    std::cout << "转换完成: " << output.string()
-              << " (资源 " << entries.size() - 1 << " 个)\n";
+private:
+    static constexpr int kItemCount = 4;
+    static constexpr char kKeys[kItemCount] = {'1', '2', '3', '4'};
+    static constexpr const char* kLabels[kItemCount] = {
+        "选择输入 .uplr 文件",
+        "设置输出路径",
+        "开始转换",
+        "退出",
+    };
+    // 菜单项所在行（0-based，与 render 布局一致）
+    static constexpr int kMenuRow[kItemCount] = {6, 7, 8, 9};
+
+    HANDLE h_in_ = INVALID_HANDLE_VALUE;
+    HANDLE h_out_ = INVALID_HANDLE_VALUE;
+    bool running_ = false;
+    int cursor_ = 0;
+    std::string input_;
+    std::string output_;
+    std::string status_;
+
+    void write_out(const std::string& s) {
+        DWORD n = 0;
+        WriteConsoleA(h_out_, s.c_str(), static_cast<DWORD>(s.size()), &n, nullptr);
+    }
+
+    static std::string wstr_to_utf8(const std::wstring& w) {
+        if (w.empty()) return {};
+        int len = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+                                      nullptr, 0, nullptr, nullptr);
+        if (len <= 0) return {};
+        std::string s(static_cast<size_t>(len), '\0');
+        WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+                            &s[0], len, nullptr, nullptr);
+        return s;
+    }
+
+    void render() {
+        std::string out;
+        out += "\x1b[2J\x1b[H";  // 清屏 + 光标归位
+        out += "\x1b[36m ═══════════════════════════════════════════════════\r\n";
+        out += "   ustPlayer .uplr 转换器（旧版文本 → 新版 ZIP）\r\n";
+        out += " ═══════════════════════════════════════════════════\x1b[0m\r\n";
+        out += " 输入文件: " + (input_.empty() ? "\x1b[33m（未选择）\x1b[0m" : input_) + "\r\n";
+        out += " 输出文件: " + (output_.empty() ? "\x1b[33m（自动生成）\x1b[0m" : output_) + "\r\n";
+        out += " ----------------------------------------------\r\n";
+        for (int i = 0; i < kItemCount; i++) {
+            if (i == cursor_) out += "\x1b[7m";
+            out += " [" + std::string(1, kKeys[i]) + "] " + kLabels[i];
+            if (i == cursor_) out += "\x1b[0m";
+            out += "\r\n";
+        }
+        out += " ----------------------------------------------\r\n";
+        out += " 提示: 鼠标单击菜单项 / 数字键 / 方向键+回车\r\n";
+        out += status_ + "\r\n";
+        write_out(out);
+    }
+
+    void activate(int i) {
+        switch (i) {
+            case 0: pick_input(); break;
+            case 1: pick_output(); break;
+            case 2: do_convert(); break;
+            case 3: running_ = false; break;
+            default: break;
+        }
+    }
+
+    void handle_key(KEY_EVENT_RECORD& e) {
+        if (e.wVirtualKeyCode == VK_UP) {
+            cursor_ = (cursor_ + kItemCount - 1) % kItemCount;
+        } else if (e.wVirtualKeyCode == VK_DOWN) {
+            cursor_ = (cursor_ + 1) % kItemCount;
+        } else if (e.wVirtualKeyCode == VK_RETURN) {
+            activate(cursor_);
+        } else {
+            const char c = static_cast<char>(e.uChar.AsciiChar);
+            for (int i = 0; i < kItemCount; i++) {
+                if (c == kKeys[i]) { activate(i); return; }
+            }
+        }
+    }
+
+    void handle_mouse(MOUSE_EVENT_RECORD& e) {
+        if (!(e.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED)) return;
+        const short y = e.dwMousePosition.Y;
+        for (int i = 0; i < kItemCount; i++) {
+            if (y == kMenuRow[i]) { activate(i); return; }
+        }
+    }
+
+    // 读取一行宽字符输入 → UTF-8；空输入表示取消
+    std::string read_path(const std::string& prompt) {
+        write_out("\r\n" + prompt + "\r\n> ");
+        DWORD old_in = 0;
+        GetConsoleMode(h_in_, &old_in);
+        // 切到行输入（回显），读取期间不响应鼠标
+        SetConsoleMode(h_in_, ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT);
+        wchar_t buf[4096] = {};
+        DWORD n = 0;
+        BOOL ok = ReadConsoleW(h_in_, buf, 4095, &n, nullptr);
+        SetConsoleMode(h_in_, ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_PROCESSED_INPUT);
+        if (!ok) return {};
+        size_t len = n;
+        while (len > 0 && (buf[len - 1] == L'\r' || buf[len - 1] == L'\n')) len--;
+        std::wstring w(buf, len);
+        size_t b = w.find_first_not_of(L" \t");
+        size_t e = w.find_last_not_of(L" \t");
+        if (b == std::wstring::npos) return {};
+        w = w.substr(b, e - b + 1);
+        return wstr_to_utf8(w);
+    }
+
+    void pick_input() {
+        input_.clear();
+        const std::string p = read_path("请输入旧版 .uplr 文件路径（回车取消）:");
+        if (p.empty()) {
+            status_ = "\x1b[33m已取消选择\x1b[0m";
+            return;
+        }
+        if (!fs::exists(fs::u8path(p))) {
+            status_ = "\x1b[31m文件不存在: " + p + "\x1b[0m";
+            return;
+        }
+        input_ = p;
+        // 自动生成默认输出路径：同目录 <原名>_new.uplr
+        fs::path ip = fs::u8path(p);
+        output_ = (ip.parent_path() / (ip.stem().string() + "_new.uplr")).string();
+        status_ = "\x1b[32m已选择输入文件\x1b[0m";
+    }
+
+    void pick_output() {
+        if (input_.empty()) {
+            status_ = "\x1b[33m请先选择输入文件\x1b[0m";
+            return;
+        }
+        const std::string p = read_path("请输入输出 .uplr 路径（回车保留默认）:");
+        if (!p.empty()) {
+            output_ = p;
+            status_ = "\x1b[32m已设置输出路径\x1b[0m";
+        } else {
+            status_ = "\x1b[33m保留默认输出路径\x1b[0m";
+        }
+    }
+
+    void do_convert() {
+        if (input_.empty()) {
+            status_ = "\x1b[31m请先选择输入文件\x1b[0m";
+            return;
+        }
+        if (output_.empty()) {
+            fs::path ip = fs::u8path(input_);
+            output_ = (ip.parent_path() / (ip.stem().string() + "_new.uplr")).string();
+        }
+        write_out("\x1b[2J\x1b[H\x1b[36m 正在转换...\x1b[0m\r\n");
+        const int rc = convert_file(fs::u8path(input_), fs::u8path(output_));
+        if (rc == 0) {
+            status_ = "\x1b[32m转换完成: " + output_ + "\x1b[0m";
+        } else if (rc == 1) {
+            status_ = "\x1b[31m读取旧版工程失败: " + input_ + "\x1b[0m";
+        } else {
+            status_ = "\x1b[31m写入新版工程失败: " + output_ + "\x1b[0m";
+        }
+    }
+};
+
+// ===================== main =====================
+
+int main(int argc, char** argv) {
+    // 统一 UTF-8 输出代码页（Windows 10+ 控制台可正确显示中文）
+    SetConsoleOutputCP(CP_UTF8);
+
+    if (argc >= 3) {
+        // 命令行模式：uplr_converter.exe <input.uplr> <output.uplr>
+        const fs::path input = fs::u8path(argv[1]);
+        const fs::path output = fs::u8path(argv[2]);
+        const int rc = convert_file(input, output);
+        if (rc == 0) {
+            std::cout << "转换完成: " << output.string() << "\n";
+        } else if (rc == 1) {
+            std::cerr << "无法读取旧版工程文件: " << input.string() << "\n";
+        } else {
+            std::cerr << "无法写入新版工程文件: " << output.string() << "\n";
+        }
+        return rc;
+    }
+
+    // TUI 模式（默认）：鼠标可点击的交互菜单
+    Tui tui;
+    tui.run();
     return 0;
 }
