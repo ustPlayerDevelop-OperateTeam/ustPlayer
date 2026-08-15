@@ -5,7 +5,6 @@
 * 重构：所有模块解耦，统一通过 `AppContext` 服务门面与数据契约（`core/contracts.py`）互相调用，页面不再直接依赖核心实现；
 * 新增新版 .uplr 工程格式：ZIP 容器（`Info.json` + 工程/歌词/伴奏资源打包），旧版文本 .uplr 仍可导入；
 * 新增「伴奏音乐」选项：播放器可播放伴奏并与画面同步，无音频或解码失败时自动降级为纯可视化；
-* 复活「音素 / MIDI号 / 波形」三个显示开关并真正接线（播放器渲染 + uplr 导入导出）；
 * 新增 C++ 转换器 `tools/uplr_converter`（旧版 .uplr → 新版，零第三方依赖），随 Release 发布；
 * 修复：「编码检查」现在会真实检测当前编码能否读取文件，失败时提示切换编码；
 * 修复：ERcode008/009 已登记进 ERcode.txt；
@@ -13,6 +12,21 @@
 * 修复：日志文件位置调整，优先写入程序根目录，不可写时回退用户数据目录；
 * 清理：移除冗余文件 Terms.txt；
 * 入口迁移至 `ustplayer.app`，`main.py` 仅作启动薄壳。
+* 修复：「歌词色」选项现在真正作用于播放器 LRC 歌词渲染（此前配置了但未生效）；
+* 移除「显示波形 / 显示音素 / 显示MIDI号」选项：波形依赖的 QtMultimedia QAudioProbe 在 Qt6.8/PySide6 6.11 中已移除，三个开关的渲染与配置代码一并清理；
+* 重构：`SettingsManager` 拆分为设置域（`settings_manager.py`，信号驱动属性 + ini 映射）、ini 文件存取（`settings_store.py`）与工程文件导入导出（`uplr_io.py`）；`AppContext` 新增 `project_io` 统一接口（`contracts.ProjectIO`），UI 页面统一经接口导入导出工程；
+* 重构：设置域进一步按 ini 段拆分为 `core/settings/` 六个子域类（project / file / display / color / player / theme，各自持有属性 + 信号 + 段读写 + 校验），`SettingsManager` 仅做组装与编排；UI 访问改为 `ctx.settings.<子域>.<属性>`；
+* 修复：导出 .uplr 时未手打扩展名会自动补全 `.uplr`；
+* 修复：播放时间超过 1 小时时不再显示错乱的分钟数（HH:MM:SS:CC）；
+* 修复：伴奏音频播完时优先取媒体总时长作为时间锚点，避免时间轴回跳；
+* 修复：新版 .uplr 重复导入前会清空旧缓存目录，不再混入过期资源；
+* 修复：旧版文本 .uplr 支持 GBK/Shift-JIS 等多编码读取，且对跨机器失效的资源路径记录日志提示；
+* 修复：导出 .uplr 时不同目录下的同名资源自动重命名，避免 ZIP 内条目互相覆盖；
+* 修复：Settings.ini 写入在程序目录只读时回退到用户数据目录；读取时校验修正的默认值会写回文件；
+* 重构：设置持久化由 `Settings.ini` 迁移至 **`Settings.json`**（结构为「分组 → 键值」字典，键与旧 ini 段保持一致）；旧版 `Settings.ini` 首次启动自动迁移，迁移成功后删除旧文件；
+* 修复：编码预览非严格模式的死代码清理；
+* 修复：Pylance/pyright Standard 模式类型检查问题——接口契约返回类型、音符对象类型标注、PySide6 枚举改用限定名（如 `QFont.Weight.Bold`）、`Optional[Callable]` 等；
+* 其他：选择 LRC 文件时起始目录与文件页保持一致。
 
 ---
 

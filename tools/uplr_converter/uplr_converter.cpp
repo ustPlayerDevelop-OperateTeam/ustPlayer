@@ -314,54 +314,81 @@ static bool read_file(const fs::path& path, std::vector<uint8_t>& out) {
     return in.good() || in.eof();
 }
 
-// 解析资源路径：相对路径以 base 目录为准，并返回包内文件名（basename）
+// 解析资源路径：相对路径以 base 目录为准，并返回包内文件名（UTF-8）
 static bool collect_resource(const fs::path& base, const std::string& raw,
                              std::string& out_name, std::vector<uint8_t>& out_data) {
     if (raw.empty()) return false;
-    fs::path p(raw);
+    fs::path p;
+    try {
+        // 配置值恒为 UTF-8：必须用 u8path 构造，fs::path(窄串) 会按系统 ANSI 代码页误读中文
+        p = fs::u8path(raw);
+    } catch (...) {
+        return false;
+    }
     if (p.is_relative()) p = base / p;
     std::error_code ec;
     if (!fs::exists(p, ec)) return false;
     if (!read_file(p, out_data)) return false;
-    out_name = p.filename().string();
+    out_name = p.filename().u8string();  // UTF-8 文件名写入 zip
     return true;
+}
+
+// 宽字符 → UTF-8（Windows 控制台输入/命令行参数均为宽字符）
+static std::string wstr_to_utf8(const std::wstring& w) {
+    if (w.empty()) return {};
+    int len = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+                                  nullptr, 0, nullptr, nullptr);
+    if (len <= 0) return {};
+    std::string s(static_cast<size_t>(len), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+                        &s[0], len, nullptr, nullptr);
+    return s;
 }
 
 // ===================== 转换入口（命令行与 TUI 共用） =====================
 // 返回值：0=成功，1=读取失败，2=写入失败
 
 static int convert_file(const fs::path& input, const fs::path& output) {
-    std::map<std::string, std::string> settings;
-    if (!parse_old_uplr(input, settings)) return 1;
+    try {
+        std::map<std::string, std::string> settings;
+        if (!parse_old_uplr(input, settings)) return 1;
 
-    const fs::path base = input.parent_path().empty() ? fs::current_path() : input.parent_path();
+        const fs::path base = input.parent_path().empty() ? fs::current_path() : input.parent_path();
 
-    // ---- 收集资源 ----
-    std::vector<ZipEntry> entries;
-    std::string ust_name, music_name, lrc_name;
+        // ---- 收集资源 ----
+        std::vector<ZipEntry> entries;
+        std::string ust_name, music_name, lrc_name;
 
-    std::string name;
-    std::vector<uint8_t> data;
-    if (collect_resource(base, settings["ust_path"], name, data)) {
-        ust_name = name;
-        entries.push_back({name, std::move(data)});
+        std::string name;
+        std::vector<uint8_t> data;
+        if (collect_resource(base, settings["ust_path"], name, data)) {
+            ust_name = name;
+            entries.push_back({name, std::move(data)});
+        }
+        if (collect_resource(base, settings["music_path"], name, data)) {
+            music_name = name;
+            entries.push_back({name, std::move(data)});
+        }
+        if (collect_resource(base, settings["lrc_path"], name, data)) {
+            lrc_name = name;
+            entries.push_back({name, std::move(data)});
+        }
+
+        // ---- Info.json ----
+        const std::string info_json = build_info_json(settings, ust_name, music_name, lrc_name);
+        entries.insert(entries.begin(), {"Info.json",
+            std::vector<uint8_t>(info_json.begin(), info_json.end())});
+
+        if (!write_zip(output, entries)) return 2;
+        return 0;
+    } catch (const std::exception& e) {
+        // 路径含无效字节等异常统一吞掉，绝不崩溃
+        std::cerr << "转换异常: " << e.what() << "\n";
+        return 1;
+    } catch (...) {
+        std::cerr << "转换异常: 未知错误\n";
+        return 1;
     }
-    if (collect_resource(base, settings["music_path"], name, data)) {
-        music_name = name;
-        entries.push_back({name, std::move(data)});
-    }
-    if (collect_resource(base, settings["lrc_path"], name, data)) {
-        lrc_name = name;
-        entries.push_back({name, std::move(data)});
-    }
-
-    // ---- Info.json ----
-    const std::string info_json = build_info_json(settings, ust_name, music_name, lrc_name);
-    entries.insert(entries.begin(), {"Info.json",
-        std::vector<uint8_t>(info_json.begin(), info_json.end())});
-
-    if (!write_zip(output, entries)) return 2;
-    return 0;
 }
 
 // ===================== TUI（鼠标交互菜单） =====================
@@ -426,17 +453,6 @@ private:
     void write_out(const std::string& s) {
         DWORD n = 0;
         WriteConsoleA(h_out_, s.c_str(), static_cast<DWORD>(s.size()), &n, nullptr);
-    }
-
-    static std::string wstr_to_utf8(const std::wstring& w) {
-        if (w.empty()) return {};
-        int len = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
-                                      nullptr, 0, nullptr, nullptr);
-        if (len <= 0) return {};
-        std::string s(static_cast<size_t>(len), '\0');
-        WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
-                            &s[0], len, nullptr, nullptr);
-        return s;
     }
 
     void render() {
@@ -522,14 +538,21 @@ private:
             status_ = "\x1b[33m已取消选择\x1b[0m";
             return;
         }
-        if (!fs::exists(fs::u8path(p))) {
+        std::error_code ec;
+        fs::path ip;
+        try {
+            ip = fs::u8path(p);
+        } catch (...) {
+            status_ = "\x1b[31m路径无效: " + p + "\x1b[0m";
+            return;
+        }
+        if (!fs::exists(ip, ec) || ec) {
             status_ = "\x1b[31m文件不存在: " + p + "\x1b[0m";
             return;
         }
         input_ = p;
-        // 自动生成默认输出路径：同目录 <原名>_new.uplr
-        fs::path ip = fs::u8path(p);
-        output_ = (ip.parent_path() / (ip.stem().string() + "_new.uplr")).string();
+        // 自动生成默认输出路径：同目录 <原名>_new.uplr（UTF-8）
+        output_ = (ip.parent_path() / (ip.stem().u8string() + "_new.uplr")).u8string();
         status_ = "\x1b[32m已选择输入文件\x1b[0m";
     }
 
@@ -554,7 +577,7 @@ private:
         }
         if (output_.empty()) {
             fs::path ip = fs::u8path(input_);
-            output_ = (ip.parent_path() / (ip.stem().string() + "_new.uplr")).string();
+            output_ = (ip.parent_path() / (ip.stem().u8string() + "_new.uplr")).u8string();
         }
         write_out("\x1b[2J\x1b[H\x1b[36m 正在转换...\x1b[0m\r\n");
         const int rc = convert_file(fs::u8path(input_), fs::u8path(output_));
@@ -568,6 +591,42 @@ private:
     }
 };
 
+// ===================== 命令行参数编码 =====================
+
+static bool utf8_valid(const std::string& s) {
+    size_t i = 0, n = s.size();
+    while (i < n) {
+        const unsigned char c = static_cast<unsigned char>(s[i]);
+        if (c < 0x80) { i++; continue; }
+        int len;
+        if ((c & 0xE0) == 0xC0) len = 2;
+        else if ((c & 0xF0) == 0xE0) len = 3;
+        else if ((c & 0xF8) == 0xF0) len = 4;
+        else return false;
+        if (i + len > n) return false;
+        for (int k = 1; k < len; k++) {
+            if ((static_cast<unsigned char>(s[i + k]) & 0xC0) != 0x80) return false;
+        }
+        i += len;
+    }
+    return true;
+}
+
+static std::string ansi_to_utf8(const char* s) {
+    int n = MultiByteToWideChar(CP_ACP, 0, s, -1, nullptr, 0);
+    if (n <= 1) return s ? std::string(s) : std::string();
+    std::wstring w(static_cast<size_t>(n - 1), L'\0');
+    MultiByteToWideChar(CP_ACP, 0, s, -1, &w[0], n);
+    return wstr_to_utf8(w);
+}
+
+// 命令行参数：控制台代码页为 UTF-8 时 argv 即 UTF-8，否则按系统 ANSI（GBK）解码
+static std::string argv_to_utf8(const char* s) {
+    if (!s || !*s) return {};
+    const std::string u(s);
+    return utf8_valid(u) ? u : ansi_to_utf8(s);
+}
+
 // ===================== main =====================
 
 int main(int argc, char** argv) {
@@ -576,15 +635,15 @@ int main(int argc, char** argv) {
 
     if (argc >= 3) {
         // 命令行模式：uplr_converter.exe <input.uplr> <output.uplr>
-        const fs::path input = fs::u8path(argv[1]);
-        const fs::path output = fs::u8path(argv[2]);
+        const fs::path input = fs::u8path(argv_to_utf8(argv[1]));
+        const fs::path output = fs::u8path(argv_to_utf8(argv[2]));
         const int rc = convert_file(input, output);
         if (rc == 0) {
-            std::cout << "转换完成: " << output.string() << "\n";
+            std::cout << "转换完成: " << output.u8string() << "\n";
         } else if (rc == 1) {
-            std::cerr << "无法读取旧版工程文件: " << input.string() << "\n";
+            std::cerr << "无法读取旧版工程文件: " << input.u8string() << "\n";
         } else {
-            std::cerr << "无法写入新版工程文件: " << output.string() << "\n";
+            std::cerr << "无法写入新版工程文件: " << output.u8string() << "\n";
         }
         return rc;
     }

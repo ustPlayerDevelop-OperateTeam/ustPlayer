@@ -57,7 +57,7 @@ class FilePage(QWidget):
         enc_row.addWidget(BodyLabel("编码方式:"))
         self.encoding_combo = ComboBox()
         self.encoding_combo.addItems(["UTF-8", "GBK", "Shift-JIS"])
-        self.encoding_combo.setCurrentText(self._s.encoding)
+        self.encoding_combo.setCurrentText(self._s.file.encoding)
         enc_row.addWidget(self.encoding_combo)
         enc_row.addStretch()
         self.encoding_check_btn = PushButton("编码检查")
@@ -73,23 +73,23 @@ class FilePage(QWidget):
     # ===================== 信号绑定 =====================
 
     def _connect_signals(self):
-        self.ust_edit.setText(self._s.ust_path)
-        self.cb_curve.setChecked(self._s.curve_show)
+        self.ust_edit.setText(self._s.file.ust_path)
+        self.cb_curve.setChecked(self._s.file.curve_show)
 
-        self.ust_edit.textChanged.connect(lambda v: setattr(self._s, "ust_path", v))
+        self.ust_edit.textChanged.connect(lambda v: setattr(self._s.file, "ust_path", v))
         self.select_btn.clicked.connect(self._on_select_ust)
         self.encoding_combo.currentTextChanged.connect(self._on_encoding_change)
         self.encoding_check_btn.clicked.connect(self._on_encoding_check)
         self.cb_curve.checkStateChanged.connect(
-            lambda v: setattr(self._s, "curve_show", v == Qt.CheckState.Checked)
+            lambda v: setattr(self._s.file, "curve_show", v == Qt.CheckState.Checked)
         )
 
         # settings → UI（信号驱动实时同步）
-        self._s.ust_path_changed.connect(self._on_ust_path_changed)
-        self._s.encoding_changed.connect(
+        self._s.file.ust_path_changed.connect(self._on_ust_path_changed)
+        self._s.file.encoding_changed.connect(
             lambda v: self.encoding_combo.setCurrentText(v)
         )
-        self._s.curve_show_changed.connect(lambda v: self.cb_curve.setChecked(v))
+        self._s.file.curve_show_changed.connect(lambda v: self.cb_curve.setChecked(v))
 
     # ===================== 业务逻辑 =====================
 
@@ -101,18 +101,18 @@ class FilePage(QWidget):
     def _on_select_ust(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "选择ust文件",
-            os.path.dirname(self._s.ust_path) if self._s.ust_path else "",
+            os.path.dirname(self._s.file.ust_path) if self._s.file.ust_path else "",
             "UST文件 (*.ust);;所有文件 (*.*)",
         )
         if file_path:
             self.ust_edit.setText(file_path)
 
     def _on_encoding_change(self, encoding: str):
-        self._s.encoding = encoding
+        self._s.file.encoding = encoding
 
     def _on_encoding_check(self):
         """手动触发编码检查：以当前编码严格模式试读，验证编码是否正确。"""
-        path = self._s.ust_path.strip()
+        path = self._s.file.ust_path.strip()
         if not path:
             InfoBar.warning("提示", "请先选择 UST 文件", 3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
@@ -126,31 +126,28 @@ class FilePage(QWidget):
     def _preview(self, file_path: str, strict: bool = False):
         """读取并预览 UST 内容。
 
-        strict=False: 以 errors="replace" 宽松显示（供常规预览）；
+        strict=False: 以 errors="replace" 宽松显示（供常规预览，坏字节显示为替换符）；
         strict=True: 以 errors="strict" 严格验证编码，失败时提示切换编码。
         """
+        encoding = self._s.file.encoding
         try:
-            with open(file_path, "r", encoding=self._s.encoding,
+            with open(file_path, "r", encoding=encoding,
                       errors="strict" if strict else "replace") as f:
                 content = f.read()
             self.preview_edit.setPlainText(content)
             if strict:
                 InfoBar.success(
-                    "编码正确", f"使用 {self._s.encoding} 可以正常读取该文件", 3000,
+                    "编码正确", f"使用 {encoding} 可以正常读取该文件", 3000,
                     parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except UnicodeDecodeError:
+            # 仅严格模式会抛出：宽松模式用 replace 替换坏字节，不中断预览
             self.preview_edit.setPlainText("")
             if strict:
                 InfoBar.error(
                     "ERcode004",
-                    f"当前编码 {self._s.encoding} 无法读取该文件，请尝试其他编码",
+                    f"当前编码 {encoding} 无法读取该文件，请尝试其他编码",
                     5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
-                )
-            else:
-                InfoBar.error(
-                    "ERcode002", f"读取文件失败：编码 {self._s.encoding} 不匹配", 5000,
-                    parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except Exception as e:
             InfoBar.error("ERcode002", f"读取文件失败：{e}", 5000,
@@ -158,13 +155,13 @@ class FilePage(QWidget):
 
     def refresh_preview(self):
         """刷新预览（路径变化或导入 uplr 后自动调用）。"""
-        path = self._s.ust_path.strip()
+        path = self._s.file.ust_path.strip()
         if path and os.path.exists(path):
             self._preview(path)
 
     def sync_all_from_settings(self):
         """导入 uplr 后同步 UI（信号驱动的兜底）。"""
-        self.ust_edit.setText(self._s.ust_path)
-        self.encoding_combo.setCurrentText(self._s.encoding)
-        self.cb_curve.setChecked(self._s.curve_show)
+        self.ust_edit.setText(self._s.file.ust_path)
+        self.encoding_combo.setCurrentText(self._s.file.encoding)
+        self.cb_curve.setChecked(self._s.file.curve_show)
         self.refresh_preview()

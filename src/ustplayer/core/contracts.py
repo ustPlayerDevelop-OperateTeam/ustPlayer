@@ -10,7 +10,10 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import List, Protocol, Tuple
+from typing import TYPE_CHECKING, List, Protocol, Tuple
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QWidget
 
 # ===================== 应用元信息 =====================
 
@@ -56,6 +59,17 @@ def resolve_program_root() -> str:
     return os.path.dirname(os.path.abspath(sys.argv[0]))
 
 
+def as_bool(value, default: bool = False) -> bool:
+    """宽松布尔转换：整数 0/1、bool、字符串 true/yes/on/1。"""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 # ===================== UST 数据契约 =====================
 
 @dataclass
@@ -93,9 +107,6 @@ class ShowConfig:
     ust_author: bool = True
     lyric: bool = True
     curve_show: bool = False
-    phoneme: bool = False         # 显示音素
-    midinote: bool = False        # 显示 MIDI 音符号
-    waveform: bool = False        # 显示音频波形
 
 
 @dataclass
@@ -162,6 +173,18 @@ class UstParser(Protocol):
 class PlayerLauncher(Protocol):
     """播放器启动器接口。"""
 
-    def launch(self, params: PlayerLaunchParams):
+    def launch(self, params: PlayerLaunchParams) -> "QWidget":
         """启动播放器窗口，返回窗口引用（调用方需保持引用防止 GC）。"""
+        ...
+
+
+class ProjectIO(Protocol):
+    """.uplr 工程文件导入/导出接口。"""
+
+    def import_uplr(self, input_file: str) -> None:
+        """从 .uplr 工程文件导入全部配置。"""
+        ...
+
+    def export_uplr(self, output_file: str) -> None:
+        """将全部配置与资源导出为 .uplr 工程文件。"""
         ...

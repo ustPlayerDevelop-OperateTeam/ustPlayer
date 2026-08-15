@@ -1,7 +1,7 @@
 # log.py — 日志配置
 """基于 loguru 的全局日志。
 
-日志文件优先写入程序根目录（与 Settings.ini 一致）；
+日志文件优先写入程序根目录（与 Settings.json 一致）；
 若根目录不可写（如安装于只读目录），回退到 %LOCALAPPDATA%\\ustPlayer。
 
 用法:

@@ -2,7 +2,7 @@
 """项目信息、显示选项和播放控制。"""
 
 import os
-from typing import Optional
+from typing import Callable, Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
@@ -20,15 +20,27 @@ from ustplayer.context import AppContext
 class BasicPage(QWidget):
     """基础页 — 项目信息 + 显示选项 + Play。"""
 
+    # 控件由 _setup_ui 动态创建，此处声明类型以便静态检查识别
+    edit_project_name: LineEdit
+    edit_song_name: LineEdit
+    edit_song_author: LineEdit
+    edit_ust_author: LineEdit
+    edit_music_path: LineEdit
+    sw_show_bpm: SwitchButton
+    sw_show_play_time: SwitchButton
+    sw_show_song_name: SwitchButton
+    sw_show_song_author: SwitchButton
+    sw_show_ust_author: SwitchButton
+
     def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._ctx = ctx
         self._s = ctx.settings
-        self._play_callback: Optional[callable] = None
+        self._play_callback: Optional[Callable[[], None]] = None
         self._setup_ui()
         self._connect_signals()
 
-    def set_play_callback(self, callback: callable):
+    def set_play_callback(self, callback: Callable[[], None]):
         self._play_callback = callback
 
     # ===================== UI 构建 =====================
@@ -78,9 +90,6 @@ class BasicPage(QWidget):
             ("显示曲目信息", "show_song_name"),
             ("显示MIDI作者", "show_song_author"),
             ("显示调音师",   "show_ust_author"),
-            ("显示音素",     "show_phoneme"),
-            ("显示MIDI号",   "show_midinote"),
-            ("显示波形",     "show_waveform"),
         ]
         cols = 2
         for i in range(0, len(switches), cols):
@@ -131,49 +140,40 @@ class BasicPage(QWidget):
         s = self._s
 
         # 初始值 → UI
-        self.edit_project_name.setText(s.project_name)
-        self.edit_song_name.setText(s.song_name)
-        self.edit_song_author.setText(s.song_author)
-        self.edit_ust_author.setText(s.ust_author)
-        self.edit_music_path.setText(s.music_path)
-        self.sw_show_bpm.setChecked(s.show_bpm)
-        self.sw_show_play_time.setChecked(s.show_play_time)
-        self.sw_show_song_name.setChecked(s.show_song_name)
-        self.sw_show_song_author.setChecked(s.show_song_author)
-        self.sw_show_ust_author.setChecked(s.show_ust_author)
-        self.sw_show_phoneme.setChecked(s.show_phoneme)
-        self.sw_show_midinote.setChecked(s.show_midinote)
-        self.sw_show_waveform.setChecked(s.show_waveform)
+        self.edit_project_name.setText(s.project.project_name)
+        self.edit_song_name.setText(s.project.song_name)
+        self.edit_song_author.setText(s.project.song_author)
+        self.edit_ust_author.setText(s.project.ust_author)
+        self.edit_music_path.setText(s.project.music_path)
+        self.sw_show_bpm.setChecked(s.display.show_bpm)
+        self.sw_show_play_time.setChecked(s.display.show_play_time)
+        self.sw_show_song_name.setChecked(s.display.show_song_name)
+        self.sw_show_song_author.setChecked(s.display.show_song_author)
+        self.sw_show_ust_author.setChecked(s.display.show_ust_author)
 
         # UI → settings
-        self.edit_project_name.textChanged.connect(lambda v: setattr(s, "project_name", v))
-        self.edit_song_name.textChanged.connect(lambda v: setattr(s, "song_name", v))
-        self.edit_song_author.textChanged.connect(lambda v: setattr(s, "song_author", v))
-        self.edit_ust_author.textChanged.connect(lambda v: setattr(s, "ust_author", v))
-        self.edit_music_path.textChanged.connect(lambda v: setattr(s, "music_path", v))
-        self.sw_show_bpm.checkedChanged.connect(lambda v: setattr(s, "show_bpm", v))
-        self.sw_show_play_time.checkedChanged.connect(lambda v: setattr(s, "show_play_time", v))
-        self.sw_show_song_name.checkedChanged.connect(lambda v: setattr(s, "show_song_name", v))
-        self.sw_show_song_author.checkedChanged.connect(lambda v: setattr(s, "show_song_author", v))
-        self.sw_show_ust_author.checkedChanged.connect(lambda v: setattr(s, "show_ust_author", v))
-        for attr in ("show_phoneme", "show_midinote", "show_waveform"):
-            sw = getattr(self, f"sw_{attr}")
-            sw.checkedChanged.connect(lambda v, a=attr: setattr(s, a, v))
+        self.edit_project_name.textChanged.connect(lambda v: setattr(s.project, "project_name", v))
+        self.edit_song_name.textChanged.connect(lambda v: setattr(s.project, "song_name", v))
+        self.edit_song_author.textChanged.connect(lambda v: setattr(s.project, "song_author", v))
+        self.edit_ust_author.textChanged.connect(lambda v: setattr(s.project, "ust_author", v))
+        self.edit_music_path.textChanged.connect(lambda v: setattr(s.project, "music_path", v))
+        self.sw_show_bpm.checkedChanged.connect(lambda v: setattr(s.display, "show_bpm", v))
+        self.sw_show_play_time.checkedChanged.connect(lambda v: setattr(s.display, "show_play_time", v))
+        self.sw_show_song_name.checkedChanged.connect(lambda v: setattr(s.display, "show_song_name", v))
+        self.sw_show_song_author.checkedChanged.connect(lambda v: setattr(s.display, "show_song_author", v))
+        self.sw_show_ust_author.checkedChanged.connect(lambda v: setattr(s.display, "show_ust_author", v))
 
         # settings → UI（信号驱动实时同步，导入 uplr 时自动生效）
-        s.project_name_changed.connect(lambda v: self.edit_project_name.setText(v))
-        s.song_name_changed.connect(lambda v: self.edit_song_name.setText(v))
-        s.song_author_changed.connect(lambda v: self.edit_song_author.setText(v))
-        s.ust_author_changed.connect(lambda v: self.edit_ust_author.setText(v))
-        s.music_path_changed.connect(lambda v: self.edit_music_path.setText(v))
-        s.show_bpm_changed.connect(lambda v: self.sw_show_bpm.setChecked(v))
-        s.show_play_time_changed.connect(lambda v: self.sw_show_play_time.setChecked(v))
-        s.show_song_name_changed.connect(lambda v: self.sw_show_song_name.setChecked(v))
-        s.show_song_author_changed.connect(lambda v: self.sw_show_song_author.setChecked(v))
-        s.show_ust_author_changed.connect(lambda v: self.sw_show_ust_author.setChecked(v))
-        for attr in ("show_phoneme", "show_midinote", "show_waveform"):
-            sig = getattr(s, f"{attr}_changed")
-            sig.connect(lambda v, a=attr: getattr(self, f"sw_{a}").setChecked(v))
+        s.project.project_name_changed.connect(lambda v: self.edit_project_name.setText(v))
+        s.project.song_name_changed.connect(lambda v: self.edit_song_name.setText(v))
+        s.project.song_author_changed.connect(lambda v: self.edit_song_author.setText(v))
+        s.project.ust_author_changed.connect(lambda v: self.edit_ust_author.setText(v))
+        s.project.music_path_changed.connect(lambda v: self.edit_music_path.setText(v))
+        s.display.show_bpm_changed.connect(lambda v: self.sw_show_bpm.setChecked(v))
+        s.display.show_play_time_changed.connect(lambda v: self.sw_show_play_time.setChecked(v))
+        s.display.show_song_name_changed.connect(lambda v: self.sw_show_song_name.setChecked(v))
+        s.display.show_song_author_changed.connect(lambda v: self.sw_show_song_author.setChecked(v))
+        s.display.show_ust_author_changed.connect(lambda v: self.sw_show_ust_author.setChecked(v))
 
         # 按钮
         self.import_btn.clicked.connect(self._on_import)
@@ -191,32 +191,35 @@ class BasicPage(QWidget):
         if not file_path:
             return
         try:
-            self._s.import_uplr(file_path)
+            self._ctx.project_io.import_uplr(file_path)
             self._s.last_open_dir = os.path.dirname(file_path)
             self._s.write_settings()
             # 各页面已通过 settings 信号实时同步，无需手动刷新
             InfoBar.success("成功", f"已加载工程：{file_path}", 3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
         except Exception as e:
-            InfoBar.error("ERcode007", f"加载文件失败：{e}", 5000,
+            InfoBar.error("ERcode006", f"加载工程文件失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _on_export(self):
         file_path, _ = QFileDialog.getSaveFileName(
             self, "导出你的工程文件",
-            os.path.join(self._s.last_export_dir, self._s.project_name or "未命名"),
+            os.path.join(self._s.last_export_dir, self._s.project.project_name or "未命名"),
             "ustPlayer工程文件 (*.uplr);;所有文件 (*.*)",
         )
         if not file_path:
             return
+        # 对话框不会自动补扩展名，手动补上，保证文件可被再次导入
+        if not file_path.lower().endswith(".uplr"):
+            file_path += ".uplr"
         try:
-            self._s.export_uplr(file_path)
+            self._ctx.project_io.export_uplr(file_path)
             self._s.last_export_dir = os.path.dirname(file_path)
             self._s.write_settings()
             InfoBar.success("成功", f"工程已导出到：{file_path}", 3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
         except Exception as e:
-            InfoBar.error("ERcode006", f"导出失败：{e}", 5000,
+            InfoBar.error("ERcode010", f"导出失败：{e}", 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _on_play(self):
@@ -226,7 +229,7 @@ class BasicPage(QWidget):
     def _on_select_music(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "选择伴奏音乐",
-            os.path.dirname(self._s.music_path) if self._s.music_path else "",
+            os.path.dirname(self._s.project.music_path) if self._s.project.music_path else "",
             "音频文件 (*.flac *.mp3 *.wav *.ogg *.m4a);;所有文件 (*.*)",
         )
         if file_path:
@@ -234,19 +237,16 @@ class BasicPage(QWidget):
 
     def _sync_ui_from_settings(self):
         s = self._s
-        self.edit_project_name.setText(s.project_name)
-        self.edit_song_name.setText(s.song_name)
-        self.edit_song_author.setText(s.song_author)
-        self.edit_ust_author.setText(s.ust_author)
-        self.edit_music_path.setText(s.music_path)
-        self.sw_show_bpm.setChecked(s.show_bpm)
-        self.sw_show_play_time.setChecked(s.show_play_time)
-        self.sw_show_song_name.setChecked(s.show_song_name)
-        self.sw_show_song_author.setChecked(s.show_song_author)
-        self.sw_show_ust_author.setChecked(s.show_ust_author)
-        self.sw_show_phoneme.setChecked(s.show_phoneme)
-        self.sw_show_midinote.setChecked(s.show_midinote)
-        self.sw_show_waveform.setChecked(s.show_waveform)
+        self.edit_project_name.setText(s.project.project_name)
+        self.edit_song_name.setText(s.project.song_name)
+        self.edit_song_author.setText(s.project.song_author)
+        self.edit_ust_author.setText(s.project.ust_author)
+        self.edit_music_path.setText(s.project.music_path)
+        self.sw_show_bpm.setChecked(s.display.show_bpm)
+        self.sw_show_play_time.setChecked(s.display.show_play_time)
+        self.sw_show_song_name.setChecked(s.display.show_song_name)
+        self.sw_show_song_author.setChecked(s.display.show_song_author)
+        self.sw_show_ust_author.setChecked(s.display.show_ust_author)
 
     def sync_all_from_settings(self):
         self._sync_ui_from_settings()

@@ -17,7 +17,7 @@ from ustplayer.context import AppContext
 class PlayerStylePage(QWidget):
     """播放器样式标签页 — 6 个颜色选择 + 歌词位置 + 静默/结束显示。"""
 
-    # 颜色字段列表（行序与 _setup_ui 保持一致）
+    # 颜色字段列表（行序与 _setup_ui 保持一致；值存于 settings.color 子域）
     _COLOR_ATTRS = [
         "bg_color", "note_color", "lyric_color", "lyric_text_color",
         "other_text_color", "pitch_curve_color",
@@ -40,12 +40,12 @@ class PlayerStylePage(QWidget):
         layout.addWidget(StrongBodyLabel("/ 播放器样式"))
 
         # ---- 6 个颜色选择行（ColorPickerButton + LineEdit） ----
-        self._add_color_row(layout, "背景色:", "bg_color", self._s.bg_color)
-        self._add_color_row(layout, "音名色:", "note_color", self._s.note_color)
-        self._add_color_row(layout, "歌字色:", "lyric_color", self._s.lyric_color)
-        self._add_color_row(layout, "歌词色:", "lyric_text_color", self._s.lyric_text_color)
-        self._add_color_row(layout, "音高线颜色:", "pitch_curve_color", self._s.pitch_curve_color)
-        self._add_color_row(layout, "其他文字色:", "other_text_color", self._s.other_text_color)
+        self._add_color_row(layout, "背景色:", "bg_color", self._s.color.bg_color)
+        self._add_color_row(layout, "音名色:", "note_color", self._s.color.note_color)
+        self._add_color_row(layout, "歌字色:", "lyric_color", self._s.color.lyric_color)
+        self._add_color_row(layout, "歌词色:", "lyric_text_color", self._s.color.lyric_text_color)
+        self._add_color_row(layout, "音高线颜色:", "pitch_curve_color", self._s.color.pitch_curve_color)
+        self._add_color_row(layout, "其他文字色:", "other_text_color", self._s.color.other_text_color)
 
         # 歌词位置
         row_lyric = QHBoxLayout()
@@ -65,17 +65,17 @@ class PlayerStylePage(QWidget):
         self._add_combo_with_custom(
             layout, "音高间占位符:", "pitch_placeholder",
             ["无", "-", "自定义文字"],
-            self._s.pitch_placeholder, "pitch_custom",
+            self._s.player.pitch_placeholder, "pitch_custom",
         )
         self._add_combo_with_custom(
             layout, "静默时显示:", "silent_display",
             ["R", "-", "自定义文字", "什么都不显示"],
-            self._s.silent_display, "silent_custom",
+            self._s.player.silent_display, "silent_custom",
         )
         self._add_combo_with_custom(
             layout, "结束时显示:", "end_display",
             ["END", "-", "自定义文字", "什么都不显示"],
-            self._s.end_display, "end_custom",
+            self._s.player.end_display, "end_custom",
         )
 
         layout.addStretch()
@@ -137,7 +137,7 @@ class PlayerStylePage(QWidget):
     def _connect_signals(self):
         s = self._s
 
-        # 颜色：LineEdit ↔ ColorPickerButton ↔ Settings 三向同步
+        # 颜色：LineEdit ↔ ColorPickerButton ↔ Settings 三向同步（值在 s.color 子域）
         for attr in self._COLOR_ATTRS:
             _edit: LineEdit = getattr(self, f"edit_{attr}")
             _picker: ColorPickerButton = getattr(self, f"picker_{attr}")
@@ -145,7 +145,7 @@ class PlayerStylePage(QWidget):
             # 用默认参数捕获当前循环值，避免闭包延迟绑定
             def bind_edit(a=attr, p=_picker):
                 def on_text(v: str):
-                    setattr(self._s, a, v)
+                    setattr(s.color, a, v)
                     p.blockSignals(True)
                     p.setColor(QColor(v) if v else QColor("#FFFFFF"))
                     p.blockSignals(False)
@@ -154,7 +154,7 @@ class PlayerStylePage(QWidget):
             def bind_picker(a=attr, ed=_edit):
                 def on_color(c: QColor):
                     h = c.name()
-                    setattr(self._s, a, h)
+                    setattr(s.color, a, h)
                     ed.blockSignals(True)
                     ed.setText(h)
                     ed.blockSignals(False)
@@ -164,13 +164,13 @@ class PlayerStylePage(QWidget):
             _picker.colorChanged.connect(bind_picker())
 
             # settings → UI（信号驱动实时同步）
-            s_changed = getattr(s, f"{attr}_changed")
+            s_changed = getattr(s.color, f"{attr}_changed")
             s_changed.connect(self._make_color_sync(attr))
 
-        # 歌词位置
-        self.lyric_pos_combo.currentTextChanged.connect(lambda v: setattr(s, "lyric_pos", v))
-        self.lyric_pos_combo.setCurrentText(s.lyric_pos)
-        s.lyric_pos_changed.connect(lambda v: self.lyric_pos_combo.setCurrentText(v))
+        # 歌词位置（值在 s.player 子域）
+        self.lyric_pos_combo.currentTextChanged.connect(lambda v: setattr(s.player, "lyric_pos", v))
+        self.lyric_pos_combo.setCurrentText(s.player.lyric_pos)
+        s.player.lyric_pos_changed.connect(lambda v: self.lyric_pos_combo.setCurrentText(v))
 
         # 下拉框 + 自定义文字联动
         self._bind_combo_with_custom("pitch_placeholder", "pitch_custom")
@@ -178,25 +178,25 @@ class PlayerStylePage(QWidget):
         self._bind_combo_with_custom("end_display", "end_custom")
 
         # settings → UI：下拉框与自定义文字
-        s.pitch_placeholder_changed.connect(self._make_combo_sync("pitch_placeholder", "pitch_custom"))
-        s.silent_display_changed.connect(self._make_combo_sync("silent_display", "silent_custom"))
-        s.end_display_changed.connect(self._make_combo_sync("end_display", "end_custom"))
-        s.pitch_custom_text_changed.connect(lambda v: getattr(self, "edit_pitch_custom").setText(v))
-        s.silent_custom_text_changed.connect(lambda v: getattr(self, "edit_silent_custom").setText(v))
-        s.end_custom_text_changed.connect(lambda v: getattr(self, "edit_end_custom").setText(v))
+        s.player.pitch_placeholder_changed.connect(self._make_combo_sync("pitch_placeholder", "pitch_custom"))
+        s.player.silent_display_changed.connect(self._make_combo_sync("silent_display", "silent_custom"))
+        s.player.end_display_changed.connect(self._make_combo_sync("end_display", "end_custom"))
+        s.player.pitch_custom_text_changed.connect(lambda v: getattr(self, "edit_pitch_custom").setText(v))
+        s.player.silent_custom_text_changed.connect(lambda v: getattr(self, "edit_silent_custom").setText(v))
+        s.player.end_custom_text_changed.connect(lambda v: getattr(self, "edit_end_custom").setText(v))
 
         # 自定义文字初始化
         edit_pitch = getattr(self, "edit_pitch_custom")
-        edit_pitch.setText(s.pitch_custom_text)
-        edit_pitch.textChanged.connect(lambda v: setattr(s, "pitch_custom_text", v))
+        edit_pitch.setText(s.player.pitch_custom_text)
+        edit_pitch.textChanged.connect(lambda v: setattr(s.player, "pitch_custom_text", v))
 
         edit_silent = getattr(self, "edit_silent_custom")
-        edit_silent.setText(s.silent_custom_text)
-        edit_silent.textChanged.connect(lambda v: setattr(s, "silent_custom_text", v))
+        edit_silent.setText(s.player.silent_custom_text)
+        edit_silent.textChanged.connect(lambda v: setattr(s.player, "silent_custom_text", v))
 
         edit_end = getattr(self, "edit_end_custom")
-        edit_end.setText(s.end_custom_text)
-        edit_end.textChanged.connect(lambda v: setattr(s, "end_custom_text", v))
+        edit_end.setText(s.player.end_custom_text)
+        edit_end.textChanged.connect(lambda v: setattr(s.player, "end_custom_text", v))
 
     def _make_color_sync(self, attr: str):
         """构造 settings 颜色信号 → UI 同步回调。"""
@@ -228,7 +228,7 @@ class PlayerStylePage(QWidget):
         custom_edit: LineEdit = getattr(self, f"edit_{custom_attr}")
 
         def on_change(value: str):
-            setattr(self._s, attr, value)
+            setattr(self._s.player, attr, value)
             custom_edit.setVisible(value == "自定义文字")
 
         combo.currentTextChanged.connect(on_change)
@@ -240,7 +240,7 @@ class PlayerStylePage(QWidget):
         """导入 uplr 后同步 UI（信号驱动的兜底）。"""
         s = self._s
         for attr in self._COLOR_ATTRS:
-            color = getattr(s, attr)
+            color = getattr(s.color, attr)
             edit: LineEdit = getattr(self, f"edit_{attr}")
             picker: ColorPickerButton = getattr(self, f"picker_{attr}")
             edit.blockSignals(True)
@@ -250,10 +250,10 @@ class PlayerStylePage(QWidget):
             picker.setColor(QColor(color))
             picker.blockSignals(False)
 
-        self.lyric_pos_combo.setCurrentText(s.lyric_pos)
-        getattr(self, "combo_pitch_placeholder").setCurrentText(s.pitch_placeholder)
-        getattr(self, "edit_pitch_custom").setText(s.pitch_custom_text)
-        getattr(self, "combo_silent_display").setCurrentText(s.silent_display)
-        getattr(self, "edit_silent_custom").setText(s.silent_custom_text)
-        getattr(self, "combo_end_display").setCurrentText(s.end_display)
-        getattr(self, "edit_end_custom").setText(s.end_custom_text)
+        self.lyric_pos_combo.setCurrentText(s.player.lyric_pos)
+        getattr(self, "combo_pitch_placeholder").setCurrentText(s.player.pitch_placeholder)
+        getattr(self, "edit_pitch_custom").setText(s.player.pitch_custom_text)
+        getattr(self, "combo_silent_display").setCurrentText(s.player.silent_display)
+        getattr(self, "edit_silent_custom").setText(s.player.silent_custom_text)
+        getattr(self, "combo_end_display").setCurrentText(s.player.end_display)
+        getattr(self, "edit_end_custom").setText(s.player.end_custom_text)

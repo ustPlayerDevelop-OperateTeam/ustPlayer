@@ -8,8 +8,7 @@
 import os
 import re
 import time
-from datetime import timedelta
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QUrl
@@ -17,24 +16,25 @@ from PySide6.QtGui import (
     QPainter, QColor, QFont, QFontMetrics, QPen, QPolygonF,
 )
 
+if TYPE_CHECKING:
+    # 类型检查用别名（运行时不存在），避免降级导入的 None 污染注解类型
+    from PySide6.QtMultimedia import (
+        QAudioOutput as QAudioOutputType,
+        QMediaPlayer as QMediaPlayerType,
+    )
+
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
     _HAS_AUDIO = True
 except Exception:  # QtMultimedia 缺失时降级为纯可视化
-    QAudioOutput = None
-    QMediaPlayer = None
+    QAudioOutput = None  # type: ignore[assignment]
+    QMediaPlayer = None  # type: ignore[assignment]
     _HAS_AUDIO = False
-
-try:
-    from PySide6.QtMultimedia import QAudioProbe
-    _HAS_PROBE = True
-except Exception:
-    QAudioProbe = None
-    _HAS_PROBE = False
 
 from ustplayer.core.contracts import (
     APP_COPYRIGHT,
     APP_NAME,
+    NoteInfo,
     PlayerLaunchParams,
     hex_to_rgb,
     validate_hex_color,
@@ -45,16 +45,24 @@ from ustplayer.core.log import logger
 # ===================== 工具函数 =====================
 
 def format_play_time(seconds: float) -> str:
-    """秒数 → MM:SS:CC 格式。"""
+    """秒数 → 时间文本（HH:MM:SS:CC，超过一小时才带小时位）。"""
     try:
         ms = int((seconds - int(seconds)) * 100)
-        td = timedelta(seconds=int(seconds))
-        return f"{td.seconds // 60:02d}:{td.seconds % 60:02d}:{ms:02d}"
+        total = int(seconds)
+        h, rem = divmod(total, 3600)
+        m, s = divmod(rem, 60)
+        if h > 0:
+            return f"{h:02d}:{m:02d}:{s:02d}:{ms:02d}"
+        return f"{m:02d}:{s:02d}:{ms:02d}"
     except Exception:
         return "00:00:00"
 
 
 # ===================== 播放器窗口 =====================
+
+# UST 时间单位：每拍（四分音符）的 tick 数，用于换算时间轴
+TICKS_PER_BEAT = 480
+
 
 class NoteLyricDisplay(QWidget):
     """全屏播放器 — QPainter 渲染所有内容。"""
@@ -67,7 +75,7 @@ class NoteLyricDisplay(QWidget):
 
         # ---- 窗口配置 ----
         self.setWindowTitle(APP_NAME)
-        self._fullscreen = params.style.fullscreen
+        self.fullscreen = params.style.fullscreen
         # 窗口标志由启动器在 show 前统一设置
 
         # ---- 背景色 ----
@@ -86,7 +94,7 @@ class NoteLyricDisplay(QWidget):
 
         # ---- 时间轴 ----
         self.start_real_time = 0.0  # 在 showEvent 中与音乐同步设置
-        self.tick_per_second = (self.tempo * 480) / 60
+        self.tick_per_second = (self.tempo * TICKS_PER_BEAT) / 60
         self.total_tick = sum(max(n.length, 1) for n in self.notes)
         self.note_tick_ranges = self._calc_note_tick_ranges()
         logger.debug(
@@ -103,9 +111,6 @@ class NoteLyricDisplay(QWidget):
         self.show_ust_author = sc.ust_author
         self.show_lyric = sc.lyric
         self.curve_show = sc.curve_show
-        self.show_phoneme = sc.phoneme
-        self.show_midinote = sc.midinote
-        self.show_waveform = sc.waveform
 
         # ---- 项目信息 ----
         pi = params.project
@@ -135,6 +140,10 @@ class NoteLyricDisplay(QWidget):
         self.small_font_color_hex = validate_hex_color(
             ps.other_text_color, "#FFFFFF"
         )
+        # LRC 歌词文字色（旧版本渲染漏接线，现正式生效）
+        self.lyric_text_color_rgb = hex_to_rgb(
+            validate_hex_color(ps.lyric_text_color, "#FFFFFF")
+        )
         self.pitch_curve_color_hex = validate_hex_color(
             ps.pitch_curve_color, "#FFFFFF"
         )
@@ -163,9 +172,10 @@ class NoteLyricDisplay(QWidget):
         # ---- 当前渲染状态 ----
         self._current_lyric = ""
         self._current_note_name = ""
-        self._current_note: Optional[object] = None
+        self._current_note: Optional[NoteInfo] = None
         self._play_elapsed = 0.0
         self._last_pb_log_note_idx = -1
+        self._tick_error_count = 0  # _tick 异常日志限频计数器
         self._note_idx_hint = 0  # 加速音符查找
 
         # ---- 定时器（16ms ≈ 60fps，画面流畅 + 低 CPU） ----
@@ -177,20 +187,14 @@ class NoteLyricDisplay(QWidget):
         self._close_timer.setSingleShot(True)
         self._close_timer.timeout.connect(self.close)
 
-        # ---- 伴奏音频与波形 ----
-        self._audio_player = None
-        self._audio_output = None
+        # ---- 伴奏音频 ----
+        self._audio_player: Optional[QMediaPlayerType] = None
+        self._audio_output: Optional[QAudioOutputType] = None
         self._audio_ok = False
         self._media_finished = False
         self._media_duration_s = 0.0
         self._media_finish_real = 0.0
-        self._probe = None
-        self._waveform_peaks: List[float] = []
         self._init_audio()
-
-        # ---- 音素 / MIDI 号显示状态 ----
-        self._current_phoneme = ""
-        self._current_midinote = ""
 
         logger.debug("播放器 __init__ 完成")
 
@@ -200,11 +204,12 @@ class NoteLyricDisplay(QWidget):
         lyric_fs = max(int(self.h * 0.03), 10)
         ust_lyric_fs = max(int(self.h * 2 / 3 * 0.2), 80)
 
-        self.note_font = QFont("等线", note_fs, QFont.Bold)
+        self.note_font = QFont("等线", note_fs, QFont.Weight.Bold)
         self.lyric_font = QFont("等线", lyric_fs)
-        self.ust_lyric_font = QFont("等线", ust_lyric_fs, QFont.Bold)
+        self.ust_lyric_font = QFont("等线", ust_lyric_fs, QFont.Weight.Bold)
         self.small_font = QFont("等线", 14)
         self.copyright_font = QFont("等线", 12)
+        self.title_font = QFont("等线", 14, QFont.Weight.Bold)  # 左上角曲名标题（每帧复用）
 
         # 缓存 QFontMetrics，避免每帧重复创建
         self._fm_note = QFontMetrics(self.note_font)
@@ -234,11 +239,11 @@ class NoteLyricDisplay(QWidget):
             self.w, self.h = new_w, new_h
             self._init_fonts()
 
-    # ===================== 伴奏音频与波形 =====================
+    # ===================== 伴奏音频 =====================
 
     def _init_audio(self):
         """初始化伴奏音频（QMediaPlayer）；缺失/失败时降级为纯可视化计时。"""
-        if not _HAS_AUDIO:
+        if not _HAS_AUDIO or QAudioOutput is None or QMediaPlayer is None:
             return
         path = (self.music_path or "").strip()
         if not path or not os.path.exists(path):
@@ -261,31 +266,25 @@ class NoteLyricDisplay(QWidget):
             self._audio_ok = False
 
         if self._audio_ok:
-            # 波形探测（Qt6 中 QAudioProbe 已标记 deprecated，仍可用）
-            if self.show_waveform and _HAS_PROBE:
-                try:
-                    self._probe = QAudioProbe(self)
-                    self._probe.audioBufferProbed.connect(self._on_audio_buffer)
-                    self._probe.setSource(self._audio_player)
-                except Exception as e:
-                    logger.warning(f"波形探测初始化失败: {e}")
-                    self._probe = None
             # 看门狗：3 秒内未进入播放状态则降级（如离屏/无声卡环境）
             QTimer.singleShot(3000, self._check_audio_ready)
 
     def _on_media_status(self, status):
         """媒体状态变化：就绪后开播；播放结束记录锚点。"""
         try:
-            if status == QMediaPlayer.MediaStatus.LoadedMedia:
+            if status == QMediaPlayerType.MediaStatus.LoadedMedia:
                 if self._audio_player is not None and self._audio_ok:
                     self._audio_player.play()
                     logger.info("伴奏开始播放")
-            elif status == QMediaPlayer.MediaStatus.EndOfMedia:
+            elif status == QMediaPlayerType.MediaStatus.EndOfMedia:
                 self._media_finished = True
-                self._media_duration_s = (
-                    self._audio_player.position() / 1000.0
-                    if self._audio_player is not None else 0.0
-                )
+                # 优先取媒体总时长；position() 在播完后可能归零，避免时间轴回跳
+                if self._audio_player is not None:
+                    duration_ms = self._audio_player.duration()
+                    pos_ms = self._audio_player.position()
+                    self._media_duration_s = (
+                        (duration_ms if duration_ms > 0 else pos_ms) / 1000.0
+                    )
                 self._media_finish_real = time.time()
                 logger.info("伴奏播放结束")
         except Exception:
@@ -295,9 +294,6 @@ class NoteLyricDisplay(QWidget):
         """音频错误 → 降级为纯可视化计时。"""
         logger.warning(f"音频错误({error}): {error_string}，降级为纯可视化")
         self._audio_ok = False
-        if self._probe is not None:
-            self._probe.setSource(None)
-            self._probe = None
 
     def _check_audio_ready(self):
         """看门狗：媒体就绪后未进入播放状态则降级（离屏/无声卡环境）。"""
@@ -305,48 +301,20 @@ class NoteLyricDisplay(QWidget):
             return
         try:
             state = self._audio_player.playbackState()
-            if state != QMediaPlayer.PlaybackState.PlayingState:
+            if state != QMediaPlayerType.PlaybackState.PlayingState:
                 logger.warning("音频 3 秒内未进入播放状态，降级为纯可视化")
                 self._audio_ok = False
-                if self._probe is not None:
-                    self._probe.setSource(None)
-                    self._probe = None
-        except Exception:
-            pass
-
-    def _on_audio_buffer(self, buffer):
-        """音频缓冲回调：提取峰值用于波形显示（异常时静默降级）。"""
-        try:
-            fmt = buffer.format()
-            channel_count = max(fmt.channelCount(), 1)
-            data = buffer.constData()
-            if data is None:
-                return
-            raw = bytes(data)
-            step = 2 * channel_count
-            bucket = 256
-            for start in range(0, len(raw) - step, step * bucket):
-                peak = 0
-                end = min(start + step * bucket, len(raw) - step)
-                for i in range(start, end, step):
-                    s = int.from_bytes(raw[i:i + 2], "little", signed=True)
-                    if abs(s) > peak:
-                        peak = abs(s)
-                if peak:
-                    self._waveform_peaks.append(min(peak / 32768.0, 1.0))
-            if len(self._waveform_peaks) > 600:
-                del self._waveform_peaks[:len(self._waveform_peaks) - 600]
         except Exception:
             pass
 
     # ===================== 预计算音符 Tick 区间 =====================
 
-    def _calc_note_tick_ranges(self):
-        ranges = []
+    def _calc_note_tick_ranges(self) -> List[Tuple[int, int, NoteInfo]]:
+        ranges: List[Tuple[int, int, NoteInfo]] = []
         current_tick = 0
         for note in self.notes:
             length = max(note.length, 1)
-            ranges.append([current_tick, current_tick + length, note])
+            ranges.append((current_tick, current_tick + length, note))
             current_tick += length
         return ranges
 
@@ -401,8 +369,6 @@ class NoteLyricDisplay(QWidget):
             if current_tick >= self.total_tick:
                 self._current_lyric = self._get_end_text()
                 self._current_note_name = ""
-                self._current_phoneme = ""
-                self._current_midinote = ""
                 self._current_note = None
                 self.update()
                 self._timer.stop()
@@ -446,9 +412,12 @@ class NoteLyricDisplay(QWidget):
             self.update()  # 触发 paintEvent
 
         except Exception:
-            logger.exception("_tick 异常")
+            # 60fps 定时器上逐帧刷日志会刷屏：限频到每 60 帧（约 1 秒）一次
+            self._tick_error_count += 1
+            if self._tick_error_count % 60 == 1:
+                logger.exception("_tick 异常")
 
-    def _process_note(self, note):
+    def _process_note(self, note: NoteInfo):
         """根据音符数据更新当前显示的歌字和音名。"""
         raw_lyric = note.lyric
         note_num = note.note_num
@@ -464,21 +433,25 @@ class NoteLyricDisplay(QWidget):
             self.last_valid_lyric = raw_lyric
             self._current_note_name = self._get_pitch_text(note_num)
 
-        # 音素 / MIDI 号（受显示开关控制）
-        self._current_phoneme = (note.phoneme or raw_lyric) if self.show_phoneme else ""
-        self._current_midinote = str(note_num) if self.show_midinote else ""
-
     def _update_lrc(self):
         if not self.lrc_lines:
             return
         try:
-            new_idx = -1
-            for i, (ts, _) in enumerate(self.lrc_lines):
-                if ts <= self._play_elapsed:
-                    new_idx = i
-                else:
-                    break
-            self.current_lrc_idx = new_idx
+            lines = self.lrc_lines
+            n = len(lines)
+            # 播放时间单调递增：从上次索引继续向后扫，避免每帧从头扫
+            idx = self.current_lrc_idx
+            while idx + 1 < n and lines[idx + 1][0] <= self._play_elapsed:
+                idx += 1
+            # 时间回退（如音频 seek）时退回到正确位置
+            if idx < 0 or lines[idx][0] > self._play_elapsed:
+                idx = -1
+                for i, (ts, _) in enumerate(lines):
+                    if ts <= self._play_elapsed:
+                        idx = i
+                    else:
+                        break
+            self.current_lrc_idx = idx
         except Exception:
             pass
 
@@ -486,7 +459,7 @@ class NoteLyricDisplay(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         ww, wh = self.width(), self.height()
         painter.fillRect(0, 0, ww, wh, self._bg_color)
         cx, cy = ww // 2, wh // 2
@@ -504,7 +477,7 @@ class NoteLyricDisplay(QWidget):
             painter.drawText(
                 QRectF(cx - tw / 2 - pad, cy - th / 2 - pad,
                        tw + pad * 2, th + pad * 2),
-                Qt.AlignCenter, self._current_note_name,
+                Qt.AlignmentFlag.AlignCenter, self._current_note_name,
             )
 
         # ---- 音高线 ----
@@ -558,53 +531,14 @@ class NoteLyricDisplay(QWidget):
             painter.drawText(
                 QRectF(cx - tw / 2 - pad, cy - th / 2 - pad,
                        tw + pad * 2, th + pad * 2),
-                Qt.AlignCenter, self._current_lyric,
+                Qt.AlignmentFlag.AlignCenter, self._current_lyric,
             )
-
-        # ---- 音素（歌字下方，可选） ----
-        if self.show_phoneme and self._current_phoneme:
-            painter.setPen(QColor(self.small_font_color_hex))
-            painter.setFont(self.small_font)
-            ph = self._current_phoneme
-            pw = self._fm_small.horizontalAdvance(ph)
-            ph_y = cy + self._fm_ust_lyric.height() // 2 + 34
-            painter.drawText(cx - pw // 2, ph_y, ph)
-
-        # ---- MIDI 音符号（音名下方，可选） ----
-        if self.show_midinote and self._current_midinote:
-            midi_c = QColor(*self.note_color)
-            painter.setPen(midi_c)
-            painter.setFont(self.small_font)
-            mt = self._current_midinote
-            mw = self._fm_small.horizontalAdvance(mt)
-            mt_y = cy + self._fm_note.height() // 2 + 44
-            painter.drawText(cx - mw // 2, mt_y, mt)
-
-        # ---- 音频波形（底部，可选） ----
-        if self.show_waveform and len(self._waveform_peaks) >= 2:
-            peaks = self._waveform_peaks
-            n = len(peaks)
-            wf_h = wh * 0.12
-            base_y = wh - wf_h - 40
-            pen = QPen(QColor(self.small_font_color_hex))
-            pen.setWidth(2)
-            painter.setPen(pen)
-            span = ww - 40
-            prev_pt = None
-            for i, peak in enumerate(peaks):
-                x = 20 + (i / (n - 1)) * span
-                h = peak * wf_h
-                y = base_y + wf_h - h
-                if prev_pt is not None:
-                    painter.drawLine(prev_pt[0], prev_pt[1], x, y)
-                prev_pt = (x, y)
 
         # ---- 左上角静态信息 ----
         painter.setPen(QColor(self.small_font_color_hex))
         y_off = 20
         if self.show_song_name and self.song_name:
-            bf = QFont("等线", 14, QFont.Bold)
-            painter.setFont(bf)
+            painter.setFont(self.title_font)
             painter.drawText(20, y_off + 14, self.song_name)
             painter.setFont(self.small_font)
             y_off += 27
@@ -626,12 +560,12 @@ class NoteLyricDisplay(QWidget):
             painter.setFont(self.small_font)
             painter.drawText(20, wh - 20, format_play_time(self._play_elapsed))
 
-        # LRC 歌词
+        # LRC 歌词（颜色由「歌词色」控制，旧版本漏接线已修复）
         if self.show_lyric and self.lrc_lines and 0 <= self.current_lrc_idx < len(self.lrc_lines):
             lrc_text = self.lrc_lines[self.current_lrc_idx][1]
             if lrc_text:
                 lrc_y = int(wh * 0.3) if self.lyric_pos == "上" else int(wh * 0.7)
-                painter.setPen(QColor(self.small_font_color_hex))
+                painter.setPen(QColor(*self.lyric_text_color_rgb))
                 painter.setFont(self.lyric_font)
                 lrc_w = self._fm_lyric.horizontalAdvance(lrc_text)
                 painter.drawText(ww // 2 - lrc_w // 2, lrc_y, lrc_text)
@@ -699,7 +633,7 @@ class NoteLyricDisplay(QWidget):
     # ===================== 键盘/关闭事件 =====================
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
+        if event.key() == Qt.Key.Key_Escape:
             self.close()
 
     def closeEvent(self, event):
@@ -707,9 +641,6 @@ class NoteLyricDisplay(QWidget):
         self._close_timer.stop()
         if self._audio_player is not None:
             self._audio_player.stop()
-        if self._probe is not None:
-            self._probe.setSource(None)
-            self._probe = None
         super().closeEvent(event)
 
 
@@ -728,12 +659,12 @@ class NotePlayerLauncher:
         window = NoteLyricDisplay(params)
 
         # ---- 在 show 之前统一设置所有窗口标志 ----
-        flags = window.windowFlags() | Qt.WindowStaysOnTopHint
-        if window._fullscreen:
-            flags |= Qt.FramelessWindowHint
+        flags = window.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
+        if window.fullscreen:
+            flags |= Qt.WindowType.FramelessWindowHint
         window.setWindowFlags(flags)
 
-        if window._fullscreen:
+        if window.fullscreen:
             window.showFullScreen()
             logger.info("播放器全屏显示")
         else:

@@ -4,6 +4,7 @@
 import os
 import sys
 import winreg
+from typing import Any, cast
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QColor
@@ -57,18 +58,19 @@ class MainWindow(FluentWindow):
         self._apply_theme()
 
         app = QApplication.instance()
-        if app:
+        # instance() 存根返回 QCoreApplication，实际必为 QApplication，isinstance 收窄类型
+        if isinstance(app, QApplication):
             app.styleHints().colorSchemeChanged.connect(
                 self._on_system_theme_changed
             )
 
-        self._settings.theme_mode_changed.connect(
+        self._settings.theme.theme_mode_changed.connect(
             self._on_theme_mode_changed
         )
 
     def _apply_theme(self):
         """根据 theme_mode 设置 qfluentwidgets 主题（亮/暗/自动）。"""
-        mode = self._settings.theme_mode
+        mode = self._settings.theme.theme_mode
         if mode == "auto":
             setTheme(Theme.AUTO)
         elif mode == "light":
@@ -79,7 +81,7 @@ class MainWindow(FluentWindow):
 
     def _on_system_theme_changed(self):
         """系统主题变化 — 仅在'跟随系统'模式下刷新。"""
-        if self._settings.theme_mode == "auto":
+        if self._settings.theme.theme_mode == "auto":
             setTheme(Theme.AUTO)
             logger.info("系统主题已变化，自动刷新主题")
 
@@ -97,10 +99,10 @@ class MainWindow(FluentWindow):
         self._apply_accent_color()
 
         # 监听用户手动切换强调色模式
-        self._settings.accent_color_mode_changed.connect(
+        self._settings.theme.accent_color_mode_changed.connect(
             self._on_accent_color_mode_changed
         )
-        self._settings.custom_accent_color_changed.connect(
+        self._settings.theme.custom_accent_color_changed.connect(
             self._on_custom_accent_color_changed
         )
 
@@ -130,7 +132,8 @@ class MainWindow(FluentWindow):
 
     def _apply_accent_color(self):
         """根据 accent_color_mode 应用强调色。"""
-        if self._settings.accent_color_mode == "auto":
+        theme = self._settings.theme
+        if theme.accent_color_mode == "auto":
             color = self._get_windows_accent_color()
             if color:
                 self._last_windows_accent = color
@@ -139,15 +142,15 @@ class MainWindow(FluentWindow):
             elif self._last_windows_accent:
                 setThemeColor(QColor(self._last_windows_accent))
             else:
-                setThemeColor(QColor(self._settings.custom_accent_color))
+                setThemeColor(QColor(theme.custom_accent_color))
                 logger.info("无法获取系统强调色，使用默认值")
         else:
-            setThemeColor(QColor(self._settings.custom_accent_color))
-            logger.info(f"强调色已应用(自定义): {self._settings.custom_accent_color}")
+            setThemeColor(QColor(theme.custom_accent_color))
+            logger.info(f"强调色已应用(自定义): {theme.custom_accent_color}")
 
     def _check_accent_color(self):
         """定时检测 Windows 强调色是否变化（仅在 auto 模式下生效）。"""
-        if self._settings.accent_color_mode != "auto":
+        if self._settings.theme.accent_color_mode != "auto":
             return
         current = self._get_windows_accent_color()
         if current and current != self._last_windows_accent:
@@ -163,7 +166,7 @@ class MainWindow(FluentWindow):
 
     def _on_custom_accent_color_changed(self, color: str):
         """用户更改自定义强调色 → 仅在 custom 模式下生效并持久化。"""
-        if self._settings.accent_color_mode == "custom":
+        if self._settings.theme.accent_color_mode == "custom":
             setThemeColor(QColor(color))
             logger.info(f"自定义强调色已更新: {color}")
         self._settings.write_settings()
@@ -207,7 +210,7 @@ class MainWindow(FluentWindow):
     # ===================== 播放逻辑 =====================
 
     def _on_play(self):
-        ust_path = self._settings.ust_path.strip()
+        ust_path = self._settings.file.ust_path.strip()
         logger.info(f"Play 按钮点击，UST路径: {ust_path}")
 
         if not ust_path or not os.path.exists(ust_path):
@@ -219,9 +222,9 @@ class MainWindow(FluentWindow):
             return
 
         try:
-            logger.info(f"开始解析 UST，编码={self._settings.encoding}")
+            logger.info(f"开始解析 UST，编码={self._settings.file.encoding}")
             core_ust_info = self._ctx.parser.parse(
-                ust_path, self._settings.encoding
+                ust_path, self._settings.file.encoding
             )
             logger.info(
                 f"UST 解析完成 — 版本={core_ust_info.version}, "
@@ -275,7 +278,7 @@ class MainWindow(FluentWindow):
             return
 
         try:
-            self._settings.import_uplr(dropped)
+            self._ctx.project_io.import_uplr(dropped)
             self._settings.last_open_dir = os.path.dirname(dropped)
             self._settings.write_settings()
 
@@ -297,4 +300,11 @@ class MainWindow(FluentWindow):
         """覆写父类方法，切换后同步页面数据（信号驱动的兜底）。"""
         super().switchTo(interface)
         if hasattr(interface, "sync_all_from_settings"):
-            interface.sync_all_from_settings()
+            cast(Any, interface).sync_all_from_settings()
+
+    # ===================== 关闭保存 =====================
+
+    def closeEvent(self, e):
+        """关闭主窗口时把全部设置写入 Settings.json（重启可恢复）。"""
+        self._settings.write_settings()
+        super().closeEvent(e)

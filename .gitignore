@@ -206,8 +206,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 Settings.ini
-CONTRIBUTING.md
-AGENTS.md
+Settings.json
 
 # 本地示例工程（含大体积音频，不提交）
 ustPlayer uplr sample/
+
+# 转换器编译产物
+uplr_converter.exe
+uplr_converter.obj
