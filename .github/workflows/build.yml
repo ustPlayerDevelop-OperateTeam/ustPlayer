@@ -44,12 +44,24 @@ jobs:
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
 
-      - name: 安装依赖
+      - name: 缓存 uv 依赖缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: 安装依赖（uv 加速，替代 pip）
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
         run: |
           python -m pip install --upgrade pip
-          # 依赖与项目本体统一由 pyproject.toml 声明，
+          python -m pip install uv
+          # 依赖与项目本体统一由 pyproject.toml 声明；
+          # uv 并行下载/安装显著快于 pip（PySide6 全家桶尤其明显），
           # 同时安装 build backend（uv_build），Nuitka 可找到 src/ 布局下的 ustplayer 包
-          pip install .
+          uv pip install --system .
 
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main
@@ -58,6 +70,11 @@ jobs:
           nuitka-version: main
           mode: standalone
           output-file: ustPlayer
+          # 并行编译：windows-latest 为 4 vCPU
+          jobs: 4
+          # 编译增量缓存默认开启（disable-cache=false）：Action 内置
+          # actions/cache 自动恢复上次构建的 Nuitka 缓存，代码小改动时
+          # 只重编受影响的模块，大幅缩短构建时间
           include-data-files: |
             ERcode.txt=ERcode.txt
             LICENSE=LICENSE
