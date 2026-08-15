@@ -2,7 +2,9 @@ name: Build / Release
 
 on:
   push:
-    # 所有分支提交都会触发构建；仅 v* 标签触发（避免任意 tag 触发）
+    # 所有分支提交都会触发构建；v* 标签推送也触发（避免任意 tag 触发）
+    branches:
+      - "**"
     tags:
       - "v*"
   pull_request:
