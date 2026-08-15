@@ -10,14 +10,14 @@ from PySide6.QtWidgets import (
 
 from qfluentwidgets import (
     LineEdit, PushButton, PrimaryPushButton, SwitchButton,
-    BodyLabel, StrongBodyLabel, HorizontalSeparator,
-    InfoBar, InfoBarPosition,
+    BodyLabel, InfoBar, InfoBarPosition,
 )
 
 from ustplayer.context import AppContext
+from ustplayer.ui.section_card import ScrollPage, SectionCard
 
 
-class BasicPage(QWidget):
+class BasicPage(ScrollPage):
     """基础页 — 项目信息 + 显示选项 + Play。"""
 
     # 控件由 _setup_ui 动态创建，此处声明类型以便静态检查识别
@@ -46,11 +46,30 @@ class BasicPage(QWidget):
     # ===================== UI 构建 =====================
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(8)
+        layout = self.page_layout
 
-        # ---- 顶部按钮 ----
+        # ---- 项目卡片 ----
+        card_project = SectionCard("项目")
+
+        self._add_field(card_project.content_layout, "项目名：", "project_name")
+        self._add_field(card_project.content_layout, "曲名&曲师：", "song_name")
+        self._add_field(card_project.content_layout, "MIDI作者：", "song_author")
+        self._add_field(card_project.content_layout, "调音师：", "ust_author")
+
+        # 伴奏音乐（可选，随新版 uplr 打包）
+        music_row = QHBoxLayout()
+        music_row.setSpacing(8)
+        music_lbl = BodyLabel("音乐：")
+        music_lbl.setMinimumWidth(90)
+        music_row.addWidget(music_lbl)
+        self.edit_music_path = LineEdit()
+        self.edit_music_path.setPlaceholderText("请选择音频（可选）")
+        music_row.addWidget(self.edit_music_path, 1)
+        self.music_btn = PushButton("选择")
+        music_row.addWidget(self.music_btn)
+        card_project.addLayout(music_row)
+
+        # 导入/保存工程按钮（放在音乐选择框下方）
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
         self.import_btn = PushButton("导入项目")
@@ -58,32 +77,11 @@ class BasicPage(QWidget):
         btn_row.addWidget(self.import_btn)
         btn_row.addWidget(self.export_btn)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
-        layout.addWidget(HorizontalSeparator())
+        card_project.addLayout(btn_row)
+        layout.addWidget(card_project)
 
-        # ---- 关于项目 ----
-        self._add_section_title(layout, "/ 关于项目")
-        self._add_field(layout, "项目名：", "project_name")
-        self._add_field(layout, "曲名&曲师：", "song_name")
-        self._add_field(layout, "MIDI作者：", "song_author")
-        self._add_field(layout, "调音师：", "ust_author")
-
-        # 伴奏音乐（可选，随新版 uplr 打包）
-        music_row = QHBoxLayout()
-        music_row.setSpacing(8)
-        music_lbl = BodyLabel("伴奏音乐：")
-        music_lbl.setMinimumWidth(90)
-        music_row.addWidget(music_lbl)
-        self.edit_music_path = LineEdit()
-        self.edit_music_path.setPlaceholderText("请选择伴奏音频（可选）")
-        music_row.addWidget(self.edit_music_path, 1)
-        self.music_btn = PushButton("选择")
-        music_row.addWidget(self.music_btn)
-        layout.addLayout(music_row)
-        layout.addWidget(HorizontalSeparator())
-
-        # ---- 显示选项（Switch 双列网格） ----
-        self._add_section_title(layout, "/ 显示选项")
+        # ---- 显示选项卡片（Switch 双列网格） ----
+        card_display = SectionCard("显示选项")
         switches = [
             ("显示BPM",     "show_bpm"),
             ("显示播放时间", "show_play_time"),
@@ -108,7 +106,8 @@ class BasicPage(QWidget):
             # 补空列保持对齐
             for _ in range(cols - len(batch)):
                 row.addStretch(1)
-            layout.addLayout(row)
+            card_display.addLayout(row)
+        layout.addWidget(card_display)
 
         layout.addStretch()
 
@@ -116,11 +115,6 @@ class BasicPage(QWidget):
         self.play_btn = PrimaryPushButton("播放 Play")
         self.play_btn.setMinimumHeight(40)
         layout.addWidget(self.play_btn)
-
-    def _add_section_title(self, parent: QVBoxLayout, text: str):
-        lbl = StrongBodyLabel(text)
-        lbl.setContentsMargins(0, 4, 0, 2)
-        parent.addWidget(lbl)
 
     def _add_field(self, parent_layout: QVBoxLayout, label: str, attr: str):
         row = QHBoxLayout()

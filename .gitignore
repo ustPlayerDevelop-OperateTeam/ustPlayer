@@ -214,3 +214,6 @@ ustPlayer uplr sample/
 # 转换器编译产物
 uplr_converter.exe
 uplr_converter.obj
+
+# 测试文件
+test/

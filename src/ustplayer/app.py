@@ -17,7 +17,6 @@ from ustplayer.ui.main_window import MainWindow
 
 
 def main():
-    logger.info("=" * 50)
     logger.info(f"{APP_NAME} 启动")
     logger.info(f"Python: {sys.version}")
     logger.info(f"工作目录: {os.getcwd()}")

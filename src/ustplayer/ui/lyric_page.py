@@ -4,18 +4,19 @@
 import os
 from typing import Optional
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFileDialog
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QFileDialog
 from PySide6.QtCore import Qt
 
 from qfluentwidgets import (
     LineEdit, PushButton, CheckBox,
-    BodyLabel, StrongBodyLabel, HorizontalSeparator,
+    BodyLabel,
 )
 
 from ustplayer.context import AppContext
+from ustplayer.ui.section_card import ScrollPage, SectionCard
 
 
-class LyricPage(QWidget):
+class LyricPage(ScrollPage):
     """歌词标签页 — LRC 文件路径 + 显示开关。"""
 
     def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
@@ -28,17 +29,14 @@ class LyricPage(QWidget):
     # ===================== UI 构建 =====================
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
+        layout = self.page_layout
 
-        layout.addWidget(StrongBodyLabel("/ 歌词"))
+        # ---- 歌词卡片 ----
+        card_lyric = SectionCard("歌词")
 
         # 显示歌词复选框
         self.cb_show_lyric = CheckBox("展示歌词")
-        layout.addWidget(self.cb_show_lyric)
-
-        layout.addWidget(HorizontalSeparator())
+        card_lyric.addWidget(self.cb_show_lyric)
 
         # LRC 文件导入
         lrc_row = QHBoxLayout()
@@ -50,7 +48,8 @@ class LyricPage(QWidget):
         lrc_row.addWidget(self.lrc_edit, 1)
         self.select_btn = PushButton("选择文件")
         lrc_row.addWidget(self.select_btn)
-        layout.addLayout(lrc_row)
+        card_lyric.addLayout(lrc_row)
+        layout.addWidget(card_lyric)
 
         layout.addStretch()
 

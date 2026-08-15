@@ -18,10 +18,9 @@ if TYPE_CHECKING:
 # ===================== 应用元信息 =====================
 
 APP_NAME = "ustPlayer"
-APP_VERSION = "1.0.0"
-APP_BUILD = "v26f19"
+APP_VERSION = "1.1.0 Beta 1"
 APP_AUTHOR = "SYEternal_R"
-APP_COPYRIGHT = f"{APP_NAME} - {APP_VERSION} ({APP_BUILD}) by {APP_AUTHOR}"
+APP_COPYRIGHT = f"Presented with {APP_NAME} - {APP_VERSION}"
 
 
 # ===================== 通用工具 =====================

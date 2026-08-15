@@ -8,12 +8,13 @@ from typing import Any, cast
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QColor
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
 from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
     InfoBar, InfoBarPosition, MessageBox, setTheme, Theme, setThemeColor,
 )
+from qfluentwidgets.common.style_sheet import isDarkTheme
 
 from ustplayer.context import AppContext
 from ustplayer.core.contracts import APP_NAME, PlayerLaunchParams
@@ -34,12 +35,17 @@ class MainWindow(FluentWindow):
         self._ctx = ctx
         self._settings = ctx.settings
         self._player_window = None
+        self._current_interface = None
         self.setWindowTitle(APP_NAME)
         self.resize(900, 620)
 
         # 主题必须在 _build_pages 之前设置
         self._setup_theme()
         self._setup_accent_color()
+
+        # 窗口背景效果（无 / 亚克力 / Mica，可在「其他」页切换）
+        self._settings.theme.window_effect_changed.connect(self._apply_window_effect)
+        self._apply_window_effect()
 
         icon_path = os.path.join(self._settings.program_root, "icon.ico")
         if os.path.exists(icon_path):
@@ -48,8 +54,68 @@ class MainWindow(FluentWindow):
         self._build_pages()
         self._init_navigation()
         self.basic_page.set_play_callback(self._on_play)
+        self._current_interface = self.basic_page
+
+        # 拖放 .uplr/.ust：整个窗口统一接收。关闭所有子控件的拖放，
+        # 让任何位置的拖拽事件都自然冒泡到主窗口处理
+        # （否则 LineEdit/TextEdit 会吞掉文件拖放，主窗口收不到事件）
+        self.setAcceptDrops(True)
+        for widget in self.findChildren(QWidget):
+            widget.setAcceptDrops(False)
 
         QTimer.singleShot(100, self._load_dropped_uplr)
+
+    # ===================== 窗口背景效果 =====================
+
+    def _apply_window_effect(self):
+        """按设置应用窗口背景效果：none=纯色, mica=Win11 Mica, acrylic=亚克力模糊。
+
+        亚克力/纯色在 Win10、Win11 均可用；Mica 仅 Win11（其余系统自动回退纯色）。
+        """
+        mode = self._settings.theme.window_effect
+        try:
+            if mode == "mica":
+                self.setMicaEffectEnabled(True)
+                if not self.isMicaEffectEnabled():
+                    # 当前系统不支持 Mica（如 Win10）：恢复纯色背景，避免透明裸底
+                    self.windowEffect.removeBackgroundEffect(self.winId())
+                    self.setBackgroundColor(
+                        QColor(32, 32, 32) if isDarkTheme() else QColor(240, 244, 249)
+                    )
+            elif mode == "acrylic":
+                # 先清除已有 Mica/背景效果，再开亚克力，避免叠加
+                self.setMicaEffectEnabled(False)
+                self.windowEffect.removeBackgroundEffect(self.winId())
+                self.windowEffect.setAcrylicEffect(self.winId(), self._acrylic_gradient())
+                # 背景设全透明，让 DWM 亚克力透出
+                self.setBackgroundColor(QColor(0, 0, 0, 0))
+            else:
+                self.setMicaEffectEnabled(False)
+                self.windowEffect.removeBackgroundEffect(self.winId())
+                self.setBackgroundColor(
+                    QColor(32, 32, 32) if isDarkTheme() else QColor(240, 244, 249)
+                )
+        except Exception as e:
+            logger.warning(f"窗口背景效果应用失败（回退纯色背景）: {e}")
+
+    @staticmethod
+    def _acrylic_gradient() -> str:
+        """亚克力渐变底色（AARRGGBB），随明暗主题变化。"""
+        return "1E1E1E99" if isDarkTheme() else "F2F2F230"
+
+    def showEvent(self, e):
+        """窗口完全初始化后按设置重设背景效果（需要有效窗口句柄）。"""
+        super().showEvent(e)
+        self._apply_window_effect()
+
+    def _onThemeChangedFinished(self):
+        """主题切换完成后：Mica 由基类重染，亚克力需按新主题换渐变底色。"""
+        super()._onThemeChangedFinished()
+        if self._settings.theme.window_effect == "acrylic":
+            try:
+                self.windowEffect.setAcrylicEffect(self.winId(), self._acrylic_gradient())
+            except Exception:
+                logger.exception("主题切换后重染亚克力失败")
 
     # ===================== 主题管理 =====================
 
@@ -269,23 +335,26 @@ class MainWindow(FluentWindow):
     # ===================== 拖拽 uplr 加载 =====================
 
     def _load_dropped_uplr(self):
-        """处理拖拽到 exe 上的 .uplr 文件（从命令行参数获取）。"""
+        """处理拖拽到 exe 图标上的 .uplr 文件（从命令行参数获取）。"""
         if len(sys.argv) <= 1:
             return
 
         dropped = sys.argv[1].strip()
         if not (dropped and os.path.exists(dropped) and dropped.lower().endswith(".uplr")):
             return
+        self._import_uplr_file(dropped)
 
+    def _import_uplr_file(self, path: str):
+        """导入 .uplr 工程文件并提示结果（拖拽到窗口 / exe 共用）。"""
         try:
-            self._ctx.project_io.import_uplr(dropped)
-            self._settings.last_open_dir = os.path.dirname(dropped)
+            self._ctx.project_io.import_uplr(path)
+            self._settings.last_open_dir = os.path.dirname(path)
             self._settings.write_settings()
 
             # 各页面已通过 settings 信号实时同步，无需手动刷新
 
             InfoBar.success(
-                "成功", f"已成功打开并加载工程：\n{dropped}",
+                "成功", f"已成功打开并加载工程：\n{path}",
                 3000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
         except Exception as e:
@@ -294,11 +363,68 @@ class MainWindow(FluentWindow):
                 5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
 
+    @staticmethod
+    def _has_ext_url(mime, ext: str) -> bool:
+        """判断拖拽数据里是否包含指定扩展名（如 ".uplr"）的文件。"""
+        suffix = ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+        return mime.hasUrls() and any(
+            url.toLocalFile().lower().endswith(suffix) for url in mime.urls()
+        )
+
+    def _accepts_drag(self, mime) -> bool:
+        """按当前页面决定接受的拖拽类型：
+        - 基础页：.uplr → 导入工程文件；
+        - 文件页：.ust → 自动填入 ust 路径；
+        - 歌词页：.lrc → 自动填入 LRC 歌词路径；
+        - 其余页面：不接受拖拽。
+        """
+        if self._current_interface is self.basic_page:
+            return self._has_ext_url(mime, ".uplr")
+        if self._current_interface is self.file_page:
+            return self._has_ext_url(mime, ".ust")
+        if self._current_interface is self.lyric_page:
+            return self._has_ext_url(mime, ".lrc")
+        return False
+
+    def dragEnterEvent(self, e):
+        """拖入可接受的文件（基础页 .uplr / 文件页 .ust / 歌词页 .lrc）时接受拖动。"""
+        if self._accepts_drag(e.mimeData()):
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dropEvent(self, e):
+        """放下文件：基础页 .uplr → 导入工程；文件页 .ust → 填 ust 路径；
+        歌词页 .lrc → 填 LRC 歌词路径；其余页不处理。"""
+        if self._current_interface is self.basic_page:
+            for url in e.mimeData().urls():
+                path = url.toLocalFile()
+                if path and path.lower().endswith(".uplr") and os.path.exists(path):
+                    self._import_uplr_file(path)
+                    e.acceptProposedAction()
+                    return
+        elif self._current_interface is self.file_page:
+            for url in e.mimeData().urls():
+                path = url.toLocalFile()
+                if path and path.lower().endswith(".ust") and os.path.exists(path):
+                    self._settings.file.ust_path = path
+                    e.acceptProposedAction()
+                    return
+        elif self._current_interface is self.lyric_page:
+            for url in e.mimeData().urls():
+                path = url.toLocalFile()
+                if path and path.lower().endswith(".lrc") and os.path.exists(path):
+                    self._settings.player.lrc_path = path
+                    e.acceptProposedAction()
+                    return
+        super().dropEvent(e)
+
     # ===================== 导航切换时同步页面 =====================
 
     def switchTo(self, interface):
         """覆写父类方法，切换后同步页面数据（信号驱动的兜底）。"""
         super().switchTo(interface)
+        self._current_interface = interface
         if hasattr(interface, "sync_all_from_settings"):
             cast(Any, interface).sync_all_from_settings()
 

@@ -8,13 +8,14 @@ from PySide6.QtGui import QColor
 
 from qfluentwidgets import (
     LineEdit, ComboBox, ColorPickerButton,
-    BodyLabel, StrongBodyLabel, HorizontalSeparator,
+    BodyLabel,
 )
 
 from ustplayer.context import AppContext
+from ustplayer.ui.section_card import ScrollPage, SectionCard
 
 
-class PlayerStylePage(QWidget):
+class PlayerStylePage(ScrollPage):
     """播放器样式标签页 — 6 个颜色选择 + 歌词位置 + 静默/结束显示。"""
 
     # 颜色字段列表（行序与 _setup_ui 保持一致；值存于 settings.color 子域）
@@ -33,19 +34,18 @@ class PlayerStylePage(QWidget):
     # ===================== UI 构建 =====================
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(10)
+        layout = self.page_layout
 
-        layout.addWidget(StrongBodyLabel("/ 播放器样式"))
+        # ---- 播放器样式卡片 ----
+        card_style = SectionCard("播放器样式")
 
-        # ---- 6 个颜色选择行（ColorPickerButton + LineEdit） ----
-        self._add_color_row(layout, "背景色:", "bg_color", self._s.color.bg_color)
-        self._add_color_row(layout, "音名色:", "note_color", self._s.color.note_color)
-        self._add_color_row(layout, "歌字色:", "lyric_color", self._s.color.lyric_color)
-        self._add_color_row(layout, "歌词色:", "lyric_text_color", self._s.color.lyric_text_color)
-        self._add_color_row(layout, "音高线颜色:", "pitch_curve_color", self._s.color.pitch_curve_color)
-        self._add_color_row(layout, "其他文字色:", "other_text_color", self._s.color.other_text_color)
+        # 6 个颜色选择行（ColorPickerButton + LineEdit）
+        self._add_color_row(card_style.content_layout, "背景色:", "bg_color", self._s.color.bg_color)
+        self._add_color_row(card_style.content_layout, "音名色:", "note_color", self._s.color.note_color)
+        self._add_color_row(card_style.content_layout, "歌字色:", "lyric_color", self._s.color.lyric_color)
+        self._add_color_row(card_style.content_layout, "歌词色:", "lyric_text_color", self._s.color.lyric_text_color)
+        self._add_color_row(card_style.content_layout, "音高线颜色:", "pitch_curve_color", self._s.color.pitch_curve_color)
+        self._add_color_row(card_style.content_layout, "其他文字色:", "other_text_color", self._s.color.other_text_color)
 
         # 歌词位置
         row_lyric = QHBoxLayout()
@@ -55,28 +55,28 @@ class PlayerStylePage(QWidget):
         self.lyric_pos_combo.addItems(["上", "下"])
         row_lyric.addWidget(self.lyric_pos_combo)
         row_lyric.addStretch()
-        layout.addLayout(row_lyric)
+        card_style.addLayout(row_lyric)
+        layout.addWidget(card_style)
 
-        layout.addWidget(HorizontalSeparator())
-
-        # ---- 其他显示设置 ----
-        layout.addWidget(StrongBodyLabel("/ 其他显示设置"))
+        # ---- 其他显示设置卡片 ----
+        card_other = SectionCard("其他显示设置")
 
         self._add_combo_with_custom(
-            layout, "音高间占位符:", "pitch_placeholder",
+            card_other.content_layout, "音高间占位符:", "pitch_placeholder",
             ["无", "-", "自定义文字"],
             self._s.player.pitch_placeholder, "pitch_custom",
         )
         self._add_combo_with_custom(
-            layout, "静默时显示:", "silent_display",
+            card_other.content_layout, "静默时显示:", "silent_display",
             ["R", "-", "自定义文字", "什么都不显示"],
             self._s.player.silent_display, "silent_custom",
         )
         self._add_combo_with_custom(
-            layout, "结束时显示:", "end_display",
+            card_other.content_layout, "结束时显示:", "end_display",
             ["END", "-", "自定义文字", "什么都不显示"],
             self._s.player.end_display, "end_custom",
         )
+        layout.addWidget(card_other)
 
         layout.addStretch()
 

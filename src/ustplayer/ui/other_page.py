@@ -1,25 +1,30 @@
 # other_page.py — "其他" 导航页
-"""版权信息、外部工具、使用协议入口、主题与强调色设置。"""
+"""版权信息、外部工具、使用协议入口、主题/强调色/窗口效果设置。"""
 
 import subprocess
 import webbrowser
 from typing import Optional
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import QWidget, QHBoxLayout
 from PySide6.QtGui import QColor
 
 from qfluentwidgets import (
-    PushButton, BodyLabel, StrongBodyLabel, HorizontalSeparator,
+    PushButton, BodyLabel,
     ComboBox, ColorPickerButton, HyperlinkButton,
     InfoBar, InfoBarPosition,
 )
 
 from ustplayer.context import AppContext
-from ustplayer.core.contracts import APP_COPYRIGHT
+from ustplayer.core.contracts import APP_AUTHOR, APP_NAME, APP_VERSION
+from ustplayer.ui.section_card import ScrollPage, SectionCard
 
 
-class OtherPage(QWidget):
+class OtherPage(ScrollPage):
     """其他标签页 — 关于软件 / 工具 / 协议 / 主题与强调色。"""
+
+    # 窗口背景效果：设置值 ↔ 界面文案
+    _WINDOW_EFFECT_TEXTS = {"none": "关闭", "acrylic": "亚克力", "mica": "Mica"}
+    _WINDOW_EFFECT_VALUES = {v: k for k, v in _WINDOW_EFFECT_TEXTS.items()}
 
     def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -31,24 +36,22 @@ class OtherPage(QWidget):
     # ===================== UI 构建 =====================
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
+        layout = self.page_layout
 
-        layout.addWidget(StrongBodyLabel("/ 关于软件"))
+        # ---- 关于软件卡片 ----
+        card_about = SectionCard("关于软件")
 
         # 版权信息（可点击，用带 clicked 信号的 HyperlinkButton 而非覆写事件）
-        copyright_btn = HyperlinkButton("", APP_COPYRIGHT)
+        copyright_btn = HyperlinkButton("", f"{APP_NAME} - {APP_VERSION} by {APP_AUTHOR}", self)
         copyright_btn.setToolTip("点击访问 Bilibili 主页")
         copyright_btn.clicked.connect(
             lambda: self._open_url("https://space.bilibili.com/661930756")
         )
-        layout.addWidget(copyright_btn)
+        card_about.addWidget(copyright_btn)
+        layout.addWidget(card_about)
 
-        layout.addWidget(HorizontalSeparator())
-
-        # 外部工具与纠错
-        layout.addWidget(StrongBodyLabel("/ 外部工具与纠错"))
+        # ---- 外部工具与纠错卡片 ----
+        card_tools = SectionCard("外部工具与纠错")
 
         tool_row = QHBoxLayout()
         tool_row.setSpacing(12)
@@ -61,12 +64,11 @@ class OtherPage(QWidget):
         er_btn.clicked.connect(self._open_ercode)
         tool_row.addWidget(er_btn)
         tool_row.addStretch()
-        layout.addLayout(tool_row)
+        card_tools.addLayout(tool_row)
+        layout.addWidget(card_tools)
 
-        layout.addWidget(HorizontalSeparator())
-
-        # ---- 主题设置 ----
-        layout.addWidget(StrongBodyLabel("/ 主题"))
+        # ---- 主题卡片（含窗口背景效果） ----
+        card_theme = SectionCard("主题")
 
         theme_row = QHBoxLayout()
         theme_row.setSpacing(8)
@@ -75,9 +77,8 @@ class OtherPage(QWidget):
         self.theme_combo.addItems(["跟随系统", "亮色", "暗色"])
         theme_row.addWidget(self.theme_combo)
         theme_row.addStretch()
-        layout.addLayout(theme_row)
+        card_theme.addLayout(theme_row)
 
-        # ---- 强调色设置 ----
         accent_mode_row = QHBoxLayout()
         accent_mode_row.setSpacing(8)
         accent_mode_row.addWidget(BodyLabel("强调色:"))
@@ -85,22 +86,34 @@ class OtherPage(QWidget):
         self.accent_color_mode_combo.addItems(["跟随系统", "自定义"])
         accent_mode_row.addWidget(self.accent_color_mode_combo)
         accent_mode_row.addStretch()
-        layout.addLayout(accent_mode_row)
+        card_theme.addLayout(accent_mode_row)
 
         accent_custom_row = QHBoxLayout()
         accent_custom_row.setSpacing(8)
-        accent_custom_row.addWidget(BodyLabel("自定义颜色:"))
+        self.accent_custom_label = BodyLabel("自定义颜色:")
+        accent_custom_row.addWidget(self.accent_custom_label)
         self.accent_color_picker = ColorPickerButton(
             QColor(self._s.theme.custom_accent_color), "选择强调色", self
         )
         accent_custom_row.addWidget(self.accent_color_picker)
         accent_custom_row.addStretch()
-        layout.addLayout(accent_custom_row)
+        card_theme.addLayout(accent_custom_row)
 
-        layout.addWidget(HorizontalSeparator())
+        # 窗口背景效果（无 / 亚克力 / Mica，可任意切换）
+        effect_row = QHBoxLayout()
+        effect_row.setSpacing(8)
+        effect_row.addWidget(BodyLabel("窗口效果:"))
+        self.window_effect_combo = ComboBox()
+        self.window_effect_combo.addItems(
+            [self._WINDOW_EFFECT_TEXTS[k] for k in ("none", "acrylic", "mica")]
+        )
+        effect_row.addWidget(self.window_effect_combo)
+        effect_row.addStretch()
+        card_theme.addLayout(effect_row)
+        layout.addWidget(card_theme)
 
-        # 协议与许可
-        layout.addWidget(StrongBodyLabel("/ 协议与许可"))
+        # ---- 协议与许可卡片 ----
+        card_lic = SectionCard("协议与许可")
 
         lic_row = QHBoxLayout()
         lic_row.setSpacing(12)
@@ -115,9 +128,8 @@ class OtherPage(QWidget):
         )
         lic_row.addWidget(gh_btn)
         lic_row.addStretch()
-        layout.addLayout(lic_row)
-
-        layout.addWidget(HorizontalSeparator())
+        card_lic.addLayout(lic_row)
+        layout.addWidget(card_lic)
 
         # 彩蛋
         easter = BodyLabel("你知道吗：alpha版本在提交至托管时曾被错误地命名为ustPlyaer。orz")
@@ -150,6 +162,13 @@ class OtherPage(QWidget):
         self.accent_color_picker.colorChanged.connect(self._on_accent_color_pick)
         s.theme.custom_accent_color_changed.connect(self._on_settings_accent_color_changed)
 
+        # 窗口背景效果下拉框
+        self.window_effect_combo.setCurrentText(
+            self._WINDOW_EFFECT_TEXTS.get(s.theme.window_effect, "Mica")
+        )
+        self.window_effect_combo.currentTextChanged.connect(self._on_window_effect_changed)
+        s.theme.window_effect_changed.connect(self._on_settings_window_effect_changed)
+
         # 初始时根据模式显示/隐藏自定义颜色选择器
         self._update_accent_custom_visible(s.theme.accent_color_mode)
 
@@ -170,9 +189,16 @@ class OtherPage(QWidget):
         """自定义颜色选择 → 更新 settings。"""
         setattr(self._s.theme, "custom_accent_color", color.name())
 
+    def _on_window_effect_changed(self, text: str):
+        """窗口效果变化 → 更新 settings（主窗口监听信号实时应用）。"""
+        value = self._WINDOW_EFFECT_VALUES.get(text, "mica")
+        setattr(self._s.theme, "window_effect", value)
+
     def _update_accent_custom_visible(self, mode: str):
-        """自定义模式下显示颜色选择器。"""
-        self.accent_color_picker.setVisible(mode == "custom")
+        """自定义模式下显示「自定义颜色」整行（标签 + 取色器），跟随系统时整行隐藏。"""
+        visible = mode == "custom"
+        self.accent_custom_label.setVisible(visible)
+        self.accent_color_picker.setVisible(visible)
 
     def _on_settings_theme_mode_changed(self, v: str):
         """settings 端主题模式变化 → 同步下拉框（避免 lambda GC 问题）。"""
@@ -192,6 +218,12 @@ class OtherPage(QWidget):
         self.accent_color_picker.blockSignals(True)
         self.accent_color_picker.setColor(QColor(v))
         self.accent_color_picker.blockSignals(False)
+
+    def _on_settings_window_effect_changed(self, v: str):
+        """settings 端窗口效果变化 → 同步下拉框。"""
+        self.window_effect_combo.blockSignals(True)
+        self.window_effect_combo.setCurrentText(self._WINDOW_EFFECT_TEXTS.get(v, "Mica"))
+        self.window_effect_combo.blockSignals(False)
 
     # ===================== 辅助方法 =====================
 
@@ -252,6 +284,9 @@ class OtherPage(QWidget):
             self._accent_mode_text(s.theme.accent_color_mode)
         )
         self.accent_color_picker.setColor(QColor(s.theme.custom_accent_color))
+        self.window_effect_combo.setCurrentText(
+            self._WINDOW_EFFECT_TEXTS.get(s.theme.window_effect, "Mica")
+        )
         self._update_accent_custom_visible(s.theme.accent_color_mode)
 
     def sync_all_from_settings(self):
