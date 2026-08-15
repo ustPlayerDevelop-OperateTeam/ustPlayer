@@ -7,7 +7,10 @@ requires-python = ">=3.11"
 dependencies = [
     "loguru>=0.7.3",
     "pyside6>=6.5.0",
-    "pyside6-fluent-widgets[full]>=1.11.2",
+    # 注意：不使用 [full] extra——其额外引入的 scipy/numpy/pillow/colorthief
+    # 仅服务于 qfluentwidgets.common.image_utils（高斯模糊/主色调），
+    # 该模块在 1.11.x 中已无任何引用，纯属 ~120MB 死依赖
+    "pyside6-fluent-widgets>=1.11.2",
 ]
 
 [project.scripts]
