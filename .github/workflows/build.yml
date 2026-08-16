@@ -161,18 +161,18 @@ jobs:
             *)                    echo "prerelease=false" >> $GITHUB_OUTPUT ;;
           esac
 
-      - name: 从 UPDATELOG.md 提取版本信息
+      - name: 从 ChangeLog.md 提取版本信息
         id: changelog
         run: |
           $tag = '${{ steps.ver.outputs.tag }}'
-          $content = Get-Content UPDATELOG.md -Raw -Encoding UTF8
+          $content = Get-Content ChangeLog.md -Raw -Encoding UTF8
           if ($content -match "(?ms)^(# $tag\b[^\n]*)\n(.*?)(?=\r?\n# |\Z)") {
               $heading = ($matches[1] -replace '^# v?', '').Trim()
               $section = $matches[2].Trim()
               "Found changelog section for $tag" | Write-Host
           } else {
               $heading = '${{ steps.ver.outputs.title }}'
-              $section = "<!-- 未在 UPDATELOG.md 中找到 $tag 的更新说明 -->"
+              $section = "<!-- 未在 ChangeLog.md 中找到 $tag 的更新说明 -->"
               "WARNING: No changelog section found for $tag" | Write-Host
           }
           $section | Set-Content changelog_body.md -Encoding UTF8
