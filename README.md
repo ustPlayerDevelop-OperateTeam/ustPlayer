@@ -1,3 +1,7 @@
+>[!NOTE]
+>
+>欢迎您加入ustPlayer的dev分支开发！贡献准则请看<a href="CONTRIBUTING.md">CONTRIBUTING.md</a>！
+
 <div align="center">
 
 <image src="icon.png" height="90" width="90"/>
