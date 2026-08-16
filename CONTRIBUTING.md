@@ -99,9 +99,6 @@ uv run ustplayer
 
 程序启动后，在"文件"页面选择一个 `.ust` 文件（支持 UTF-8 / GBK / Shift-JIS 编码，可用「编码检查」校验），点击"基础"页的「播放 Play」即可全屏预览。
 
-> [!WARNING]
-> 当前**只支持 .ust 文本格式**，`.ustx` 尚未支持——请勿声称支持 USTX，也不要引导 `.ustx` 进入解析器。
-
 ### 常见问题
 
 - **启动报 `ImportError: No module named 'ustplayer'`**：确认执行过 `uv sync`，确保 `src/` 下的包已装入虚拟环境。
@@ -356,7 +353,7 @@ npx --yes pyright main.py src
 ## 许可与协议
 
 - 本项目以 **GPL-3.0** 协议开源（见 [LICENSE](LICENSE)）。**提交代码即表示你同意你的贡献以 GPL-3.0 协议授权本项目使用**。
-- 请尊重作者（SYEternalR）的署名与使用约定，不要将本项目冒充为自己的成果，也不要删除 / 篡改随程序附带的版权信息、ERcode.txt 等文件。
+- 请尊重作者的署名与使用约定，不要将本项目冒充为自己的成果，也不要删除ERcode.txt 等文件。
 - 本项目开发过程中使用了 AI 工具辅助开发，相关信息会在 README 中说明。
 
 ---
