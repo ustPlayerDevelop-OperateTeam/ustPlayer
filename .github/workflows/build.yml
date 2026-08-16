@@ -115,11 +115,11 @@ jobs:
           path: build/converter/Release/uplr_converter.exe
 
   # ============================================================
-  # 发版：tag 推送，或 main 分支上以 v 开头的提交（防其他分支误发版）
+  # 发版：v* 标签推送，或任意分支上以 v 开头的提交（pass 开头除外）
   # ============================================================
   release:
     if: |
-      (startsWith(github.ref, 'refs/tags/') || (github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'v'))) && !startsWith(github.event.head_commit.message, 'pass')
+      (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'v'))) && !startsWith(github.event.head_commit.message, 'pass')
     needs: [build, uplr-converter]
     runs-on: windows-latest
     permissions:
