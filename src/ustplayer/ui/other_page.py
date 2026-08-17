@@ -73,7 +73,7 @@ class OtherPage(ScrollPage):
     def _setup_ui(self):
         layout = self.page_layout
 
-        # ---- 关于软件卡片 ----
+        # 关于软件卡片
         self.card_about = SectionCard(tr("关于软件"))
 
         # 版权信息（可点击，用带 clicked 信号的 HyperlinkButton 而非覆写事件）
@@ -85,7 +85,7 @@ class OtherPage(ScrollPage):
         self.card_about.addWidget(copyright_btn)
         layout.addWidget(self.card_about)
 
-        # ---- 外部工具与纠错卡片 ----
+        # 外部工具与纠错卡片
         self.card_tools = SectionCard(tr("外部工具与纠错"))
 
         tool_row = QHBoxLayout()
@@ -102,7 +102,7 @@ class OtherPage(ScrollPage):
         self.card_tools.addLayout(tool_row)
         layout.addWidget(self.card_tools)
 
-        # ---- 主题卡片（含窗口背景效果） ----
+        # 主题卡片（含窗口背景效果）
         self.card_theme = SectionCard(tr("主题"))
 
         theme_row = QHBoxLayout()
@@ -156,7 +156,7 @@ class OtherPage(ScrollPage):
         self.card_theme.addLayout(effect_row)
         layout.addWidget(self.card_theme)
 
-        # ---- 语言卡片 ----
+        # 语言卡片
         self.card_lang = SectionCard(tr("语言 / Language"))
 
         lang_row = QHBoxLayout()
@@ -170,7 +170,7 @@ class OtherPage(ScrollPage):
         self.card_lang.addLayout(lang_row)
         layout.addWidget(self.card_lang)
 
-        # ---- 协议与许可卡片 ----
+        # 协议与许可卡片
         self.card_lic = SectionCard(tr("协议与许可"))
 
         lic_row = QHBoxLayout()

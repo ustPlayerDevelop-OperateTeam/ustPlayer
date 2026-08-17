@@ -68,7 +68,7 @@ class PlayerStylePage(ScrollPage):
     def _setup_ui(self):
         layout = self.page_layout
 
-        # ---- 播放器样式卡片 ----
+        # 播放器样式卡片
         self.card_style = SectionCard(tr("播放器样式"))
 
         # 6 个颜色选择行（ColorPickerButton + LineEdit）
@@ -94,7 +94,7 @@ class PlayerStylePage(ScrollPage):
         self.card_style.addLayout(row_lyric)
         layout.addWidget(self.card_style)
 
-        # ---- 其他显示设置卡片 ----
+        # 其他显示设置卡片
         self.card_other = SectionCard(tr("其他显示设置"))
 
         self._add_combo_with_custom(

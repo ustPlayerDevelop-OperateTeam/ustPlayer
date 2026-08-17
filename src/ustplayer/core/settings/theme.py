@@ -26,9 +26,7 @@ class ThemeSettings(QObject):
         self._theme_mode = "auto"  # auto=跟随系统, light=亮色, dark=暗色
         self._accent_color_mode = "auto"  # auto=跟随系统强调色, custom=自定义
         self._custom_accent_color = "#009faa"  # qfluentwidgets 默认主题色
-        # 窗口背景效果：none=无, mica=Win11 Mica, acrylic=亚克力模糊。
-        # 默认 mica 与 qfluentwidgets FluentWindow 的默认行为一致（Win11 默认开启）。
-        self._window_effect = "mica"
+        self._window_effect = "mica"  # none=无, mica=Win11 Mica, acrylic=亚克力模糊
 
     @property
     def theme_mode(self) -> str:

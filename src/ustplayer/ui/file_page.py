@@ -45,7 +45,7 @@ class FilePage(QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
 
-        # ---- UST 文件选择 ----
+        # UST 文件选择
         ust_row = QHBoxLayout()
         ust_row.setSpacing(8)
 
@@ -62,7 +62,7 @@ class FilePage(QWidget):
         self.cb_curve = CheckBox(tr("显示音高线变化"))
         layout.addWidget(self.cb_curve)
 
-        # ---- 编码选择 ----
+        # 编码选择
         enc_row = QHBoxLayout()
         enc_row.setSpacing(8)
 
@@ -77,7 +77,7 @@ class FilePage(QWidget):
         enc_row.addWidget(self.encoding_check_btn)
         layout.addLayout(enc_row)
 
-        # ---- 内容预览 ----
+        # 内容预览
         self.preview_edit = TextEdit()
         self.preview_edit.setReadOnly(True)
         self.preview_edit.setPlaceholderText(tr("选择 UST 文件后在此预览..."))

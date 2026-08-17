@@ -41,21 +41,17 @@ class SettingsManager(QObject):
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
 
-        # 程序根目录与配置文件存取（只读目录自动回退用户数据目录）
         self.program_root = resolve_program_root()
         self._store = SettingsStore()
         self.settings_path = self._store.settings_path
 
-        # 文本文件路径
         self.terms_file_path = os.path.join(self.program_root, "LICENSE")
         self.ercode_file_path = os.path.join(self.program_root, "ERcode.txt")
 
-        # 默认路径（[PathSettings] 分组由门面管理）
         default_desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         self.last_open_dir = default_desktop
         self.last_export_dir = default_desktop
 
-        # ===== 设置子域 =====
         self.project = ProjectSettings(self)
         self.file = FileSettings(self)
         self.display = DisplaySettings(self)
@@ -64,14 +60,13 @@ class SettingsManager(QObject):
         self.theme = ThemeSettings(self)
         self.language = LanguageSettings(self)
 
-        # 初始化配置（分组 → 键值 字典，由 SettingsStore 读写 JSON）
         self._config: Dict[str, Dict[str, str]] = {}
         self.read_settings()
 
     # ===================== Settings.json 读写 =====================
 
     def read_settings(self):
-        """读取设置，恢复全部配置（委托各子域解析对应分组）。"""
+        """读取设置并恢复全部配置，路径失效时回退桌面。"""
         default_desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         try:
             self._config = self._store.load()
@@ -80,7 +75,6 @@ class SettingsManager(QObject):
                 self.last_export_dir = default_desktop
                 return
 
-            # ---- 路径 ----
             if "PathSettings" in self._config:
                 self.last_open_dir = self._config["PathSettings"].get(
                     "last_open_dir", default_desktop
@@ -93,7 +87,6 @@ class SettingsManager(QObject):
                 if not os.path.isdir(self.last_export_dir):
                     self.last_export_dir = default_desktop
 
-            # ---- 各设置子域 ----
             self.project.read_from(self._config)
             self.file.read_from(self._config)
             self.display.read_from(self._config)
@@ -103,7 +96,6 @@ class SettingsManager(QObject):
             self.language.read_from(self._config)
 
             self.sanitize()
-            # 校验修正的默认值写回文件（如旧版缺失键），下次启动直接可用
             self.write_settings()
         except Exception as e:
             self.last_open_dir = default_desktop
@@ -111,7 +103,7 @@ class SettingsManager(QObject):
             logger.exception(f"读取配置文件失败：{e}")
 
     def write_settings(self):
-        """将全部设置写入配置文件（退出时保存，重启可恢复）。"""
+        """将所有设置写入配置文件，退出时保存以便重启恢复。"""
         try:
             self._config["PathSettings"] = {
                 "last_open_dir": self.last_open_dir,

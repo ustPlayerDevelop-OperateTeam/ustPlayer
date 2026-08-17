@@ -62,7 +62,6 @@ class BasicPage(ScrollPage):
     def _setup_ui(self):
         layout = self.page_layout
 
-        # ---- 项目卡片 ----
         self.card_project = SectionCard(tr("项目"))
 
         self._add_field(self.card_project.content_layout, tr("项目名："), "project_name")
@@ -94,7 +93,6 @@ class BasicPage(ScrollPage):
         self.card_project.addLayout(btn_row)
         layout.addWidget(self.card_project)
 
-        # ---- 显示选项卡片（Switch 双列网格） ----
         self.card_display = SectionCard(tr("显示选项"))
         switches = [
             ("show_bpm",         tr("显示BPM")),
@@ -127,7 +125,7 @@ class BasicPage(ScrollPage):
 
         layout.addStretch()
 
-        # ---- Play 按钮 ----
+        # Play 按钮
         self.play_btn = PrimaryPushButton(tr("播放 Play"))
         self.play_btn.setMinimumHeight(40)
         layout.addWidget(self.play_btn)

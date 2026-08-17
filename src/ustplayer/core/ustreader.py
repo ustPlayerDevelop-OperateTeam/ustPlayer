@@ -11,14 +11,7 @@ from ustplayer.core.contracts import NoteInfo, UstInfo, UstParser
 
 
 def _parse_pitch_bend(value: str) -> list:
-    """将 PitchBend 字符串解析为整数列表。
-
-    Args:
-        value: 逗号分隔的整数字符串，如 "-5,0,5,10"
-
-    Returns:
-        整数列表，解析失败的值被静默跳过
-    """
+    """把 "1,2,3" 这种字符串拆成整数列表，非法项直接跳过。"""
     result: list = []
     if not value.strip():
         return result
@@ -37,47 +30,36 @@ class UstFileReader:
     DEFAULT_ENCODING = "Shift-JIS"
 
     def parse(self, ust_path: str, encoding: Optional[str] = None) -> UstInfo:
-        """解析 UST 文件，提取版本、速度、轨道数和音符列表。
+        """解析 UST 文件，返回版本、速度、轨道数和音符列表。
 
         Args:
-            ust_path: UST 文件路径（.ust）
-            encoding: 文件编码，默认 Shift-JIS。
-                日文 UST 通常用 Shift-JIS，中文/英文 UST 常用 UTF-8 或 GBK
-
-        Returns:
-            UstInfo: 解析结果
+            ust_path: .ust 文件路径
+            encoding: 文件编码，默认 Shift-JIS（日文 UST 常用，中文/英文多用 UTF-8 或 GBK）
 
         Raises:
-            FileNotFoundError: UST 文件不存在
-            UnicodeDecodeError: 使用了错误的编码
+            FileNotFoundError: 文件不存在
+            UnicodeDecodeError: 编码错误
         """
         enc = encoding or self.DEFAULT_ENCODING
 
-        # ===== 初始化返回值 =====
         ust_version = ""
         ust_tempo = 120.0
         ust_tracks = 1
         note_list: list = []
 
-        # ===== 状态标记 =====
         in_setting = False
         current_note: Optional[NoteInfo] = None
-
-        # ===== 从 [#VERSION] 段提取版本的标记 =====
         expect_version = False
 
-        # ===== 打开文件（with 语句确保自动关闭） =====
         with open(ust_path, "r", encoding=enc) as f:
             for raw_line in f:
                 line = raw_line.strip()
                 if not line:
                     continue
 
-                # ---- 分段标记识别 ----
                 if line == "[#VERSION]":
                     in_setting = False
                     expect_version = True
-                    # 保存上一个音符
                     if current_note is not None:
                         note_list.append(current_note)
                         current_note = None
@@ -91,7 +73,7 @@ class UstFileReader:
                         current_note = None
                     continue
 
-                # 音符段: [#0000], [#0001], ...
+                # 音符段，形如 [#0000]
                 if line.startswith("[#") and line.endswith("]") and line[2:-1].isdigit():
                     in_setting = False
                     expect_version = False
@@ -100,13 +82,12 @@ class UstFileReader:
                     current_note = NoteInfo(index=line[2:-1])
                     continue
 
-                # ---- 版本号（[#VERSION] 后的第一行有效内容） ----
+                # [#VERSION] 段的第一行有效内容即为版本号
                 if expect_version and line.startswith("UST Version"):
                     ust_version = line
                     expect_version = False
                     continue
 
-                # ---- 键值对解析 ----
                 if "=" not in line:
                     continue
 
@@ -115,7 +96,6 @@ class UstFileReader:
                 value = value.strip()
 
                 if in_setting:
-                    # [#SETTING] 段
                     if key == "Tempo":
                         try:
                             ust_tempo = float(value)
@@ -128,7 +108,6 @@ class UstFileReader:
                             pass
 
                 elif current_note is not None:
-                    # 音符段（核心字段）
                     if key == "Length":
                         try:
                             current_note.length = int(value)
@@ -146,7 +125,6 @@ class UstFileReader:
                     elif key == "PitchBend":
                         current_note.pitch_bend = _parse_pitch_bend(value)
 
-        # 最后一个音符
         if current_note is not None:
             note_list.append(current_note)
 

@@ -41,7 +41,6 @@ class UplrProjectIO:
             if not local or not os.path.exists(local):
                 continue
             base = os.path.basename(local)
-            # 不同目录下同名资源去重，避免 ZIP 内条目互相覆盖
             name = base
             stem, ext = os.path.splitext(base)
             i = 2
@@ -186,8 +185,7 @@ class UplrProjectIO:
 
             if key in str_keys:
                 holder, attr = str_keys[key]
-                # 枚举字段（lyric_pos/silent_display/end_display/pitch_placeholder）
-                # 的值可能是旧版中文文案，统一迁移为稳定 key
+                # 枚举字段可能是旧版中文文案，统一迁移为稳定 key
                 if attr in ("lyric_pos", "silent_display", "end_display", "pitch_placeholder"):
                     value = migrate(attr, value)
                 setattr(getattr(s, holder), attr, value)
@@ -196,7 +194,7 @@ class UplrProjectIO:
                 setattr(getattr(s, holder), attr, value.lower() in truthy)
 
         s.sanitize()
-        # 旧版文本格式记录的是导出机器上的绝对路径，导入后通常在本机失效，仅提示
+        # 旧文本记录的是导出机器的绝对路径，跨机器导入通常失效，仅提示
         for attr, holder in (("ust_path", s.file), ("lrc_path", s.player), ("music_path", s.project)):
             p = getattr(holder, attr, "").strip()
             if p and not os.path.exists(p):
@@ -207,7 +205,6 @@ class UplrProjectIO:
     def _import_uplr_zip(self, input_file: str):
         """解析新版 ZIP .uplr：读取 Info.json 并把资源解压到缓存目录。"""
         cache_dir = self._uplr_cache_dir(input_file)
-        # 先清空旧缓存，避免上次导入的同名资源残留混入
         shutil.rmtree(cache_dir, ignore_errors=True)
         with zipfile.ZipFile(input_file, "r") as zf:
             if "Info.json" not in zf.namelist():
@@ -227,7 +224,6 @@ class UplrProjectIO:
         def resolve(name):
             return os.path.join(base_dir, name) if name else ""
 
-        # 旧版 Info.json 中的中文枚举值经迁移表转成稳定 key
         migrate = s.player.migrate_value
 
         basic = info.get("basic", {}) or {}
@@ -250,7 +246,6 @@ class UplrProjectIO:
         s.display.show_ust_author = as_bool(display.get("show_ust_author"), True)
         s.display.fullscreen = as_bool(display.get("fullscreen"), True)
         s.display.show_lyric = as_bool(display.get("show_lyric"), False)
-        # 样例将 curve_show 放在 else 分组，导出并入 display；导入时 display 优先、else 兜底
         s.file.curve_show = as_bool(
             display.get("curve_show", else_.get("curve_show")), False
         )

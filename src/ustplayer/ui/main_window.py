@@ -60,9 +60,8 @@ class MainWindow(FluentWindow):
         # 语言切换：重装翻译器 → 全窗口重译（页面静态文本 + 导航标题）
         self._settings.language.language_changed.connect(self._on_language_changed)
 
-        # 拖放 .uplr/.ust：整个窗口统一接收。关闭所有子控件的拖放，
-        # 让任何位置的拖拽事件都自然冒泡到主窗口处理
-        # （否则 LineEdit/TextEdit 会吞掉文件拖放，主窗口收不到事件）
+        # 关闭所有子控件的拖放，让拖拽事件自然冒泡到主窗口统一处理
+        # （否则 LineEdit/TextEdit 会吞掉文件拖放，主窗口收不到）
         self.setAcceptDrops(True)
         for widget in self.findChildren(QWidget):
             widget.setAcceptDrops(False)
@@ -74,14 +73,14 @@ class MainWindow(FluentWindow):
     def _apply_window_effect(self):
         """按设置应用窗口背景效果：none=纯色, mica=Win11 Mica, acrylic=亚克力模糊。
 
-        亚克力/纯色在 Win10、Win11 均可用；Mica 仅 Win11（其余系统自动回退纯色）。
+        亚克力/纯色 Win10、Win11 均可用；Mica 仅 Win11（其余系统自动回退纯色）。
         """
         mode = self._settings.theme.window_effect
         try:
             if mode == "mica":
                 self.setMicaEffectEnabled(True)
                 if not self.isMicaEffectEnabled():
-                    # 当前系统不支持 Mica（如 Win10）：恢复纯色背景，避免透明裸底
+                    # 当前系统不支持 Mica（如 Win10）：恢复纯色背景
                     self.windowEffect.removeBackgroundEffect(self.winId())
                     self.setBackgroundColor(
                         QColor(32, 32, 32) if isDarkTheme() else QColor(240, 244, 249)
@@ -91,7 +90,7 @@ class MainWindow(FluentWindow):
                 self.setMicaEffectEnabled(False)
                 self.windowEffect.removeBackgroundEffect(self.winId())
                 self.windowEffect.setAcrylicEffect(self.winId(), self._acrylic_gradient())
-                # 背景设全透明，让 DWM 亚克力透出
+                # 背景全透明，让 DWM 亚克力透出
                 self.setBackgroundColor(QColor(0, 0, 0, 0))
             else:
                 self.setMicaEffectEnabled(False)
@@ -183,7 +182,7 @@ class MainWindow(FluentWindow):
 
     @staticmethod
     def _get_windows_accent_color() -> str | None:
-        """从注册表读取 Windows 强调色，返回 hex 字符串如 '#0078D7'。"""
+        """从注册表读取 Windows 强调色，返回 hex 如 '#0078D7'。"""
         try:
             key = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
@@ -192,7 +191,7 @@ class MainWindow(FluentWindow):
             )
             value, _ = winreg.QueryValueEx(key, "AccentColor")
             winreg.CloseKey(key)
-            # ABGR → RGB
+            # 注册表存的是 ABGR，需转成 RGB
             r = value & 0xFF
             g = (value >> 8) & 0xFF
             b = (value >> 16) & 0xFF

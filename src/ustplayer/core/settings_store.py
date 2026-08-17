@@ -79,7 +79,6 @@ class SettingsStore:
         except Exception as e:
             logger.exception(f"读取旧版设置文件失败: {e}")
             return {}
-        # 与旧 ini 段一一对应：{"分组名": {"键": "值"}}
         config = {section: dict(parser[section]) for section in parser.sections()}
         try:
             self.save(config)

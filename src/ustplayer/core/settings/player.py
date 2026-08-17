@@ -25,14 +25,12 @@ class PlayerSettings(QObject):
 
     # ===================== 稳定 key 与旧值迁移表 =====================
 
-    # 当前版本使用的稳定 key 集合（写盘 / .uplr 导出只使用这些值）
     _LYRIC_POSITIONS = ("top", "bottom")
     _SILENT_DISPLAYS = ("r", "dash", "custom", "none")
     _END_DISPLAYS = ("end", "dash", "custom", "none")
     _PITCH_PLACEHOLDERS = ("none", "dash", "custom")
 
-    # 旧版本（i18n 之前）存储的是中文显示文案，读取时经迁移表转成新 key，
-    # 保证旧 Settings.json 与旧版 .uplr 仍可无损导入。
+    # 旧版本（i18n 之前）存的是中文显示文案，读取时经迁移表转成新 key
     _LEGACY_LYRIC_POS = {"上": "top", "下": "bottom"}
     _LEGACY_SILENT_DISPLAY = {
         "R": "r", "-": "dash", "自定义文字": "custom", "什么都不显示": "none",
@@ -161,7 +159,7 @@ class PlayerSettings(QObject):
     # ===================== 分组读写 =====================
 
     def read_from(self, config):
-        """从 [PlayerSettings] 与 [LyricSettings] 两个分组读取（旧中文值自动迁移）。"""
+        """从 [PlayerSettings] 与 [LyricSettings] 分组读取（旧中文值自动迁移）。"""
         if "PlayerSettings" in config:
             cs = config["PlayerSettings"]
             self._lyric_pos = self.migrate_value(
@@ -183,7 +181,7 @@ class PlayerSettings(QObject):
             self._lrc_path = config["LyricSettings"].get("lrc_path", self._lrc_path)
 
     def write_to(self, config):
-        """写入 [PlayerSettings] 与 [LyricSettings] 两个分组。"""
+        """写入 [PlayerSettings] 与 [LyricSettings] 分组。"""
         config["PlayerSettings"] = {
             "lyric_pos": self._lyric_pos,
             "silent_display": self._silent_display,

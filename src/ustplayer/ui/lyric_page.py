@@ -34,19 +34,13 @@ class LyricPage(ScrollPage):
         self._setup_ui()
         self._connect_signals()
 
-    # ===================== UI 构建 =====================
-
     def _setup_ui(self):
         layout = self.page_layout
 
-        # ---- 歌词卡片 ----
         self.card_lyric = SectionCard(tr("歌词"))
-
-        # 显示歌词复选框
         self.cb_show_lyric = CheckBox(tr("展示歌词"))
         self.card_lyric.addWidget(self.cb_show_lyric)
 
-        # LRC 文件导入
         lrc_row = QHBoxLayout()
         lrc_row.setSpacing(8)
 
@@ -62,8 +56,6 @@ class LyricPage(ScrollPage):
 
         layout.addStretch()
 
-    # ===================== 重译（语言切换时调用） =====================
-
     def retranslate(self):
         """语言切换后重设全部静态文本。"""
         self.card_lyric.setTitle(tr("歌词"))
@@ -71,8 +63,6 @@ class LyricPage(ScrollPage):
         self.lrc_lbl.setText(tr("歌词文件（.lrc）:"))
         self.lrc_edit.setPlaceholderText(tr("请选择 .lrc 歌词文件..."))
         self.select_btn.setText(tr("选择文件"))
-
-    # ===================== 信号绑定 =====================
 
     def _connect_signals(self):
         self.cb_show_lyric.setChecked(self._s.display.show_lyric)
@@ -87,8 +77,6 @@ class LyricPage(ScrollPage):
         # settings → UI（信号驱动实时同步）
         self._s.display.show_lyric_changed.connect(lambda v: self.cb_show_lyric.setChecked(v))
         self._s.player.lrc_path_changed.connect(lambda v: self.lrc_edit.setText(v))
-
-    # ===================== 业务逻辑 =====================
 
     def _on_select_lrc(self):
         # 起始目录优先用当前歌词所在目录，其次上次打开的目录

@@ -1,5 +1,5 @@
 # section_card.py — 卡片式分区组件 + 可滚动页面基类
-"""1. SectionCard：带「主题色竖线 + 分区名」标题的卡片分区，替代 "/ XXX" 纯文本标题。
+"""1. SectionCard：带「主题色竖线 + 分区名」标题的卡片分区。
    2. ScrollPage：可滚动页面基类——内容超高时窗口大小不变，滚动查看；
       背景透明，露出窗口的 Mica/亚克力模糊效果。
 """
@@ -46,7 +46,7 @@ class SectionCard(HeaderCardWidget):
         self.headerLayout.insertWidget(0, self._bar)
         self.headerLayout.insertSpacing(1, 10)
 
-        # 内容区：在 HeaderCardWidget 的横向 viewLayout 内放一个纵向布局（收紧留白）
+        # 内容区：在 viewLayout 内放一个纵向布局
         self.content_layout = QVBoxLayout()
         self.content_layout.setContentsMargins(0, 8, 0, 8)
         self.content_layout.setSpacing(8)
@@ -59,8 +59,6 @@ class SectionCard(HeaderCardWidget):
         shadow.setOffset(0, 6)
         shadow.setColor(QColor(0, 0, 0, 45))
         self.setGraphicsEffect(shadow)
-
-    # ---- 卡片底色：纯色实底，明显区分于窗口背景 ----
 
     def _normalBackgroundColor(self):
         return QColor(255, 255, 255, 255) if not isDarkTheme() else QColor(255, 255, 255, 16)
