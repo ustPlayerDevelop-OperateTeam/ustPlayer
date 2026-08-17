@@ -27,6 +27,7 @@ from ustplayer.core.settings import (
     ColorSettings,
     DisplaySettings,
     FileSettings,
+    LanguageSettings,
     PlayerSettings,
     ProjectSettings,
     ThemeSettings,
@@ -61,6 +62,7 @@ class SettingsManager(QObject):
         self.color = ColorSettings(self)
         self.player = PlayerSettings(self)
         self.theme = ThemeSettings(self)
+        self.language = LanguageSettings(self)
 
         # 初始化配置（分组 → 键值 字典，由 SettingsStore 读写 JSON）
         self._config: Dict[str, Dict[str, str]] = {}
@@ -98,6 +100,7 @@ class SettingsManager(QObject):
             self.color.read_from(self._config)
             self.player.read_from(self._config)
             self.theme.read_from(self._config)
+            self.language.read_from(self._config)
 
             self.sanitize()
             # 校验修正的默认值写回文件（如旧版缺失键），下次启动直接可用
@@ -120,6 +123,7 @@ class SettingsManager(QObject):
             self.color.write_to(self._config)
             self.player.write_to(self._config)
             self.theme.write_to(self._config)
+            self.language.write_to(self._config)
 
             self._store.save(self._config)
         except Exception as e:

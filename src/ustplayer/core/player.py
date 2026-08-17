@@ -199,17 +199,25 @@ class NoteLyricDisplay(QWidget):
         logger.debug("播放器 __init__ 完成")
 
     def _init_fonts(self):
-        """初始化字体和度量缓存（屏幕尺寸变化后可重新调用）。"""
+        """初始化字体和度量缓存（屏幕尺寸变化后可重新调用）。
+
+        字体族按界面语言选择：中文用「等线」，其他语言用 Segoe UI，
+        保证西文/日文等文字在播放器画面中显示正常。
+        """
+        # 与 core/i18n 的当前语言保持一致：中文界面 → 等线，否则 Segoe UI
+        is_cjk = self._is_cjk_locale()
+        family = "等线" if is_cjk else "Segoe UI"
+
         note_fs = max(int(self.h * 2 / 3 * 0.4), 50)
         lyric_fs = max(int(self.h * 0.03), 10)
         ust_lyric_fs = max(int(self.h * 2 / 3 * 0.2), 80)
 
-        self.note_font = QFont("等线", note_fs, QFont.Weight.Bold)
-        self.lyric_font = QFont("等线", lyric_fs)
-        self.ust_lyric_font = QFont("等线", ust_lyric_fs, QFont.Weight.Bold)
-        self.small_font = QFont("等线", 14)
-        self.copyright_font = QFont("等线", 12)
-        self.title_font = QFont("等线", 14, QFont.Weight.Bold)  # 左上角曲名标题（每帧复用）
+        self.note_font = QFont(family, note_fs, QFont.Weight.Bold)
+        self.lyric_font = QFont(family, lyric_fs)
+        self.ust_lyric_font = QFont(family, ust_lyric_fs, QFont.Weight.Bold)
+        self.small_font = QFont(family, 14)
+        self.copyright_font = QFont(family, 12)
+        self.title_font = QFont(family, 14, QFont.Weight.Bold)  # 左上角曲名标题（每帧复用）
 
         # 缓存 QFontMetrics，避免每帧重复创建
         self._fm_note = QFontMetrics(self.note_font)
@@ -217,6 +225,15 @@ class NoteLyricDisplay(QWidget):
         self._fm_ust_lyric = QFontMetrics(self.ust_lyric_font)
         self._fm_small = QFontMetrics(self.small_font)
         self._fm_copyright = QFontMetrics(self.copyright_font)
+
+    @staticmethod
+    def _is_cjk_locale() -> bool:
+        """判断当前界面语言是否为中日韩（CJK）语言，决定字体族。"""
+        try:
+            from ustplayer.core.i18n import current_locale
+            return current_locale().startswith(("zh", "ja", "ko"))
+        except Exception:
+            return True  # 默认中文
 
     def showEvent(self, event):
         """窗口显示后启动定时器。"""
@@ -564,7 +581,7 @@ class NoteLyricDisplay(QWidget):
         if self.show_lyric and self.lrc_lines and 0 <= self.current_lrc_idx < len(self.lrc_lines):
             lrc_text = self.lrc_lines[self.current_lrc_idx][1]
             if lrc_text:
-                lrc_y = int(wh * 0.3) if self.lyric_pos == "上" else int(wh * 0.7)
+                lrc_y = int(wh * 0.3) if self.lyric_pos == "top" else int(wh * 0.7)
                 painter.setPen(QColor(*self.lyric_text_color_rgb))
                 painter.setFont(self.lyric_font)
                 lrc_w = self._fm_lyric.horizontalAdvance(lrc_text)
@@ -582,20 +599,20 @@ class NoteLyricDisplay(QWidget):
     # ===================== 文本生成 =====================
 
     def _get_silent_text(self) -> str:
-        if self.silent_display == "R":
+        if self.silent_display == "r":
             return "R"
-        elif self.silent_display == "-":
+        elif self.silent_display == "dash":
             return "-"
-        elif self.silent_display == "自定义文字":
+        elif self.silent_display == "custom":
             return self.silent_custom_text
         return ""
 
     def _get_end_text(self) -> str:
-        if self.end_display == "END":
+        if self.end_display == "end":
             return "END"
-        elif self.end_display == "-":
+        elif self.end_display == "dash":
             return "-"
-        elif self.end_display == "自定义文字":
+        elif self.end_display == "custom":
             return self.end_custom_text
         return ""
 
@@ -610,11 +627,11 @@ class NoteLyricDisplay(QWidget):
                 return ori
             if pure:
                 note, num = pure.group(1), pure.group(2)
-                if self.pitch_placeholder == "无":
+                if self.pitch_placeholder == "none":
                     return f"{note}{num}"
-                elif self.pitch_placeholder == "-":
+                elif self.pitch_placeholder == "dash":
                     return f"{note}-{num}"
-                elif self.pitch_placeholder == "自定义文字":
+                elif self.pitch_placeholder == "custom":
                     suffix = self.pitch_custom_text.strip()
                     return f"{note}({suffix}){num}" if suffix else f"{note}{num}"
             return ori

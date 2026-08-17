@@ -12,8 +12,8 @@
 ## 注意事项（Gotchas）
 
 - **不支持** USTX（`.ustx`）——解析器只处理 `.ust` 文本。不要声称支持 USTX，也不要将 `.ustx` 交给 `UstFileReader`。
-- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。提交信息以 `pass` 开头会跳过 CI；以 `v` 开头（且在 `main` 分支，或推送任何 `v*` 标签）会触发自动发版。除非确实要发版，否则绝不要使用 `v` 前缀。
-- CI 从 `UPDATELOG.md` 中标题为 `# v{版本}` 的小节提取 Release 说明——新增条目时必须保持该标题格式。顶层的 `## Unreleased` 小节会被提取器忽略。
+- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。提交信息以 `pass` 开头会跳过 CI；以 `v` 开头（任意分支的 push，或推送任何 `v*` 标签）会触发自动发版。除非确实要发版，否则绝不要使用 `v` 前缀。
+- CI 从 `ChangeLog.md` 中标题为 `# v{版本}` 的小节提取 Release 说明——新增条目时必须保持该标题格式。顶层的 `## Unreleased` 小节会被提取器忽略。
 - 提交信息包含 `close #N` / `fixes #N` 等关键字时，会在 `main` 分支自动关闭对应 Issue（见 `.github/workflows/auto-close-issue.yml`）。
 - 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.0.0）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
 - 依赖说明：`pyside6-fluent-widgets` 刻意**不带** `[full]` extra——那会引入 scipy/numpy/pillow/colorthief（约 120MB 死依赖）。不要"修复"这一点。
@@ -41,6 +41,9 @@
 
 - 使用 `from ustplayer.core.log import logger`（loguru），绝不使用 `print`；需要堆栈时用 `logger.exception(...)`。
 - 面向用户的错误遵循 `InfoBar.error("ERcodeXXX", "提示文案", ...)` 模式；新错误码请登记到 `ERcode.txt`（001–010 与 999 已占用）。
+- **i18n**：所有用户可见的 UI 字符串必须用 `from ustplayer.core.i18n import tr` 的 `tr("中文原文")` 包裹（自由函数 `tr`，lupdate 只认这个名字）；日志不翻译。改 UI 字符串后必须跑 `pyside6-lupdate -extensions py src/ustplayer -ts i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts` + `pyside6-lrelease i18n/*.ts` 并提交 `.qm`（详见 CONTRIBUTING.md「翻译贡献」）。
+- **存储层只存稳定 key**：`Settings.json` 与 `.uplr` 中的枚举值（`lyric_pos`/`silent_display`/`end_display`/`pitch_placeholder`）一律是英文 key（`top`/`r`/`custom`/`none` 等），显示文案由 UI 层 `tr()` 翻译；旧中文值由 `core/settings/player.py` 的 `migrate_value()` 兼容迁移。不要把显示文案写回存储层。
+- 语言偏好存 `Settings.json` 的 `[LanguageSettings]`（默认 `system` 跟随系统），**不写入 .uplr**；切换语言经 `LanguageSettings.language_changed` 信号 → 主窗口 `_on_language_changed` 全窗口重译。
 - 新增/重命名设置项意味着要改四处：子域类、`SettingsManager`（若参与播放参数）、`uplr_io.py`（`_settings_to_info_json` / `_apply_info_json`），以及任何 UI 接线——否则设置会静默不生效、无法持久化，或无法随 `.uplr` 完整往返。
 - 大文件用 `# ===================== 段落名 =====================` 分隔不同功能块。
-- 用户可见的变更要在最新 `UPDATELOG.md` 小节中补一条（未发版时写在 `## Unreleased` 下）。
+- 用户可见的变更要在最新 `ChangeLog.md` 小节中补一条（未发版时写在 `## Unreleased` 下）。

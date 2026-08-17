@@ -15,10 +15,21 @@ from qfluentwidgets import (
 )
 
 from ustplayer.context import AppContext
+from ustplayer.core.i18n import tr
 
 
 class FilePage(QWidget):
     """文件标签页 — UST 路径选择 + 编码 + 内容预览。"""
+
+    # 需要随语言切换重译的控件（在 _setup_ui 中创建并保存引用）
+    ust_lbl: BodyLabel
+    enc_lbl: BodyLabel
+    select_btn: PushButton
+    encoding_check_btn: PushButton
+    cb_curve: CheckBox
+    ust_edit: LineEdit
+    encoding_combo: ComboBox
+    preview_edit: TextEdit
 
     def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -38,37 +49,51 @@ class FilePage(QWidget):
         ust_row = QHBoxLayout()
         ust_row.setSpacing(8)
 
-        ust_row.addWidget(BodyLabel("ust:"))
+        self.ust_lbl = BodyLabel(tr("ust:"))
+        ust_row.addWidget(self.ust_lbl)
         self.ust_edit = LineEdit()
-        self.ust_edit.setPlaceholderText("请选择或拖入 .ust 文件路径...")
+        self.ust_edit.setPlaceholderText(tr("请选择或拖入 .ust 文件路径..."))
         ust_row.addWidget(self.ust_edit, 1)
-        self.select_btn = PushButton("选择ust文件")
+        self.select_btn = PushButton(tr("选择ust文件"))
         ust_row.addWidget(self.select_btn)
         layout.addLayout(ust_row)
 
         # 音高线勾选框
-        self.cb_curve = CheckBox("显示音高线变化")
+        self.cb_curve = CheckBox(tr("显示音高线变化"))
         layout.addWidget(self.cb_curve)
 
         # ---- 编码选择 ----
         enc_row = QHBoxLayout()
         enc_row.setSpacing(8)
 
-        enc_row.addWidget(BodyLabel("编码方式:"))
+        self.enc_lbl = BodyLabel(tr("编码方式:"))
+        enc_row.addWidget(self.enc_lbl)
         self.encoding_combo = ComboBox()
         self.encoding_combo.addItems(["UTF-8", "GBK", "Shift-JIS"])
         self.encoding_combo.setCurrentText(self._s.file.encoding)
         enc_row.addWidget(self.encoding_combo)
         enc_row.addStretch()
-        self.encoding_check_btn = PushButton("编码检查")
+        self.encoding_check_btn = PushButton(tr("编码检查"))
         enc_row.addWidget(self.encoding_check_btn)
         layout.addLayout(enc_row)
 
         # ---- 内容预览 ----
         self.preview_edit = TextEdit()
         self.preview_edit.setReadOnly(True)
-        self.preview_edit.setPlaceholderText("选择 UST 文件后在此预览...")
+        self.preview_edit.setPlaceholderText(tr("选择 UST 文件后在此预览..."))
         layout.addWidget(self.preview_edit, 1)
+
+    # ===================== 重译（语言切换时调用） =====================
+
+    def retranslate(self):
+        """语言切换后重设全部静态文本。"""
+        self.ust_lbl.setText(tr("ust:"))
+        self.ust_edit.setPlaceholderText(tr("请选择或拖入 .ust 文件路径..."))
+        self.select_btn.setText(tr("选择ust文件"))
+        self.cb_curve.setText(tr("显示音高线变化"))
+        self.enc_lbl.setText(tr("编码方式:"))
+        self.encoding_check_btn.setText(tr("编码检查"))
+        self.preview_edit.setPlaceholderText(tr("选择 UST 文件后在此预览..."))
 
     # ===================== 信号绑定 =====================
 
@@ -100,9 +125,9 @@ class FilePage(QWidget):
 
     def _on_select_ust(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择ust文件",
+            self, tr("选择ust文件"),
             os.path.dirname(self._s.file.ust_path) if self._s.file.ust_path else "",
-            "UST文件 (*.ust);;所有文件 (*.*)",
+            tr("UST文件 (*.ust);;所有文件 (*.*)"),
         )
         if file_path:
             self.ust_edit.setText(file_path)
@@ -114,11 +139,11 @@ class FilePage(QWidget):
         """手动触发编码检查：以当前编码严格模式试读，验证编码是否正确。"""
         path = self._s.file.ust_path.strip()
         if not path:
-            InfoBar.warning("提示", "请先选择 UST 文件", 3000,
+            InfoBar.warning(tr("提示"), tr("请先选择 UST 文件"), 3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
         if not os.path.exists(path):
-            InfoBar.error("ERcode001", "UST 文件不存在", 5000,
+            InfoBar.error("ERcode001", tr("UST 文件不存在"), 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
         self._preview(path, strict=True)
@@ -137,7 +162,7 @@ class FilePage(QWidget):
             self.preview_edit.setPlainText(content)
             if strict:
                 InfoBar.success(
-                    "编码正确", f"使用 {encoding} 可以正常读取该文件", 3000,
+                    tr("编码正确"), tr("使用 {0} 可以正常读取该文件").format(encoding), 3000,
                     parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except UnicodeDecodeError:
@@ -146,11 +171,11 @@ class FilePage(QWidget):
             if strict:
                 InfoBar.error(
                     "ERcode004",
-                    f"当前编码 {encoding} 无法读取该文件，请尝试其他编码",
+                    tr("当前编码 {0} 无法读取该文件，请尝试其他编码").format(encoding),
                     5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except Exception as e:
-            InfoBar.error("ERcode002", f"读取文件失败：{e}", 5000,
+            InfoBar.error("ERcode002", tr("读取文件失败：{0}").format(e), 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def refresh_preview(self):

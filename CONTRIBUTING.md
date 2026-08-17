@@ -16,6 +16,7 @@
 - [提交信息规范](#提交信息规范)
 - [分支与拉取请求（Pull Request）](#分支与拉取请求pull-request)
 - [版本与更新日志](#版本与更新日志)
+- [翻译贡献](#翻译贡献)
 - [测试与验证](#测试与验证)
 - [许可与协议](#许可与协议)
 
@@ -198,7 +199,7 @@ UI 页面 ── 构造注入 ──> AppContext（唯一组装点） ──> co
 
 请尽量贴合现有代码风格，这样 diff 更清晰、也更容易被 review：
 
-- **语言**：注释、文档字符串、日志消息、UI 字符串使用**中文**（与现有代码一致）。
+- **语言**：注释、文档字符串、日志消息使用**中文**（与现有代码一致）；**用户可见的 UI 字符串**必须以 `tr("中文原文")` 包裹（`from ustplayer.core.i18n import tr`），不允许硬编码裸字符串——否则新增界面文字无法被翻译工具提取（详见[翻译贡献](#翻译贡献)）。
 - **命名**：变量/函数/方法使用 `snake_case`，类使用 `PascalCase`，模块内部常量用 `UPPER_SNAKE_CASE`。
 - **类型标注**：公开方法尽量写类型标注（如 `-> str`、`-> UstInfo`、`Optional[QWidget]`）。
 - **日志**：使用 `from ustplayer.core.log import logger`，不要直接 `print`；异常场景用 `logger.exception(...)` 记录堆栈。
@@ -309,6 +310,50 @@ ustPlayer 在 v26f19 及之前的版本使用**日期式版本号**：`v{年份�
 - [ ] 如修改了 `.uplr` 工程文件的读写，验证导入/导出的完整性（导出 → 清空 → 导入，确认全部配置项无损）。
 
 > 目前项目还没有自动化测试框架，**手动验证 + 类型检查**是当前最主要的保障手段。
+
+## 翻译贡献
+
+ustPlayer 支持多语言界面（中文为源语言，现有 **简体中文 / 文言（华夏）／English** 三种）。翻译流程基于 Qt Linguist 工具链（随 PySide6 安装）。
+
+### 工作原理
+
+- 代码中的用户可见字符串统一经 `tr("中文原文")`（`from ustplayer.core.i18n import tr`）包裹；
+- `pyside6-lupdate` 从源码提取全部 `tr()` 字符串到 `i18n/ustplayer_*.ts`；
+- 翻译者在 `.ts` 中填写译文，`pyside6-lrelease` 编译为 `.qm` 随程序发布；
+- 运行时由 `core/i18n.py` 的 `install_translator()` 按语言加载 `.qm`（中文为源语言，无需 .qm）；
+- 用户可在「其他」页切换语言，切换即时生效并持久化到 `Settings.json` 的 `[LanguageSettings]`。
+
+### 更新已有语言的翻译
+
+修改了代码中的 UI 字符串后，需要同步 `.ts`（提取新词条、清理失效词条）并重新编译：
+
+```bash
+# 1. 提取源码中的 tr() 字符串，合并进 .ts（保持已有译文）
+pyside6-lupdate -extensions py src/ustplayer -ts i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts i18n/ustplayer_zh_classic.ts
+
+# 2. 用 Qt Linguist 打开 .ts 补译
+pyside6-linguist i18n/ustplayer_en_US.ts
+
+# 3. 编译 .qm（务必提交 .qm，程序运行时只读 .qm）
+pyside6-lrelease i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts i18n/ustplayer_zh_classic.ts
+```
+
+> [!IMPORTANT]
+> 新增或修改 UI 字符串时**必须**用 `tr()` 包裹，否则 lupdate 提取不到、翻译永远不会出现。不要修改 `.qm`（二进制），改 `.ts` 后重新编译。
+
+### 新增一种语言
+
+1. 在 `src/ustplayer/core/i18n.py` 的 `SUPPORTED_LANGUAGES` 字典中登记语言代码与显示名（如 `"ja_JP": "日本語"`）；
+2. 复制任一 `.ts` 为 `i18n/ustplayer_<语言代码>.ts`，用 Qt Linguist 翻译全部词条；
+3. 运行 `pyside6-lrelease` 生成对应 `.qm`；
+4. 在 `.github/workflows/build.yml` 的 `include-data-files` 中把新 `.qm` 加入打包清单；
+5. 在「其他」页语言下拉框的选项映射中补充新语言（`src/ustplayer/ui/other_page.py` 的 `retranslate()` 与 `_setup_ui()`）。
+
+### 语言相关约定
+
+- 语言代码用 `zh_CN` / `en_US` 形式（`语言_地区`）；
+- 存储层（`Settings.json`、`.uplr` 工程文件）只保存**稳定 key**，不保存显示文案——枚举选项（歌词位置、静默/结束显示、音高占位符等）的存储值始终是英文 key（见 `core/settings/player.py` 的 `_LEGACY_*` 迁移表），显示文案由 UI 层翻译；
+- 日志消息不翻译（面向开发者）。
 
 ### 类型检查（Pylance / pyright Standard 模式）
 

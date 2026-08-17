@@ -127,15 +127,15 @@ class PlayerStyle:
     lyric_color: str = "#FFFFFF"
     lyric_text_color: str = "#FFFFFF"
     other_text_color: str = "#FFFFFF"
-    lyric_pos: str = "上"
+    lyric_pos: str = "top"
     fullscreen: bool = True
     lrc_path: str = ""
     music_path: str = ""          # 伴奏音频路径（新版 uplr 可打包）
-    silent_display: str = "R"
+    silent_display: str = "r"
     silent_custom_text: str = ""
-    end_display: str = "END"
+    end_display: str = "end"
     end_custom_text: str = ""
-    pitch_placeholder: str = "无"
+    pitch_placeholder: str = "none"
     pitch_custom_text: str = ""
     pitch_curve_color: str = "#FFFFFF"
 

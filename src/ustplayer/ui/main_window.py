@@ -18,6 +18,7 @@ from qfluentwidgets.common.style_sheet import isDarkTheme
 
 from ustplayer.context import AppContext
 from ustplayer.core.contracts import APP_NAME, PlayerLaunchParams
+from ustplayer.core.i18n import install_translator, tr
 from ustplayer.core.log import logger
 
 from ustplayer.ui.basic_page import BasicPage
@@ -55,6 +56,9 @@ class MainWindow(FluentWindow):
         self._init_navigation()
         self.basic_page.set_play_callback(self._on_play)
         self._current_interface = self.basic_page
+
+        # 语言切换：重装翻译器 → 全窗口重译（页面静态文本 + 导航标题）
+        self._settings.language.language_changed.connect(self._on_language_changed)
 
         # 拖放 .uplr/.ust：整个窗口统一接收。关闭所有子控件的拖放，
         # 让任何位置的拖拽事件都自然冒泡到主窗口处理
@@ -252,26 +256,55 @@ class MainWindow(FluentWindow):
         self.other_page.setObjectName("other_page")
 
     def _init_navigation(self):
-        self.addSubInterface(
-            self.basic_page, FluentIcon.HOME, "基础",
+        # 保存导航按钮引用（语言切换时重设标题）
+        self._nav_items = {}
+        self._nav_items["basic"] = self.addSubInterface(
+            self.basic_page, FluentIcon.HOME, tr("基础"),
             position=NavigationItemPosition.TOP,
         )
-        self.addSubInterface(
-            self.file_page, FluentIcon.DOCUMENT, "文件",
+        self._nav_items["file"] = self.addSubInterface(
+            self.file_page, FluentIcon.DOCUMENT, tr("文件"),
             position=NavigationItemPosition.TOP,
         )
-        self.addSubInterface(
-            self.player_style_page, FluentIcon.PALETTE, "播放器",
+        self._nav_items["player_style"] = self.addSubInterface(
+            self.player_style_page, FluentIcon.PALETTE, tr("播放器"),
             position=NavigationItemPosition.TOP,
         )
-        self.addSubInterface(
-            self.lyric_page, FluentIcon.MUSIC, "歌词",
+        self._nav_items["lyric"] = self.addSubInterface(
+            self.lyric_page, FluentIcon.MUSIC, tr("歌词"),
             position=NavigationItemPosition.TOP,
         )
-        self.addSubInterface(
-            self.other_page, FluentIcon.INFO, "其他",
+        self._nav_items["other"] = self.addSubInterface(
+            self.other_page, FluentIcon.INFO, tr("其他"),
             position=NavigationItemPosition.BOTTOM,
         )
+
+    # ===================== 语言切换 =====================
+
+    def _on_language_changed(self, _language: str):
+        """语言设置变化 → 重装翻译器并重译全窗口（页面静态文本 + 导航标题）。"""
+        install_translator(self._settings.language.effective_language)
+        for page in (
+            self.basic_page, self.file_page, self.player_style_page,
+            self.lyric_page, self.other_page,
+        ):
+            retranslate = getattr(page, "retranslate", None)
+            if retranslate is not None:
+                retranslate()
+        self._retranslate_navigation()
+
+    def _retranslate_navigation(self):
+        """按当前语言重设侧边导航标题。"""
+        titles = {
+            "basic": tr("基础"),
+            "file": tr("文件"),
+            "player_style": tr("播放器"),
+            "lyric": tr("歌词"),
+            "other": tr("其他"),
+        }
+        for key, btn in self._nav_items.items():
+            if btn is not None:
+                btn.setText(titles[key])
 
     # ===================== 播放逻辑 =====================
 
@@ -282,7 +315,7 @@ class MainWindow(FluentWindow):
         if not ust_path or not os.path.exists(ust_path):
             logger.warning(f"UST 文件无效: {ust_path}")
             InfoBar.error(
-                "ERcode001", "请选择有效的UST文件！",
+                "ERcode001", tr("请选择有效的UST文件！"),
                 5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
             return
@@ -300,21 +333,23 @@ class MainWindow(FluentWindow):
 
             params = self._settings.build_ust_info(core_ust_info)
 
-            msg = MessageBox("提示",
-                             "按下确认后将启动播放器，鼠标单击后按ESC键退出全屏", self)
+            msg = MessageBox(
+                tr("提示"),
+                tr("按下确认后将启动播放器，鼠标单击后按ESC键退出全屏"), self,
+            )
             if msg.exec():
                 self._launch_player(params)
 
         except UnicodeDecodeError:
             logger.exception("UST 编码错误")
             InfoBar.error(
-                "ERcode004", "解析UST文件失败：使用了错误的编码，请切换编码后重试",
+                "ERcode004", tr("解析UST文件失败：使用了错误的编码，请切换编码后重试"),
                 5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
         except Exception as e:
             logger.exception("播放准备失败")
             InfoBar.error(
-                "ERcode999", f"播放准备失败：{e}",
+                "ERcode999", tr("播放准备失败：{0}").format(e),
                 5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
 
@@ -354,12 +389,12 @@ class MainWindow(FluentWindow):
             # 各页面已通过 settings 信号实时同步，无需手动刷新
 
             InfoBar.success(
-                "成功", f"已成功打开并加载工程：\n{path}",
+                tr("成功"), tr("已成功打开并加载工程：\n{0}").format(path),
                 3000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
         except Exception as e:
             InfoBar.error(
-                "ERcode006", f"加载工程文件失败：\n{e}",
+                "ERcode006", tr("加载工程文件失败：\n{0}").format(e),
                 5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
 

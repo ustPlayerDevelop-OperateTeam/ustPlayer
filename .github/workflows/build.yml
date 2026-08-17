@@ -79,6 +79,8 @@ jobs:
             ERcode.txt=ERcode.txt
             LICENSE=LICENSE
             icon.ico=icon.ico
+            i18n/ustplayer_en_US.qm=i18n/ustplayer_en_US.qm
+            i18n/ustplayer_zh_classic.qm=i18n/ustplayer_zh_classic.qm
           windows-icon-from-ico: icon.ico
           enable-plugins: pyside6
           windows-console-mode: disable

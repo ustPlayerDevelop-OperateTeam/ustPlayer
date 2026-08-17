@@ -171,6 +171,9 @@ class UplrProjectIO:
             with open(input_file, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
+        # 旧版文件中的中文枚举值（"上"/"自定义文字" 等）经迁移表转成稳定 key
+        migrate = s.player.migrate_value
+
         for line in content.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
@@ -183,6 +186,10 @@ class UplrProjectIO:
 
             if key in str_keys:
                 holder, attr = str_keys[key]
+                # 枚举字段（lyric_pos/silent_display/end_display/pitch_placeholder）
+                # 的值可能是旧版中文文案，统一迁移为稳定 key
+                if attr in ("lyric_pos", "silent_display", "end_display", "pitch_placeholder"):
+                    value = migrate(attr, value)
                 setattr(getattr(s, holder), attr, value)
             elif key in bool_keys:
                 holder, attr = bool_keys[key]
@@ -220,6 +227,9 @@ class UplrProjectIO:
         def resolve(name):
             return os.path.join(base_dir, name) if name else ""
 
+        # 旧版 Info.json 中的中文枚举值经迁移表转成稳定 key
+        migrate = s.player.migrate_value
+
         basic = info.get("basic", {}) or {}
         display = info.get("display", {}) or {}
         color = info.get("color", {}) or {}
@@ -252,13 +262,17 @@ class UplrProjectIO:
         s.color.other_text_color = color.get("other_text_color") or "#FFFFFF"
         s.color.pitch_curve_color = color.get("pitch_curve_color") or "#FFFFFF"
 
-        s.player.lyric_pos = else_.get("lyric_pos") or "上"
+        s.player.lyric_pos = migrate("lyric_pos", else_.get("lyric_pos") or "top")
         s.player.lrc_path = resolve(else_.get("lrc_path") or "")
-        s.player.silent_display = else_.get("silent_display") or "R"
+        s.player.silent_display = migrate(
+            "silent_display", else_.get("silent_display") or "r"
+        )
         s.player.silent_custom_text = else_.get("silent_custom_text") or ""
-        s.player.end_display = else_.get("end_display") or "END"
+        s.player.end_display = migrate("end_display", else_.get("end_display") or "end")
         s.player.end_custom_text = else_.get("end_custom_text") or ""
-        s.player.pitch_placeholder = else_.get("pitch_placeholder") or "无"
+        s.player.pitch_placeholder = migrate(
+            "pitch_placeholder", else_.get("pitch_placeholder") or "none"
+        )
         s.player.pitch_custom_text = else_.get("pitch_custom_text") or ""
 
     # ===================== 缓存目录 =====================

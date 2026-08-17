@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from ustplayer.context import AppContext
 from ustplayer.core.contracts import APP_NAME
+from ustplayer.core.i18n import install_translator
 from ustplayer.core.log import logger
 from ustplayer.ui.main_window import MainWindow
 
@@ -33,8 +34,13 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
 
-    logger.info("正在创建主窗口...")
+    # 设置（含语言偏好）在创建窗口前加载，据此安装界面翻译器
+    logger.info("正在加载设置并安装翻译器...")
     ctx = AppContext()
+    install_translator(ctx.settings.language.effective_language)
+    logger.info(f"界面语言: {ctx.settings.language.effective_language}")
+
+    logger.info("正在创建主窗口...")
     window = MainWindow(ctx)
     window.show()
     logger.info("主窗口已显示")
