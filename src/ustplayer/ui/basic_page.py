@@ -1,4 +1,4 @@
-# basic_page.py — "基础" 导航页
+# basic_page.py — 基础信息页
 """项目信息、显示选项和播放控制。"""
 
 import os
@@ -7,7 +7,6 @@ from typing import Callable, Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
 )
-
 from qfluentwidgets import (
     LineEdit, PushButton, PrimaryPushButton, SwitchButton,
     BodyLabel, InfoBar, InfoBarPosition,
@@ -19,9 +18,6 @@ from ustplayer.ui.section_card import ScrollPage, SectionCard
 
 
 class BasicPage(ScrollPage):
-    """基础页 — 项目信息 + 显示选项 + Play。"""
-
-    # 控件由 _setup_ui 动态创建，此处声明类型以便静态检查识别
     edit_project_name: LineEdit
     edit_song_name: LineEdit
     edit_song_author: LineEdit
@@ -33,7 +29,6 @@ class BasicPage(ScrollPage):
     sw_show_song_author: SwitchButton
     sw_show_ust_author: SwitchButton
 
-    # 需要随语言切换重译的控件（在 _setup_ui 中创建并保存引用）
     card_project: SectionCard
     card_display: SectionCard
     music_lbl: BodyLabel
@@ -41,8 +36,8 @@ class BasicPage(ScrollPage):
     export_btn: PushButton
     music_btn: PushButton
     play_btn: PrimaryPushButton
-    _field_labels: dict  # attr → BodyLabel（字段名标签）
-    _switch_labels: dict  # attr → BodyLabel（显示选项开关标签）
+    _field_labels: dict
+    _switch_labels: dict
 
     def __init__(self, ctx: AppContext, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -57,11 +52,8 @@ class BasicPage(ScrollPage):
     def set_play_callback(self, callback: Callable[[], None]):
         self._play_callback = callback
 
-    # ===================== UI 构建 =====================
-
     def _setup_ui(self):
         layout = self.page_layout
-
         self.card_project = SectionCard(tr("项目"))
 
         self._add_field(self.card_project.content_layout, tr("项目名："), "project_name")
@@ -69,7 +61,6 @@ class BasicPage(ScrollPage):
         self._add_field(self.card_project.content_layout, tr("MIDI作者："), "song_author")
         self._add_field(self.card_project.content_layout, tr("调音师："), "ust_author")
 
-        # 伴奏音乐（可选，随新版 uplr 打包）
         music_row = QHBoxLayout()
         music_row.setSpacing(8)
         self.music_lbl = BodyLabel(tr("音乐："))
@@ -82,7 +73,6 @@ class BasicPage(ScrollPage):
         music_row.addWidget(self.music_btn)
         self.card_project.addLayout(music_row)
 
-        # 导入/保存工程按钮（放在音乐选择框下方）
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
         self.import_btn = PushButton(tr("导入项目"))
@@ -95,11 +85,9 @@ class BasicPage(ScrollPage):
 
         self.card_display = SectionCard(tr("显示选项"))
         switches = [
-            ("show_bpm",         tr("显示BPM")),
-            ("show_play_time",   tr("显示播放时间")),
-            ("show_song_name",   tr("显示曲目信息")),
-            ("show_song_author", tr("显示MIDI作者")),
-            ("show_ust_author",  tr("显示调音师")),
+            ("show_bpm", tr("显示BPM")), ("show_play_time", tr("显示播放时间")),
+            ("show_song_name", tr("显示曲目信息")), ("show_song_author", tr("显示MIDI作者")),
+            ("show_ust_author", tr("显示调音师")),
         ]
         cols = 2
         for i in range(0, len(switches), cols):
@@ -117,20 +105,17 @@ class BasicPage(ScrollPage):
                 cell.addStretch()
                 row.addLayout(cell)
                 setattr(self, f"sw_{attr}", sw)
-            # 补空列保持对齐
             for _ in range(cols - len(batch)):
                 row.addStretch(1)
             self.card_display.addLayout(row)
         layout.addWidget(self.card_display)
-
         layout.addStretch()
 
-        # Play 按钮
         self.play_btn = PrimaryPushButton(tr("播放 Play"))
         self.play_btn.setMinimumHeight(40)
         layout.addWidget(self.play_btn)
 
-    def _add_field(self, parent_layout: QVBoxLayout, label: str, attr: str):
+    def _add_field(self, parent_layout, label, attr):
         row = QHBoxLayout()
         row.setSpacing(8)
         lbl = BodyLabel(label)
@@ -145,19 +130,13 @@ class BasicPage(ScrollPage):
 
     @staticmethod
     def _field_placeholder(label: str) -> str:
-        """字段输入框占位符：去掉标签尾部的中/英文冒号后套「请输入{0}」。"""
         return tr("请输入{0}").format(label.rstrip("：:"))
 
-    # ===================== 重译（语言切换时调用） =====================
-
     def retranslate(self):
-        """语言切换后重设全部静态文本。"""
         self.card_project.setTitle(tr("项目"))
         for attr, text in (
-            ("project_name", tr("项目名：")),
-            ("song_name", tr("曲名&曲师：")),
-            ("song_author", tr("MIDI作者：")),
-            ("ust_author", tr("调音师：")),
+            ("project_name", tr("项目名：")), ("song_name", tr("曲名&曲师：")),
+            ("song_author", tr("MIDI作者：")), ("ust_author", tr("调音师：")),
         ):
             self._field_labels[attr].setText(text)
             getattr(self, f"edit_{attr}").setPlaceholderText(self._field_placeholder(text))
@@ -168,21 +147,15 @@ class BasicPage(ScrollPage):
         self.export_btn.setText(tr("保存项目"))
         self.card_display.setTitle(tr("显示选项"))
         for attr, text in (
-            ("show_bpm", tr("显示BPM")),
-            ("show_play_time", tr("显示播放时间")),
-            ("show_song_name", tr("显示曲目信息")),
-            ("show_song_author", tr("显示MIDI作者")),
+            ("show_bpm", tr("显示BPM")), ("show_play_time", tr("显示播放时间")),
+            ("show_song_name", tr("显示曲目信息")), ("show_song_author", tr("显示MIDI作者")),
             ("show_ust_author", tr("显示调音师")),
         ):
             self._switch_labels[attr].setText(text)
         self.play_btn.setText(tr("播放 Play"))
 
-    # ===================== 信号绑定 =====================
-
     def _connect_signals(self):
         s = self._s
-
-        # 初始值 → UI
         self.edit_project_name.setText(s.project.project_name)
         self.edit_song_name.setText(s.project.song_name)
         self.edit_song_author.setText(s.project.song_author)
@@ -194,7 +167,6 @@ class BasicPage(ScrollPage):
         self.sw_show_song_author.setChecked(s.display.show_song_author)
         self.sw_show_ust_author.setChecked(s.display.show_ust_author)
 
-        # UI → settings
         self.edit_project_name.textChanged.connect(lambda v: setattr(s.project, "project_name", v))
         self.edit_song_name.textChanged.connect(lambda v: setattr(s.project, "song_name", v))
         self.edit_song_author.textChanged.connect(lambda v: setattr(s.project, "song_author", v))
@@ -206,7 +178,6 @@ class BasicPage(ScrollPage):
         self.sw_show_song_author.checkedChanged.connect(lambda v: setattr(s.display, "show_song_author", v))
         self.sw_show_ust_author.checkedChanged.connect(lambda v: setattr(s.display, "show_ust_author", v))
 
-        # settings → UI（信号驱动实时同步，导入 uplr 时自动生效）
         s.project.project_name_changed.connect(lambda v: self.edit_project_name.setText(v))
         s.project.song_name_changed.connect(lambda v: self.edit_song_name.setText(v))
         s.project.song_author_changed.connect(lambda v: self.edit_song_author.setText(v))
@@ -218,13 +189,10 @@ class BasicPage(ScrollPage):
         s.display.show_song_author_changed.connect(lambda v: self.sw_show_song_author.setChecked(v))
         s.display.show_ust_author_changed.connect(lambda v: self.sw_show_ust_author.setChecked(v))
 
-        # 按钮
         self.import_btn.clicked.connect(self._on_import)
         self.export_btn.clicked.connect(self._on_export)
         self.music_btn.clicked.connect(self._on_select_music)
         self.play_btn.clicked.connect(self._on_play)
-
-    # ===================== 业务逻辑 =====================
 
     def _on_import(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -237,7 +205,6 @@ class BasicPage(ScrollPage):
             self._ctx.project_io.import_uplr(file_path)
             self._s.last_open_dir = os.path.dirname(file_path)
             self._s.write_settings()
-            # 各页面已通过 settings 信号实时同步，无需手动刷新
             InfoBar.success(tr("成功"), tr("已加载工程：{0}").format(file_path), 3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
         except Exception as e:
@@ -252,7 +219,6 @@ class BasicPage(ScrollPage):
         )
         if not file_path:
             return
-        # 对话框不会自动补扩展名，手动补上，保证文件可被再次导入
         if not file_path.lower().endswith(".uplr"):
             file_path += ".uplr"
         try:

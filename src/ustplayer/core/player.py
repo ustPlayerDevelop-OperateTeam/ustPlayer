@@ -205,12 +205,11 @@ class NoteLyricDisplay(QWidget):
 
     @staticmethod
     def _is_cjk_locale() -> bool:
-        """判断当前界面语言是否为中日韩（CJK）语言，决定字体族。"""
         try:
             from ustplayer.core.i18n import current_locale
             return current_locale().startswith(("zh", "ja", "ko"))
         except Exception:
-            return True  # 默认中文
+            return True
 
     def showEvent(self, event):
         """窗口显示后启动定时器。"""

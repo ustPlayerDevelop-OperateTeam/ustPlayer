@@ -1,9 +1,5 @@
 # uplr_io.py — .uplr 工程文件导入/导出
-"""新版 ZIP 容器（Info.json + ust/lrc/music 资源）与旧版纯文本格式的读写。
-
-实现 contracts.ProjectIO 接口，通过 SettingsManager 的子域访问设置属性
-（导入时经 setter 触发信号同步 UI）。
-"""
+"""新版 ZIP 容器（Info.json + 资源）与旧版纯文本格式的读写。"""
 
 import hashlib
 import json
@@ -20,21 +16,12 @@ if TYPE_CHECKING:
 
 
 class UplrProjectIO:
-    """.uplr 工程文件服务 — 实现 contracts.ProjectIO 接口。"""
-
     def __init__(self, settings: "SettingsManager"):
         self._settings = settings
 
-    # ===================== 导出 =====================
-
     def export_uplr(self, output_file: str):
-        """导出所有配置与资源到新版 .uplr（ZIP 容器）工程文件。
-
-        资源文件（ust/lrc/music）存在时一并打包，Info.json 内路径记录包内文件名；
-        缺失的资源对应 null。使用 ZIP_STORED（不压缩），flac 等已压缩格式体积不变。
-        """
         s = self._settings
-        members = {}  # 属性名 → 包内文件名
+        members = {}
         used_names = set()
         for attr, holder in (("ust_path", s.file), ("lrc_path", s.player), ("music_path", s.project)):
             local = getattr(holder, attr).strip()
@@ -50,19 +37,15 @@ class UplrProjectIO:
             members[attr] = name
             used_names.add(name.lower())
 
-        info = self._settings_to_info_json(members)
-
         with zipfile.ZipFile(output_file, "w", zipfile.ZIP_STORED) as zf:
-            zf.writestr("Info.json", json.dumps(info, ensure_ascii=False, indent=4))
+            zf.writestr("Info.json", json.dumps(self._settings_to_info_json(members), ensure_ascii=False, indent=4))
             for attr, name in members.items():
                 holder = {"ust_path": s.file, "lrc_path": s.player, "music_path": s.project}[attr]
                 zf.write(getattr(holder, attr).strip(), arcname=name)
 
     def _settings_to_info_json(self, members: dict) -> dict:
-        """当前设置 → Info.json 结构（路径字段写包内文件名，缺失为 None）。"""
         s = self._settings
-
-        def name_or_none(attr: str):
+        def name_or_none(attr):
             return members.get(attr) or None
 
         return {
@@ -76,14 +59,14 @@ class UplrProjectIO:
                 "ust_author": s.project.ust_author or None,
             },
             "display": {
-                "show_bpm": 1 if s.display.show_bpm else 0,
-                "show_play_time": 1 if s.display.show_play_time else 0,
-                "show_song_name": 1 if s.display.show_song_name else 0,
-                "show_song_author": 1 if s.display.show_song_author else 0,
-                "show_ust_author": 1 if s.display.show_ust_author else 0,
-                "fullscreen": 1 if s.display.fullscreen else 0,
-                "show_lyric": 1 if s.display.show_lyric else 0,
-                "curve_show": 1 if s.file.curve_show else 0,
+                "show_bpm": int(s.display.show_bpm),
+                "show_play_time": int(s.display.show_play_time),
+                "show_song_name": int(s.display.show_song_name),
+                "show_song_author": int(s.display.show_song_author),
+                "show_ust_author": int(s.display.show_ust_author),
+                "fullscreen": int(s.display.fullscreen),
+                "show_lyric": int(s.display.show_lyric),
+                "curve_show": int(s.file.curve_show),
             },
             "color": {
                 "bg_color": s.color.bg_color,
@@ -105,10 +88,7 @@ class UplrProjectIO:
             },
         }
 
-    # ===================== 导入 =====================
-
     def import_uplr(self, input_file: str):
-        """从 .uplr 工程文件导入全部配置（自动识别 ZIP / 旧文本格式）。"""
         with open(input_file, "rb") as f:
             head = f.read(4)
         if head.startswith(b"PK\x03\x04"):
@@ -116,48 +96,29 @@ class UplrProjectIO:
         else:
             self._import_uplr_text(input_file)
 
-    # ===================== 旧版文本格式（仅导入兼容） =====================
-
     def _import_uplr_text(self, input_file: str):
-        """解析旧版纯文本 .uplr（key=value）。"""
         s = self._settings
-        # 字段映射：key → (子域名, 属性名)
         str_keys = {
-            "project_name": ("project", "project_name"),
-            "ust_path": ("file", "ust_path"),
-            "music_path": ("project", "music_path"),
-            "song_name": ("project", "song_name"),
-            "song_author": ("project", "song_author"),
-            "ust_author": ("project", "ust_author"),
+            "project_name": ("project", "project_name"), "ust_path": ("file", "ust_path"),
+            "music_path": ("project", "music_path"), "song_name": ("project", "song_name"),
+            "song_author": ("project", "song_author"), "ust_author": ("project", "ust_author"),
             "encoding": ("file", "encoding"),
-            "bg_color": ("color", "bg_color"),
-            "note_color": ("color", "note_color"),
-            "lyric_color": ("color", "lyric_color"),
-            "lyric_text_color": ("color", "lyric_text_color"),
-            "other_text_color": ("color", "other_text_color"),
-            "pitch_curve_color": ("color", "pitch_curve_color"),
-            "lyric_pos": ("player", "lyric_pos"),
-            "lrc_path": ("player", "lrc_path"),
-            "silent_display": ("player", "silent_display"),
-            "silent_custom_text": ("player", "silent_custom_text"),
-            "end_display": ("player", "end_display"),
-            "end_custom_text": ("player", "end_custom_text"),
-            "pitch_placeholder": ("player", "pitch_placeholder"),
-            "pitch_custom_text": ("player", "pitch_custom_text"),
+            "bg_color": ("color", "bg_color"), "note_color": ("color", "note_color"),
+            "lyric_color": ("color", "lyric_color"), "lyric_text_color": ("color", "lyric_text_color"),
+            "other_text_color": ("color", "other_text_color"), "pitch_curve_color": ("color", "pitch_curve_color"),
+            "lyric_pos": ("player", "lyric_pos"), "lrc_path": ("player", "lrc_path"),
+            "silent_display": ("player", "silent_display"), "silent_custom_text": ("player", "silent_custom_text"),
+            "end_display": ("player", "end_display"), "end_custom_text": ("player", "end_custom_text"),
+            "pitch_placeholder": ("player", "pitch_placeholder"), "pitch_custom_text": ("player", "pitch_custom_text"),
         }
         bool_keys = {
-            "show_bpm": ("display", "show_bpm"),
-            "show_play_time": ("display", "show_play_time"),
-            "show_song_name": ("display", "show_song_name"),
-            "show_song_author": ("display", "show_song_author"),
-            "show_ust_author": ("display", "show_ust_author"),
-            "fullscreen": ("display", "fullscreen"),
-            "show_lyric": ("display", "show_lyric"),
-            "curve_show": ("file", "curve_show"),
+            "show_bpm": ("display", "show_bpm"), "show_play_time": ("display", "show_play_time"),
+            "show_song_name": ("display", "show_song_name"), "show_song_author": ("display", "show_song_author"),
+            "show_ust_author": ("display", "show_ust_author"), "fullscreen": ("display", "fullscreen"),
+            "show_lyric": ("display", "show_lyric"), "curve_show": ("file", "curve_show"),
         }
         truthy = ("1", "true", "yes", "on")
 
-        # 旧版文件可能是 GBK/Shift-JIS 编码，逐个尝试，全部失败才用 replace 兜底
         content = ""
         for enc in ("utf-8-sig", "utf-8", "gbk", "gb2312", "shift-jis"):
             try:
@@ -170,9 +131,7 @@ class UplrProjectIO:
             with open(input_file, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
-        # 旧版文件中的中文枚举值（"上"/"自定义文字" 等）经迁移表转成稳定 key
         migrate = s.player.migrate_value
-
         for line in content.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
@@ -180,12 +139,9 @@ class UplrProjectIO:
             parts = line.split("=", 1)
             if len(parts) != 2:
                 continue
-            key = parts[0].strip()
-            value = parts[1].strip()
-
+            key, value = parts[0].strip(), parts[1].strip()
             if key in str_keys:
                 holder, attr = str_keys[key]
-                # 枚举字段可能是旧版中文文案，统一迁移为稳定 key
                 if attr in ("lyric_pos", "silent_display", "end_display", "pitch_placeholder"):
                     value = migrate(attr, value)
                 setattr(getattr(s, holder), attr, value)
@@ -194,16 +150,12 @@ class UplrProjectIO:
                 setattr(getattr(s, holder), attr, value.lower() in truthy)
 
         s.sanitize()
-        # 旧文本记录的是导出机器的绝对路径，跨机器导入通常失效，仅提示
         for attr, holder in (("ust_path", s.file), ("lrc_path", s.player), ("music_path", s.project)):
             p = getattr(holder, attr, "").strip()
             if p and not os.path.exists(p):
-                logger.warning(f"旧版 .uplr 中的 {attr} 路径在本机不存在（跨机器路径常见）: {p}")
-
-    # ===================== 新版 ZIP 格式 =====================
+                logger.warning(f"旧版 .uplr 路径在本机不存在: {p}")
 
     def _import_uplr_zip(self, input_file: str):
-        """解析新版 ZIP .uplr：读取 Info.json 并把资源解压到缓存目录。"""
         cache_dir = self._uplr_cache_dir(input_file)
         shutil.rmtree(cache_dir, ignore_errors=True)
         with zipfile.ZipFile(input_file, "r") as zf:
@@ -218,14 +170,11 @@ class UplrProjectIO:
         self._settings.sanitize()
 
     def _apply_info_json(self, info: dict, base_dir: str):
-        """Info.json → 设置。路径字段解析为缓存目录中的完整路径。"""
         s = self._settings
-
         def resolve(name):
             return os.path.join(base_dir, name) if name else ""
 
         migrate = s.player.migrate_value
-
         basic = info.get("basic", {}) or {}
         display = info.get("display", {}) or {}
         color = info.get("color", {}) or {}
@@ -246,9 +195,7 @@ class UplrProjectIO:
         s.display.show_ust_author = as_bool(display.get("show_ust_author"), True)
         s.display.fullscreen = as_bool(display.get("fullscreen"), True)
         s.display.show_lyric = as_bool(display.get("show_lyric"), False)
-        s.file.curve_show = as_bool(
-            display.get("curve_show", else_.get("curve_show")), False
-        )
+        s.file.curve_show = as_bool(display.get("curve_show", else_.get("curve_show")), False)
 
         s.color.bg_color = color.get("bg_color") or "#000000"
         s.color.note_color = color.get("note_color") or "#6c6c6c"
@@ -259,33 +206,22 @@ class UplrProjectIO:
 
         s.player.lyric_pos = migrate("lyric_pos", else_.get("lyric_pos") or "top")
         s.player.lrc_path = resolve(else_.get("lrc_path") or "")
-        s.player.silent_display = migrate(
-            "silent_display", else_.get("silent_display") or "r"
-        )
+        s.player.silent_display = migrate("silent_display", else_.get("silent_display") or "r")
         s.player.silent_custom_text = else_.get("silent_custom_text") or ""
         s.player.end_display = migrate("end_display", else_.get("end_display") or "end")
         s.player.end_custom_text = else_.get("end_custom_text") or ""
-        s.player.pitch_placeholder = migrate(
-            "pitch_placeholder", else_.get("pitch_placeholder") or "none"
-        )
+        s.player.pitch_placeholder = migrate("pitch_placeholder", else_.get("pitch_placeholder") or "none")
         s.player.pitch_custom_text = else_.get("pitch_custom_text") or ""
-
-    # ===================== 缓存目录 =====================
 
     @staticmethod
     def _uplr_cache_dir(uplr_path: str) -> str:
-        """计算 uplr 解压缓存目录：%LOCALAPPDATA%\\ustPlayer\\projects\\<stem>-<hash8>。"""
         stem = os.path.splitext(os.path.basename(uplr_path))[0]
         digest = hashlib.sha1(os.path.abspath(uplr_path).encode("utf-8")).hexdigest()[:8]
-        base = os.path.join(
-            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
-            "ustPlayer", "projects",
-        )
+        base = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ustPlayer", "projects")
         return os.path.join(base, f"{stem}-{digest}")
 
     @staticmethod
-    def _extract_member_safe(zf: zipfile.ZipFile, name: str, dest_dir: str):
-        """解压单个成员，阻止 zip slip（绝对路径 / .. 穿越）。"""
+    def _extract_member_safe(zf, name: str, dest_dir: str):
         normalized = name.replace("\\", "/")
         if normalized.startswith("/") or ".." in normalized.split("/"):
             raise ValueError(f"工程文件包含不安全路径: {name}")
