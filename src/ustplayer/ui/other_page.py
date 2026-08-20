@@ -61,10 +61,10 @@ class OtherPage(ScrollPage):
         layout = self.page_layout
 
         self.card_about = SectionCard(tr("关于软件"))
-        copyright_btn = HyperlinkButton("", f"{APP_NAME} - {APP_VERSION} by {APP_AUTHOR}", self)
-        copyright_btn.setToolTip(tr("点击访问 Bilibili 主页"))
-        copyright_btn.clicked.connect(lambda: self._open_url("https://space.bilibili.com/661930756"))
-        self.card_about.addWidget(copyright_btn)
+        self.copyright_btn = HyperlinkButton("", f"{APP_NAME} - {APP_VERSION} by {APP_AUTHOR}", self)
+        self.copyright_btn.setToolTip(tr("点击访问 Bilibili 主页"))
+        self.copyright_btn.clicked.connect(lambda: self._open_url("https://space.bilibili.com/661930756"))
+        self.card_about.addWidget(self.copyright_btn)
         layout.addWidget(self.card_about)
 
         self.card_tools = SectionCard(tr("外部工具与纠错"))
@@ -162,6 +162,7 @@ class OtherPage(ScrollPage):
 
     def retranslate(self):
         self.card_about.setTitle(tr("关于软件"))
+        self.copyright_btn.setToolTip(tr("点击访问 Bilibili 主页"))
         self.card_tools.setTitle(tr("外部工具与纠错"))
         self.er_btn.setText(tr("ERcodes纠错"))
         self.card_theme.setTitle(tr("主题"))
@@ -222,7 +223,7 @@ class OtherPage(ScrollPage):
         setattr(self._s.theme, "theme_mode", self.theme_combo.currentData())
 
     def _on_accent_color_mode_combo_changed(self, _index: int):
-        mode = self.accent_color_mode_combo.currentData()
+        mode = str(self.accent_color_mode_combo.currentData())
         setattr(self._s.theme, "accent_color_mode", mode)
         self._update_accent_custom_visible(mode)
 

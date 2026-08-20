@@ -134,6 +134,7 @@ class FilePage(QWidget):
 
     def _on_encoding_change(self, encoding: str):
         self._s.file.encoding = encoding
+        self.refresh_preview()
 
     def _on_encoding_check(self):
         """手动触发编码检查：以当前编码严格模式试读，验证编码是否正确。"""

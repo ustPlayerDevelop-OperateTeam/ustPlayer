@@ -15,7 +15,7 @@
 - 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。提交信息以 `pass` 开头会跳过 CI；以 `v` 开头（任意分支的 push，或推送任何 `v*` 标签）会触发自动发版。除非确实要发版，否则绝不要使用 `v` 前缀。
 - CI 从 `ChangeLog.md` 中标题为 `# v{版本}` 的小节提取 Release 说明——新增条目时必须保持该标题格式。顶层的 `## Unreleased` 小节会被提取器忽略。
 - 提交信息包含 `close #N` / `fixes #N` 等关键字时，会在 `main` 分支自动关闭对应 Issue（见 `.github/workflows/auto-close-issue.yml`）。
-- 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.0.0）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
+- 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.1.0b1，与 `contracts.APP_VERSION` 的 "1.1.0 Beta 1" 对应）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
 - 依赖说明：`pyside6-fluent-widgets` 刻意**不带** `[full]` extra——那会引入 scipy/numpy/pillow/colorthief（约 120MB 死依赖）。不要"修复"这一点。
 - `.vscode/tasks.json` 提供了一个构建任务（`Ctrl+Shift+B`），运行 `tools/uplr_converter/build.bat`——这是唯一的本地构建；转换器其余时候由 CI 构建。
 

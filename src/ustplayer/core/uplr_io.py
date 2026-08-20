@@ -4,6 +4,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import zipfile
 from typing import TYPE_CHECKING
@@ -16,6 +17,11 @@ if TYPE_CHECKING:
 
 
 class UplrProjectIO:
+    # 导入防护上限：Info.json 应极小；单成员 / 工程总量过大视为异常（防 zip bomb）
+    _MAX_INFO_SIZE = 1024 * 1024          # 1MB
+    _MAX_MEMBER_SIZE = 512 * 1024 * 1024  # 512MB
+    _MAX_TOTAL_SIZE = 1024 * 1024 * 1024  # 1GB
+
     def __init__(self, settings: "SettingsManager"):
         self._settings = settings
 
@@ -161,11 +167,17 @@ class UplrProjectIO:
         with zipfile.ZipFile(input_file, "r") as zf:
             if "Info.json" not in zf.namelist():
                 raise ValueError("ZIP 工程文件缺少 Info.json")
-            info = json.loads(zf.read("Info.json").decode("utf-8"))
+            info_entry = zf.getinfo("Info.json")
+            if info_entry.file_size > self._MAX_INFO_SIZE:
+                raise ValueError("Info.json 异常过大，已中止导入")
+            info = json.loads(zf.read(info_entry).decode("utf-8"))
+            total = 0
             for name in zf.namelist():
                 if name == "Info.json":
                     continue
-                self._extract_member_safe(zf, name, cache_dir)
+                total += self._extract_member_safe(zf, name, cache_dir)
+                if total > self._MAX_TOTAL_SIZE:
+                    raise ValueError("工程文件解压总量超限，已中止导入")
         self._apply_info_json(info, cache_dir)
         self._settings.sanitize()
 
@@ -221,11 +233,39 @@ class UplrProjectIO:
         return os.path.join(base, f"{stem}-{digest}")
 
     @staticmethod
-    def _extract_member_safe(zf, name: str, dest_dir: str):
+    def _extract_member_safe(zf, name: str, dest_dir: str) -> int:
+        """解压单个成员，阻止 zip slip（绝对路径 / .. 穿越 / 盘符路径），
+        分块流式写入并限制单成员大小；返回实际解压的字节数（目录条目返回 0）。
+        """
         normalized = name.replace("\\", "/")
-        if normalized.startswith("/") or ".." in normalized.split("/"):
+        if normalized.endswith("/"):
+            # 目录条目：无需创建，子文件写入时 os.makedirs 会自动补父目录
+            return 0
+        if (
+            normalized.startswith("/")
+            or ".." in normalized.split("/")
+            or re.match(r"^[A-Za-z]:", normalized)
+        ):
             raise ValueError(f"工程文件包含不安全路径: {name}")
         target = os.path.join(dest_dir, normalized)
+        # 二次防御：确认解析后的目标仍在缓存目录内（防盘符/前缀混淆等极端情况）
+        abs_dest = os.path.abspath(dest_dir)
+        abs_target = os.path.abspath(target)
+        try:
+            inside = os.path.commonpath([abs_dest, abs_target]) == abs_dest
+        except ValueError:  # 不同盘符等无法比较的情况一律拒绝
+            inside = False
+        if not inside:
+            raise ValueError(f"工程文件包含不安全路径: {name}")
         os.makedirs(os.path.dirname(target), exist_ok=True)
+        written = 0
         with zf.open(name) as src, open(target, "wb") as dst:
-            dst.write(src.read())
+            while True:
+                chunk = src.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > UplrProjectIO._MAX_MEMBER_SIZE:
+                    raise ValueError(f"工程文件成员过大，已中止导入: {name}")
+                dst.write(chunk)
+        return written

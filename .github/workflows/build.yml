@@ -168,7 +168,11 @@ jobs:
         run: |
           $tag = '${{ steps.ver.outputs.tag }}'
           $content = Get-Content ChangeLog.md -Raw -Encoding UTF8
-          if ($content -match "(?ms)^(# $tag\b[^\n]*)\n(.*?)(?=\r?\n# |\Z)") {
+          # tag 名用连字符（如 v1.1.0-Beta-1），ChangeLog 标题用空格（如 # v1.1.0 Beta 1）：
+          # 转义后把连字符替换成 [ -]（空格或连字符），两种写法都能匹配到对应小节。
+          # 注意：.NET 的 Regex.Escape 不转义连字符，需直接对 '-' 做替换
+          $pattern = ([regex]::Escape($tag) -replace '-', '[ -]')
+          if ($content -match "(?ms)^(# $pattern[^\n]*)\n(.*?)(?=\r?\n# |\Z)") {
               $heading = ($matches[1] -replace '^# v?', '').Trim()
               $section = $matches[2].Trim()
               "Found changelog section for $tag" | Write-Host
@@ -181,19 +185,33 @@ jobs:
           "title=$heading" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "tag_name=$($heading -replace ' ', '-')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: 打包产物
+      - name: 打包 ustPlayer 主包（定位产物目录后只打包其内容，不含任何外层目录）
         run: |
           $name = "ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip"
-          $files = @(Get-ChildItem -Path build/main.dist -Force).FullName
-          $converter = "build/converter/uplr_converter.exe"
-          if (Test-Path $converter) {
-              Copy-Item $converter "build/main.dist/uplr_converter.exe"
-              "转换器已并入发布包" | Write-Host
-          } else {
-              "WARNING: 未找到 uplr_converter.exe" | Write-Host
+          # download-artifact 解压后 build/main.dist 下可能嵌套一层与 artifact 同名的目录，
+          # 因此以 ustPlayer.exe 为锚定位真正的产物目录，再只打包该目录里的内容，
+          # 避免把整个 main.dist / artifact 同名目录原样打进发布包
+          $exe = Get-ChildItem -Path build/main.dist -Recurse -Filter ustPlayer.exe -File | Select-Object -First 1
+          if (-not $exe) {
+              throw "未找到 ustPlayer.exe，无法打包"
           }
-          Compress-Archive -Path $files -DestinationPath $name -Force
-          "Artifact: $name" | Write-Host
+          $dist = $exe.Directory
+          $items = @(Get-ChildItem -Path $dist -Force)
+          if ($items.Count -eq 0) {
+              throw "产物目录为空，无法打包"
+          }
+          Compress-Archive -Path $items.FullName -DestinationPath $name -Force
+          "Artifact: $name（打包自 $($dist.FullName)）" | Write-Host
+
+      - name: 打包转换器（独立发布，不再并入主包）
+        run: |
+          $cname = "uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip"
+          if (-not (Test-Path "build/converter/uplr_converter.exe")) {
+              "WARNING: 未找到 uplr_converter.exe，跳过转换器打包" | Write-Host
+              exit 0
+          }
+          Compress-Archive -Path "build/converter/uplr_converter.exe" -DestinationPath $cname -Force
+          "Artifact: $cname" | Write-Host
 
       - name: 创建 tag（commit 消息触发时）
         if: github.ref_type != 'tag'
@@ -210,7 +228,9 @@ jobs:
           tag_name: ${{ steps.changelog.outputs.tag_name }}
           name: ${{ steps.changelog.outputs.title }}
           body_path: changelog_body.md
-          files: ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip
+          files: |
+            ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip
+            uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip
           prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
           draft: false
         env:

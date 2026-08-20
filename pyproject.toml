@@ -1,6 +1,6 @@
 [project]
 name = "ustplayer"
-version = "1.0.0"
+version = "1.1.0b1"
 description = "中文的、面向 UTAU/UST 工程文件的可视化播放器（PySide6 + Fluent Design）"
 readme = "README.md"
 requires-python = ">=3.11"

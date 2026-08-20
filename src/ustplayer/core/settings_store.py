@@ -57,9 +57,11 @@ class SettingsStore:
         return {}
 
     def save(self, config: dict):
-        """把配置写入 Settings.json。"""
-        with open(self.settings_path, "w", encoding="utf-8") as f:
+        """把配置写入 Settings.json（临时文件 + 原子替换，避免写一半损坏配置）。"""
+        tmp_path = self.settings_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, self.settings_path)
 
     def _legacy_path(self) -> str:
         """旧版 Settings.ini 路径（与新版同目录逻辑）。"""

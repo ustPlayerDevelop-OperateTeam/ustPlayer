@@ -8,6 +8,7 @@
 from typing import Optional
 
 from ustplayer.core.contracts import NoteInfo, UstInfo, UstParser
+from ustplayer.core.log import logger
 
 
 def _parse_pitch_bend(value: str) -> list:
@@ -146,13 +147,13 @@ if __name__ == "__main__":
         path = "sample.ust"
 
     info = UstFileReader().parse(path, "UTF-8")
-    print("=== UST 提取结果 ===")
-    print(f"版本：{info.version}")
-    print(f"速度：{info.tempo} BPM")
-    print(f"轨道数：{info.tracks}")
-    print(f"\n音符列表（共 {len(info.notes)} 个）：")
+    logger.info("=== UST 提取结果 ===")
+    logger.info(f"版本：{info.version}")
+    logger.info(f"速度：{info.tempo} BPM")
+    logger.info(f"轨道数：{info.tracks}")
+    logger.info(f"音符列表（共 {len(info.notes)} 个）：")
     for i, note in enumerate(info.notes):
-        print(
+        logger.info(
             f"  音符{i + 1}：歌词={note.lyric}，"
             f"音高={note.note_num}，"
             f"时长={note.length}，"

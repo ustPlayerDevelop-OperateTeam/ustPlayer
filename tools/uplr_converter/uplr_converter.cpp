@@ -157,7 +157,6 @@ static const char* kStrKeys[] = {
 static const char* kBoolKeys[] = {
     "show_bpm", "show_play_time", "show_song_name", "show_song_author",
     "show_ust_author", "fullscreen", "show_lyric", "curve_show",
-    "show_phoneme", "show_midinote", "show_waveform",
 };
 
 static bool is_str_key(const std::string& k) {
@@ -176,12 +175,51 @@ static bool parse_bool(const std::string& v) {
     return t == "1" || t == "true" || t == "yes" || t == "on";
 }
 
+// 前向声明（定义于文件后部：wstr_to_utf8 / utf8_valid）
+static std::string wstr_to_utf8(const std::wstring& w);
+static bool utf8_valid(const std::string& s);
+
+// 按指定代码页把窄字符串解码为 UTF-8；含无效字节时返回空串表示解码失败
+static std::string decode_codepage(const std::string& s, UINT cp) {
+    if (s.empty()) return {};
+    int n = MultiByteToWideChar(cp, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+    if (n <= 0) return {};
+    std::wstring w(static_cast<size_t>(n), L'\0');
+    MultiByteToWideChar(cp, 0, s.data(), static_cast<int>(s.size()), &w[0], n);
+    return wstr_to_utf8(w);
+}
+
+// 旧版 .uplr 文本可能是 UTF-8 / GBK / Shift-JIS：统一解码为 UTF-8
+//（与 Python 侧 _import_uplr_text 的编码尝试链保持一致）
+static std::string decode_text_to_utf8(const std::vector<uint8_t>& data) {
+    size_t start = 0;
+    // 剥离 UTF-8 BOM，否则首个 key 会带 BOM 被跳过
+    if (data.size() >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) start = 3;
+    std::string raw(reinterpret_cast<const char*>(data.data() + start), data.size() - start);
+    if (utf8_valid(raw)) return raw;
+    // GBK（CP936）→ Shift-JIS（CP932）
+    for (UINT cp : {936u, 932u}) {
+        std::string r = decode_codepage(raw, cp);
+        if (!r.empty()) return r;
+    }
+    return raw;  // 全部失败：原样返回，无法识别的字段自然被跳过
+}
+
 // 结果：field -> value（字符串字段原样；布尔字段 "0"/"1"）
 static bool parse_old_uplr(const fs::path& path, std::map<std::string, std::string>& out) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
     if (!in) return false;
+    std::streamsize n = in.tellg();
+    if (n < 0) return false;
+    in.seekg(0);
+    std::vector<uint8_t> bytes(static_cast<size_t>(n));
+    if (n > 0) in.read(reinterpret_cast<char*>(bytes.data()), n);
+    if (!in.good() && !in.eof()) return false;
+
+    const std::string text = decode_text_to_utf8(bytes);
+    std::istringstream lines(text);
     std::string line;
-    while (std::getline(in, line)) {
+    while (std::getline(lines, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
         // 去首尾空白
         size_t b = line.find_first_not_of(" \t");
@@ -272,9 +310,6 @@ static std::string build_info_json(const std::map<std::string, std::string>& s,
     j << "        \"show_song_name\": " << json_bool(s, "show_song_name", true) << ",\n";
     j << "        \"show_song_author\": " << json_bool(s, "show_song_author", true) << ",\n";
     j << "        \"show_ust_author\": " << json_bool(s, "show_ust_author", true) << ",\n";
-    j << "        \"show_phoneme\": " << json_bool(s, "show_phoneme", false) << ",\n";
-    j << "        \"show_midinote\": " << json_bool(s, "show_midinote", false) << ",\n";
-    j << "        \"show_waveform\": " << json_bool(s, "show_waveform", false) << ",\n";
     j << "        \"fullscreen\": " << json_bool(s, "fullscreen", true) << ",\n";
     j << "        \"show_lyric\": " << json_bool(s, "show_lyric", false) << ",\n";
     j << "        \"curve_show\": " << json_bool(s, "curve_show", false) << "\n";

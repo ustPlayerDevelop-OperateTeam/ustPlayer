@@ -1,5 +1,5 @@
 > 错误码ERcode字典
-> ustPlayer v1.0.0 版本
+> ustPlayer v1.1.0 版本
 
 [001]指向的ust无效或已损毁。
 [002]在读取ust时因错误失败。

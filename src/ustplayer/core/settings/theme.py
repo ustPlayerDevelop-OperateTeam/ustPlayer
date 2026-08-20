@@ -58,6 +58,8 @@ class ThemeSettings(QObject):
 
     @custom_accent_color.setter
     def custom_accent_color(self, v: str):
+        if not is_valid_hex_color(v):
+            v = "#009faa"
         if self._custom_accent_color != v:
             self._custom_accent_color = v
             self.custom_accent_color_changed.emit(v)

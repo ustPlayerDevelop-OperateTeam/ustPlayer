@@ -304,9 +304,12 @@ class MainWindow(FluentWindow):
         try:
             self._player_window = self._ctx.player.launch(params)
             logger.info("播放器窗口已显示")
-        except Exception:
+        except Exception as e:
             logger.exception("播放器启动失败")
-            raise
+            InfoBar.error(
+                "ERcode005", tr("播放器启动失败：{0}").format(e),
+                5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+            )
 
     def _load_dropped_uplr(self):
         if len(sys.argv) <= 1:
