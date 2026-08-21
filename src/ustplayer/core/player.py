@@ -171,8 +171,8 @@ class NoteLyricDisplay(QWidget):
         self._close_timer.setSingleShot(True)
         self._close_timer.timeout.connect(self.close)
 
-        self._audio_player: Optional[QMediaPlayerType] = None
-        self._audio_output: Optional[QAudioOutputType] = None
+        self._audio_player: Optional[QMediaPlayer] = None  # type: ignore[assignment]
+        self._audio_output: Optional[QAudioOutput] = None  # type: ignore[assignment]
         self._audio_ok = False
         self._media_finished = False
         self._media_duration_s = 0.0
@@ -264,11 +264,12 @@ class NoteLyricDisplay(QWidget):
     def _on_media_status(self, status):
         """媒体状态变化：就绪后开播；播放结束记录锚点。"""
         try:
-            if status == QMediaPlayerType.MediaStatus.LoadedMedia:
+            # QMediaPlayer 在 _HAS_AUDIO 时是实际类，不会是 None
+            if status == QMediaPlayer.MediaStatus.LoadedMedia:  # pyright: ignore[reportOptionalMemberAccess]
                 if self._audio_player is not None and self._audio_ok:
                     self._audio_player.play()
                     logger.info("伴奏开始播放")
-            elif status == QMediaPlayerType.MediaStatus.EndOfMedia:
+            elif status == QMediaPlayer.MediaStatus.EndOfMedia:  # pyright: ignore[reportOptionalMemberAccess]
                 self._media_finished = True
                 if self._audio_player is not None:
                     duration_ms = self._audio_player.duration()
@@ -286,14 +287,30 @@ class NoteLyricDisplay(QWidget):
         self._audio_ok = False
 
     def _check_audio_ready(self):
-        """看门狗：媒体就绪后未进入播放状态则降级（离屏/无声卡环境）。"""
+        """看门狗：媒体就绪后未进入播放状态则降级（离屏/无声卡环境）。
+        改进：仅当媒体确已加载（LoadedMedia / BufferedMedia）但不在播放状态时才降级；
+        仍在加载中时再等 3 秒；媒体无效时立即降级。
+        """
         if not self._audio_ok or self._audio_player is None:
             return
+        # 走到这里说明 _HAS_AUDIO 为真，QMediaPlayer 必为实际类而非 None
+        assert QMediaPlayer is not None
         try:
             state = self._audio_player.playbackState()
-            if state != QMediaPlayerType.PlaybackState.PlayingState:
-                logger.warning("音频 3 秒内未进入播放状态，降级为纯可视化")
+            status = self._audio_player.mediaStatus()
+            mp = QMediaPlayer
+            if status in (mp.MediaStatus.LoadedMedia, mp.MediaStatus.BufferedMedia):
+                if state != mp.PlaybackState.PlayingState:
+                    logger.warning("音频已加载但未进入播放状态，降级为纯可视化")
+                    self._audio_ok = False
+            elif status == mp.MediaStatus.InvalidMedia:
+                logger.warning("音频媒体无效，降级为纯可视化")
                 self._audio_ok = False
+            elif status in (mp.MediaStatus.LoadingMedia, mp.MediaStatus.StalledMedia):
+                # 仍在加载：再等 3 秒
+                logger.debug("音频仍在加载中，3 秒后再次检查")
+                QTimer.singleShot(3000, self._check_audio_ready)
+            # 其他状态（NoMedia / Unbuffered / EndOfMedia）暂不处理
         except Exception:
             pass
 

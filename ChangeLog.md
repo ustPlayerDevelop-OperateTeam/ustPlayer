@@ -9,11 +9,14 @@
 - 切换 UST 编码后内容预览立即刷新（此前需改动路径或手动点「编码检查」才会重读）。
 - `Settings.json` 改为临时文件 + 原子替换写入，避免崩溃/断电留下半截配置。
 - 修复语言切换后「关于软件」区链接的提示文字不随语言更新。
+- **修复播放器音频彻底失效的严重 bug**：`QMediaPlayerType` 仅在类型检查时定义，运行时引用的 `_on_media_status` / `_check_audio_ready` / 类型注解均抛 `NameError`，被 `try/except` 吞掉后音频永远无法播放、播放器卡在 0:00。改用 `QMediaPlayer` 直接引用并加 `# pyright: ignore` 注释。
+- 改进音频看门狗逻辑：不再固定 3 秒超时降级，改为按 `mediaStatus` 判断——仅已加载但未播放 / 媒体无效时降级，仍在加载中则再等 3 秒。
 
 #### 🏗️ 底层重构（面向开发者的变更）
 
 - 类型检查：修复 pyright Standard 模式下的残留类型错误（当前 0 error）。
 - 转换器输出的 `Info.json` 不再包含新版已移除的 `show_phoneme` / `show_midinote` / `show_waveform` 字段。
+- 新增 `.gitattributes` 统一跨平台换行符处理，消除 git diff 时的 CRLF/LF 警告。
 
 #### 🚀 构建与发布
 
