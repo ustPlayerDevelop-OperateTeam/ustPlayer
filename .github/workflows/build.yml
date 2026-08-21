@@ -63,6 +63,15 @@ jobs:
           # 同时安装 build backend（uv_build），Nuitka 可找到 src/ 布局下的 ustplayer 包
           uv pip install --system .
 
+      - name: 运行测试
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        run: |
+          # pytest 在 dev 依赖组，CI 用 uv pip install（不解析 group），故单独安装
+          uv pip install --system pytest
+          # offscreen 平台由 tests/conftest.py 顶层设置，无显示器也能跑 Qt 测试
+          python -m pytest tests/ -v --tb=short
+
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main
         with:
