@@ -72,6 +72,32 @@ jobs:
           # offscreen 平台由 tests/conftest.py 顶层设置，无显示器也能跑 Qt 测试
           python -m pytest tests/ -v --tb=short
 
+      # ============================================================
+      # 检出并编译 uPlRender 渲染器（Rust cdylib → ustplayer_renderer.dll）
+      # 产物放到仓库根 renderer/ 目录，供下方 Nuitka include-data-files 打包
+      # ============================================================
+      - name: 检出 uPlRender 源码
+        shell: pwsh
+        run: git clone https://github.com/ustPlayerDevelop-OperateTeam/uPlRender.git "${{ runner.temp }}/uPlRender"
+
+      - name: 设置 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 uPlRender cargo 构建
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/uPlRender
+
+      - name: 编译 uPlRender 并复制渲染器 DLL
+        shell: pwsh
+        run: |
+          cargo build --release --manifest-path "${{ runner.temp }}/uPlRender/Cargo.toml"
+          $dll = Get-ChildItem "${{ runner.temp }}/uPlRender/target/release" -Filter *.dll -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) { throw "uPlRender 编译失败：未在 release 目录找到 .dll" }
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE/renderer" | Out-Null
+          Copy-Item $dll.FullName "$env:GITHUB_WORKSPACE/renderer/ustplayer_renderer.dll" -Force
+          Get-Item "$env:GITHUB_WORKSPACE/renderer/ustplayer_renderer.dll" | Select-Object Name, Length
+
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main
         with:
@@ -91,6 +117,7 @@ jobs:
             i18n/ustplayer_zh_CN.qm=i18n/ustplayer_zh_CN.qm
             i18n/ustplayer_en_US.qm=i18n/ustplayer_en_US.qm
             i18n/ustplayer_zh_classic.qm=i18n/ustplayer_zh_classic.qm
+            renderer/ustplayer_renderer.dll=renderer/ustplayer_renderer.dll
           windows-icon-from-ico: icon.ico
           enable-plugins: pyside6
           windows-console-mode: disable

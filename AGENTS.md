@@ -6,13 +6,13 @@
 
 - 环境搭建：`uv sync`（uv；`.python-version` 固定 Python 3.13.12，要求 >=3.11）。`pyproject.toml` 是依赖的唯一事实源——不要另建 `requirements.txt`。
 - 运行：`uv run main.py` —— 唯一真实入口（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts] ustplayer` → `ustplayer.app:main`）；两条入口路径共用 `AppContext`。
-- 测试：`uv run pytest`（171 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
+- 测试：`uv run pytest`（185 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
 - 仅 Windows：`ustplayer/ui/main_window.py` 使用了 `winreg`（读取系统强调色）。在 WSL/Linux 上无法运行。
 
 ## 注意事项（Gotchas）
 
 - **不支持** USTX（`.ustx`）——解析器只处理 `.ust` 文本。不要声称支持 USTX，也不要将 `.ustx` 交给 `UstFileReader`。
-- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。提交信息以 `pass` 开头会跳过 CI；以 `v` 开头（任意分支的 push，或推送任何 `v*` 标签）会触发自动发版。除非确实要发版，否则绝不要使用 `v` 前缀。
+- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。CI 会**检出并 `cargo build --release` 编译 uPlRender**（`ustPlayerDevelop-OperateTeam/uPlRender`）产出 `ustplayer_renderer.dll`，经 Nuitka `include-data-files` 打进产物目录的 `renderer/` 子目录（供 `RendererLoader` 运行时加载）。提交信息以 `pass` 开头会跳过 CI；以 `v` 开头（任意分支的 push，或推送任何 `v*` 标签）会触发自动发版。除非确实要发版，否则绝不要使用 `v` 前缀。
 - CI 从 `ChangeLog.md` 中标题为 `# v{版本}` 的小节提取 Release 说明——新增条目时必须保持该标题格式。顶层的 `## Unreleased` 小节会被提取器忽略。
 - 提交信息包含 `close #N` / `fixes #N` 等关键字时，会在 `main` / `dev` 分支自动关闭对应 Issue（见 `.github/workflows/auto-close-issue.yml`）。
 - 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.1.0b1，与 `contracts.APP_VERSION` 的 "1.1.0 Beta 1" 对应）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
