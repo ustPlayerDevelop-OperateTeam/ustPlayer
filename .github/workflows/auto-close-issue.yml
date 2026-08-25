@@ -2,7 +2,9 @@ name: Auto close issue
 
 on:
   push:
-    branches: [ "main" ]
+    # 实际开发均在 dev 分支进行（main 仅在发版时接收合并），
+    # 只监听 main 会导致 close #N 永远不会触发，故两个分支都监听
+    branches: [ "main", "dev" ]
 
 jobs:
   close-issues:

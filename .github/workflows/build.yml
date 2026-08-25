@@ -41,8 +41,8 @@ jobs:
         with:
           python-version: "3.13.12"
           architecture: "x64"
-          cache: "pip"
-          cache-dependency-path: "pyproject.toml"
+          # 依赖实际由下方 uv pip install 安装（另有 uv 专用缓存步骤），
+          # 无需再配 pip 缓存
 
       - name: 缓存 uv 依赖缓存
         uses: actions/cache@v4
@@ -88,6 +88,7 @@ jobs:
             ERcode.txt=ERcode.txt
             LICENSE=LICENSE
             icon.ico=icon.ico
+            i18n/ustplayer_zh_CN.qm=i18n/ustplayer_zh_CN.qm
             i18n/ustplayer_en_US.qm=i18n/ustplayer_en_US.qm
             i18n/ustplayer_zh_classic.qm=i18n/ustplayer_zh_classic.qm
           windows-icon-from-ico: icon.ico

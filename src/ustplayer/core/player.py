@@ -243,13 +243,17 @@ class NoteLyricDisplay(QWidget):
             logger.info("未配置伴奏音频，使用纯可视化计时")
             return
         try:
-            self._audio_output = QAudioOutput(self)
-            self._audio_output.setVolume(1.0)
-            self._audio_player = QMediaPlayer(self)
-            self._audio_player.setAudioOutput(self._audio_output)
-            self._audio_player.mediaStatusChanged.connect(self._on_media_status)
-            self._audio_player.errorOccurred.connect(self._on_audio_error)
-            self._audio_player.setSource(QUrl.fromLocalFile(path))
+            # 用局部变量承接构造结果：QMediaPlayer/QAudioOutput 在降级导入时是
+            # None 占位（见文件顶部），局部变量可让 pyright 正确推断出实际类型
+            audio_output = QAudioOutput(self)
+            audio_output.setVolume(1.0)
+            audio_player = QMediaPlayer(self)
+            audio_player.setAudioOutput(audio_output)
+            audio_player.mediaStatusChanged.connect(self._on_media_status)
+            audio_player.errorOccurred.connect(self._on_audio_error)
+            audio_player.setSource(QUrl.fromLocalFile(path))
+            self._audio_output = audio_output
+            self._audio_player = audio_player
             self._audio_ok = True
             logger.info(f"伴奏音频已加载: {path}")
         except Exception as e:

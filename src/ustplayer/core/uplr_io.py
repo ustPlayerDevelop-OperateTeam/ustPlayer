@@ -16,6 +16,53 @@ if TYPE_CHECKING:
     from ustplayer.core.settings_manager import SettingsManager
 
 
+# .uprd 的 else 枚举用的是中文旧值；.uplr 存英文稳定 key。
+# 与 PlayerSettings.migrate_value 保持一致（见 settings/player.py）。
+_UPRD_LEGACY_ENUM = {
+    "lyric_pos": {"上": "top", "下": "bottom"},
+    "silent_display": {"R": "r", "-": "dash", "自定义文字": "custom", "什么都不显示": "none"},
+    "end_display": {"END": "end", "-": "dash", "自定义文字": "custom", "什么都不显示": "none"},
+    "pitch_placeholder": {"无": "none", "-": "dash", "自定义文字": "custom"},
+}
+
+
+def normalize_uprd_info(info: dict) -> dict:
+    """把 .uprd 的 Info.json 归一化为 .uplr 兼容结构。
+
+    .uprd ≈ .uplr + video 段 + music(music_path)，与 .uplr 的出入：
+      - display.show_phoneme / show_midinote / show_waveform：.uprd 独有，渲染器无对应字段 → 移除；
+      - curve_show：.uprd 放在 else → 移除（display 与 else 都不保留）；
+      - color.pitch_curve_color：.uprd 缺失 → 补默认 #FFFFFF；
+      - else 的枚举值：.uprd 用中文旧值（上 / R / END / 无 等）；
+        .uplr 存英文稳定 key（top / r / end / none）→ 迁移成英文 key；
+      - video{fps,height,width}：.uprd 独有段 → 原样保留（供渲染器取 width/height/fps）；
+      - basic.music_path（music）→ 随 basic 原样保留。
+    """
+    display = dict(info.get("display") or {})
+    else_ = dict(info.get("else") or {})
+    for key in ("show_phoneme", "show_midinote", "show_waveform"):
+        display.pop(key, None)
+    display.pop("curve_show", None)
+    else_.pop("curve_show", None)
+
+    # 枚举值：中文旧值 → 英文稳定 key（已是英文 key 的保持不变）
+    for field, legacy in _UPRD_LEGACY_ENUM.items():
+        v = else_.get(field)
+        if isinstance(v, str) and v in legacy:
+            else_[field] = legacy[v]
+
+    color = dict(info.get("color") or {})
+    color.setdefault("pitch_curve_color", "#FFFFFF")
+    return {
+        "encoding": info.get("encoding") or "Shift-JIS",
+        "basic": dict(info.get("basic") or {}),
+        "display": display,
+        "color": color,
+        "else": else_,
+        "video": dict(info.get("video") or {}),
+    }
+
+
 class UplrProjectIO:
     # 导入防护上限：Info.json 应极小；单成员 / 工程总量过大视为异常（防 zip bomb）
     _MAX_INFO_SIZE = 1024 * 1024          # 1MB

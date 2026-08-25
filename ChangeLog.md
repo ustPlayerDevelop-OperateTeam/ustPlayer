@@ -15,11 +15,14 @@
 #### 🏗️ 底层重构（面向开发者的变更）
 
 - 类型检查：修复 pyright Standard 模式下的残留类型错误（当前 0 error）。
+- 文档同步：AGENTS.md 补上自动化测试说明与 language 设置子域、lupdate 三语命令；README / CONTRIBUTING 中 `UPDATELOG.md` 引用统一更正为 `ChangeLog.md`（原文件已更名）。
 - 转换器输出的 `Info.json` 不再包含新版已移除的 `show_phoneme` / `show_midinote` / `show_waveform` 字段。
 - 新增 `.gitattributes` 统一跨平台换行符处理，消除 git diff 时的 CRLF/LF 警告。
 
 #### 🚀 构建与发布
 
+- Nuitka 打包补充简体中文翻译资源（此前仅打包英 / 文言两个 .qm）；移除 setup-python 中未实际使用的 pip 缓存配置。
+- 「提交信息含 close #N 自动关闭 Issue」在 dev 分支同样生效（此前只在 main 分支触发，而实际开发均在 dev 进行）。
 - 发版机制调整：转换器（`uplr_converter`）改为**独立压缩包**发布，不再并入 ustPlayer 主包；ustPlayer 主包只打包编译产物文件夹内的内容，不再包含外层目录。
 - 发版说明提取：ChangeLog 小节标题里的空格与 tag 名里的连字符现在可互相匹配（手动推送 `v*` 标签触发发版时不再丢失更新说明）。
 

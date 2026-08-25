@@ -9,7 +9,7 @@ import zipfile
 
 import pytest
 
-from ustplayer.core.uplr_io import UplrProjectIO
+from ustplayer.core.uplr_io import UplrProjectIO, normalize_uprd_info
 
 
 # ===================== 多目录隔离的 SettingsManager 工厂 =====================
@@ -260,3 +260,46 @@ def test_import_zip_absolute_path_rejected(manager_factory, tmp_path):
         zf.writestr("/etc/evil.txt", "pwned")
     with pytest.raises(ValueError, match="不安全路径"):
         UplrProjectIO(m).import_uplr(str(p))
+
+
+def test_normalize_uprd_info_removes_extra_and_adds_pitch_curve_color():
+    """.uprd 归一化到 .uplr 兼容结构：
+    移除 show_phoneme/show_midinote/show_waveform；curve_show 从 else 挪到 display；
+    补上缺失的 pitch_curve_color（默认 #FFFFFF）；公共字段与 video 保留。"""
+    info = {
+        "encoding": "Shift-JIS",
+        "basic": {"project_name": None, "ust_path": None, "music_path": None,
+                  "song_name": None, "song_author": None, "ust_author": None},
+        "display": {"show_bpm": 1, "show_play_time": 1, "show_song_name": 1,
+                    "show_song_author": 1, "show_ust_author": 1, "show_phoneme": 0,
+                    "show_midinote": 0, "show_waveform": 0, "fullscreen": 1, "show_lyric": 0},
+        "color": {"bg_color": "#000000", "note_color": "#6c6c6c", "lyric_color": "#FFFFFF",
+                  "lyric_text_color": "#FFFFFF", "other_text_color": "#FFFFFF"},
+        "else": {"lyric_pos": "上", "lrc_path": None, "silent_display": "R",
+                 "silent_custom_text": None, "end_display": "END", "end_custom_text": None,
+                 "curve_show": 0, "pitch_placeholder": "无", "pitch_custom_text": None},
+        "video": {"fps": 60, "height": 1920, "width": 1080},
+    }
+    out = normalize_uprd_info(info)
+
+    d = out["display"]
+    # 三个多余开关被移除
+    for k in ("show_phoneme", "show_midinote", "show_waveform"):
+        assert k not in d
+    # 公共字段保留
+    assert d["show_bpm"] == 1
+    assert d["show_lyric"] == 0
+    assert out["basic"]["song_name"] is None
+    # curve_show 被移除（display 与 else 都不保留）
+    assert "curve_show" not in out["display"]
+    assert "curve_show" not in out["else"]
+    # 中文枚举值迁移为英文稳定 key（与 migrate_value 一致）
+    assert out["else"]["lyric_pos"] == "top"
+    assert out["else"]["silent_display"] == "r"
+    assert out["else"]["end_display"] == "end"
+    assert out["else"]["pitch_placeholder"] == "none"
+    # pitch_curve_color 补默认；其余颜色保留
+    assert out["color"]["pitch_curve_color"] == "#FFFFFF"
+    assert out["color"]["bg_color"] == "#000000"
+    # video 保留（渲染器 width/height/fps）
+    assert out["video"] == {"fps": 60, "height": 1920, "width": 1080}
