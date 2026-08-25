@@ -215,5 +215,8 @@ ustPlayer uplr sample/
 uplr_converter.exe
 uplr_converter.obj
 
+# 视频渲染器 DLL（来自 uPlRender 构建产物，运行时从 renderer/ 子目录加载）
+renderer/
+
 # 测试文件
 test/

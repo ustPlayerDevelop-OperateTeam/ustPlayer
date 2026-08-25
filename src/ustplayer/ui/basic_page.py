@@ -15,7 +15,7 @@ from qfluentwidgets import (
 from ustplayer.context import AppContext
 from ustplayer.core.i18n import tr
 from ustplayer.ui.section_card import ScrollPage, SectionCard
-
+from ustplayer.ui.video_export_dialog import VideoExportDialog
 
 class BasicPage(ScrollPage):
     edit_project_name: LineEdit
@@ -34,6 +34,7 @@ class BasicPage(ScrollPage):
     music_lbl: BodyLabel
     import_btn: PushButton
     export_btn: PushButton
+    export_video_btn: PrimaryPushButton
     music_btn: PushButton
     play_btn: PrimaryPushButton
     _field_labels: dict
@@ -77,8 +78,10 @@ class BasicPage(ScrollPage):
         btn_row.setSpacing(12)
         self.import_btn = PushButton(tr("导入项目"))
         self.export_btn = PushButton(tr("保存项目"))
+        self.export_video_btn = PrimaryPushButton(tr("导出视频"))
         btn_row.addWidget(self.import_btn)
         btn_row.addWidget(self.export_btn)
+        btn_row.addWidget(self.export_video_btn)
         btn_row.addStretch()
         self.card_project.addLayout(btn_row)
         layout.addWidget(self.card_project)
@@ -145,6 +148,7 @@ class BasicPage(ScrollPage):
         self.music_btn.setText(tr("选择"))
         self.import_btn.setText(tr("导入项目"))
         self.export_btn.setText(tr("保存项目"))
+        self.export_video_btn.setText(tr("导出视频"))
         self.card_display.setTitle(tr("显示选项"))
         for attr, text in (
             ("show_bpm", tr("显示BPM")), ("show_play_time", tr("显示播放时间")),
@@ -191,13 +195,14 @@ class BasicPage(ScrollPage):
 
         self.import_btn.clicked.connect(self._on_import)
         self.export_btn.clicked.connect(self._on_export)
+        self.export_video_btn.clicked.connect(self._on_export_video)
         self.music_btn.clicked.connect(self._on_select_music)
         self.play_btn.clicked.connect(self._on_play)
 
     def _on_import(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, tr("打开工程文件"), self._s.last_open_dir,
-            tr("ustPlayer工程文件 (*.uplr);;所有文件 (*.*)"),
+            tr("ustPlayer工程文件 (*.uplr *.uprd);;所有文件 (*.*)"),
         )
         if not file_path:
             return
@@ -230,6 +235,10 @@ class BasicPage(ScrollPage):
         except Exception as e:
             InfoBar.error("ERcode010", tr("导出失败：{0}").format(e), 5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
+
+    def _on_export_video(self):
+        dlg = VideoExportDialog(self._ctx, self.window())
+        dlg.exec()
 
     def _on_play(self):
         if self._play_callback:

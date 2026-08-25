@@ -303,3 +303,59 @@ def test_normalize_uprd_info_removes_extra_and_adds_pitch_curve_color():
     assert out["color"]["bg_color"] == "#000000"
     # video 保留（渲染器 width/height/fps）
     assert out["video"] == {"fps": 60, "height": 1920, "width": 1080}
+
+
+# ===================== .uprd 导出与往返 =====================
+
+def test_export_uprd_structure_and_roundtrip(manager_factory, tmp_path):
+    m1 = manager_factory("src")
+    m1.project.project_name = "demo"
+    m1.project.song_name = "曲名"
+    m1.file.encoding = "UTF-8"
+    m1.display.show_bpm = False
+    m1.display.show_lyric = True
+    m1.color.bg_color = "#112233"
+    m1.player.lyric_pos = "bottom"
+    m1.player.silent_display = "dash"
+    m1.file.curve_show = True
+
+    ust = _write(tmp_path / "song.ust", "[#SETTING]\n")
+    lrc = _write(tmp_path / "lyric.lrc", "[00:00.00]歌\n")
+    music = tmp_path / "music.wav"; music.write_bytes(b"WAV")
+    m1.file.ust_path = ust
+    m1.player.lrc_path = lrc
+    m1.project.music_path = str(music)
+
+    uprd = str(tmp_path / "proj.uprd")
+    UplrProjectIO(m1).export_uprd(uprd, {"width": 1280, "height": 720, "fps": 30})
+
+    with zipfile.ZipFile(uprd) as zf:
+        names = zf.namelist()
+        assert "Info.json" in names
+        assert "song.ust" in names
+        info = json.loads(zf.read("Info.json"))
+        # video 段写入
+        assert info["video"] == {"width": 1280, "height": 720, "fps": 30}
+        # 资源路径以包内文件名记录
+        assert info["basic"]["ust_path"] == "song.ust"
+        assert info["else"]["lrc_path"] == "lyric.lrc"
+        # curve_show 在 else 段；枚举为英文稳定 key
+        assert info["else"]["curve_show"] == 1
+        assert info["display"]["show_lyric"] == 1
+        assert info["else"]["lyric_pos"] == "bottom"
+
+    # 导入（与 .uplr 同走 ZIP 路径）应还原设置
+    m2 = manager_factory("dst")
+    UplrProjectIO(m2).import_uplr(uprd)
+    assert m2.project.project_name == "demo"
+    assert m2.project.song_name == "曲名"
+    assert m2.file.encoding == "UTF-8"
+    assert m2.display.show_bpm is False
+    assert m2.display.show_lyric is True
+    assert m2.color.bg_color == "#112233"
+    assert m2.player.lyric_pos == "bottom"
+    assert m2.player.silent_display == "dash"
+    assert m2.file.curve_show is True
+    # 资源被解压到缓存目录
+    assert os.path.exists(m2.file.ust_path)
+

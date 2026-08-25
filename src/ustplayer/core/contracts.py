@@ -172,3 +172,41 @@ class ProjectIO(Protocol):
     def export_uplr(self, output_file: str) -> None:
         """将全部配置与资源导出为 .uplr 工程文件。"""
         ...
+
+    def export_uprd(self, output_file: str, video: dict) -> None:
+        """将全部配置与资源 + 视频参数导出为 .uprd 工程文件。"""
+        ...
+
+
+class VideoExporter(Protocol):
+    """视频导出接口（封装 uPlRender 渲染器 DLL）。"""
+
+    def render(
+        self,
+        output_path: str,
+        width: int,
+        height: int,
+        fps: int,
+        mux_audio: bool,
+        progress_cb=None,
+        cancel_check=None,
+    ) -> str:
+        """把当前工程渲染为 MP4 视频，并写入对应的 .uprd 工程文件。
+
+        Args:
+            output_path: MP4 输出路径（以 .mp4 结尾）。
+            width: 画面宽（像素）。
+            height: 画面高（像素）。
+            fps: 帧率。
+            mux_audio: 是否把伴奏（music_path）混入视频。
+            progress_cb: 可选进度回调 progress_cb(千分比 0..1000)。
+            cancel_check: 可选取消回调，返回 True 时提前终止（抛 RuntimeError）。
+
+        Returns:
+            写入的 .uprd 工程文件路径。
+
+        Raises:
+            FileNotFoundError: UST 文件缺失。
+            RuntimeError: 渲染器 DLL 缺失 / 编码失败 / ffmpeg 失败 / 用户取消。
+        """
+        ...

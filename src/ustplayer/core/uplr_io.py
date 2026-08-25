@@ -72,7 +72,8 @@ class UplrProjectIO:
     def __init__(self, settings: "SettingsManager"):
         self._settings = settings
 
-    def export_uplr(self, output_file: str):
+    def _collect_members(self) -> dict:
+        """收集存在且非空的三个资源，返回 {uv_attr: 包内文件名}，重名自动 _2/_3 去重。"""
         s = self._settings
         members = {}
         used_names = set()
@@ -89,12 +90,101 @@ class UplrProjectIO:
                 i += 1
             members[attr] = name
             used_names.add(name.lower())
+        return members
 
+    def _write_members(self, zf, members: dict):
+        """把已收集的资源写入 zip（arcname 为包内文件名）。"""
+        s = self._settings
+        for attr, name in members.items():
+            holder = {"ust_path": s.file, "lrc_path": s.player, "music_path": s.project}[attr]
+            zf.write(getattr(holder, attr).strip(), arcname=name)
+
+    def export_uplr(self, output_file: str):
+        members = self._collect_members()
         with zipfile.ZipFile(output_file, "w", zipfile.ZIP_STORED) as zf:
             zf.writestr("Info.json", json.dumps(self._settings_to_info_json(members), ensure_ascii=False, indent=4))
-            for attr, name in members.items():
-                holder = {"ust_path": s.file, "lrc_path": s.player, "music_path": s.project}[attr]
-                zf.write(getattr(holder, attr).strip(), arcname=name)
+            self._write_members(zf, members)
+
+    def export_uprd(self, output_file: str, video: dict):
+        """把当前工程导出为 .uprd（ZIP 容器：Info.json + 资源）。
+
+        .uprd ≈ .uplr + video 段 + 额外的 display 波形/音名开关 + curve_show 置于 else。
+        枚举值沿用存储层稳定的英文 key（与 .uplr 一致），导入时由 _apply_info_json 兼容。
+        """
+        members = self._collect_members()
+        with zipfile.ZipFile(output_file, "w", zipfile.ZIP_STORED) as zf:
+            zf.writestr(
+                "Info.json",
+                json.dumps(self._settings_to_uprd_info(members, video), ensure_ascii=False, indent=4),
+            )
+            self._write_members(zf, members)
+
+    def _settings_to_uprd_info(self, members: dict, video: dict) -> dict:
+        """构造 .uprd 的 Info.json：在 .uplr 结构之上叠加 video 段与 uprd 独有字段。"""
+        s = self._settings
+
+        def name_or_none(attr):
+            return members.get(attr) or None
+
+        def enum(field, default):
+            # .uprd 的枚举同样存英文稳定 key；值非法时回退默认
+            value = getattr(s.player, field)
+            valid = {
+                "lyric_pos": ("top", "bottom"),
+                "silent_display": ("r", "dash", "custom", "none"),
+                "end_display": ("end", "dash", "custom", "none"),
+                "pitch_placeholder": ("none", "dash", "custom"),
+            }[field]
+            return value if value in valid else default
+
+        return {
+            "encoding": s.file.encoding,
+            "basic": {
+                "project_name": s.project.project_name or None,
+                "ust_path": name_or_none("ust_path"),
+                "music_path": name_or_none("music_path"),
+                "song_name": s.project.song_name or None,
+                "song_author": s.project.song_author or None,
+                "ust_author": s.project.ust_author or None,
+            },
+            "display": {
+                "show_bpm": int(s.display.show_bpm),
+                "show_play_time": int(s.display.show_play_time),
+                "show_song_name": int(s.display.show_song_name),
+                "show_song_author": int(s.display.show_song_author),
+                "show_ust_author": int(s.display.show_ust_author),
+                # uprd 独有：渲染器暂无对应字段，导出时默认关闭
+                "show_phoneme": 0,
+                "show_midinote": 0,
+                "show_waveform": 0,
+                "fullscreen": int(s.display.fullscreen),
+                "show_lyric": int(s.display.show_lyric),
+            },
+            "color": {
+                "bg_color": s.color.bg_color,
+                "note_color": s.color.note_color,
+                "lyric_color": s.color.lyric_color,
+                "lyric_text_color": s.color.lyric_text_color,
+                "other_text_color": s.color.other_text_color,
+                "pitch_curve_color": s.color.pitch_curve_color,
+            },
+            "else": {
+                "lyric_pos": enum("lyric_pos", "top"),
+                "lrc_path": name_or_none("lrc_path"),
+                "silent_display": enum("silent_display", "r"),
+                "silent_custom_text": s.player.silent_custom_text or None,
+                "end_display": enum("end_display", "end"),
+                "end_custom_text": s.player.end_custom_text or None,
+                "curve_show": int(s.file.curve_show),
+                "pitch_placeholder": enum("pitch_placeholder", "none"),
+                "pitch_custom_text": s.player.pitch_custom_text or None,
+            },
+            "video": {
+                "width": int(video.get("width", 1920)),
+                "height": int(video.get("height", 1080)),
+                "fps": int(video.get("fps", 60)),
+            },
+        }
 
     def _settings_to_info_json(self, members: dict) -> dict:
         s = self._settings

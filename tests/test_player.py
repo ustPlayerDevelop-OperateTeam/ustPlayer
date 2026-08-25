@@ -114,3 +114,44 @@ class TestGetEndText:
     def test_none(self, display):
         display.end_display = "none"
         assert display._get_end_text() == ""
+
+
+# ===================== _resolve_end_step（音频驱动的收尾判定） =====================
+
+class TestResolveEndStep:
+    """有音频时以『音频播完』为结束边界，内容结束后用空拍文字过渡。"""
+
+    def test_no_audio_before_content(self, display):
+        display._audio_ok = False
+        display.total_tick = 960
+        assert display._resolve_end_step(0) is None
+
+    def test_no_audio_content_done_ends(self, display):
+        display._audio_ok = False
+        display.total_tick = 960
+        assert display._resolve_end_step(960) == "end"
+
+    def test_audio_not_finished_content_ok_is_none(self, display):
+        display._audio_ok = True
+        display._media_finished = False
+        display.total_tick = 960
+        assert display._resolve_end_step(0) is None
+
+    def test_audio_not_finished_content_done_silent(self, display):
+        display._audio_ok = True
+        display._media_finished = False
+        display.total_tick = 960
+        assert display._resolve_end_step(960) == "silent"
+
+    def test_audio_finished_content_done_ends(self, display):
+        display._audio_ok = True
+        display._media_finished = True
+        display.total_tick = 960
+        assert display._resolve_end_step(960) == "end"
+
+    def test_audio_finished_content_not_done_is_none(self, display):
+        display._audio_ok = True
+        display._media_finished = True
+        display.total_tick = 960
+        assert display._resolve_end_step(0) is None
+

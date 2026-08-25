@@ -177,6 +177,7 @@ class NoteLyricDisplay(QWidget):
         self._media_finished = False
         self._media_duration_s = 0.0
         self._media_finish_real = 0.0
+        self._end_shown = False  # 已显示结束文字（之后不再播放音频、隐藏秒表）
         self._init_audio()
 
         logger.debug("播放器 __init__ 完成")
@@ -270,7 +271,7 @@ class NoteLyricDisplay(QWidget):
         try:
             # QMediaPlayer 在 _HAS_AUDIO 时是实际类，不会是 None
             if status == QMediaPlayer.MediaStatus.LoadedMedia:  # pyright: ignore[reportOptionalMemberAccess]
-                if self._audio_player is not None and self._audio_ok:
+                if self._audio_player is not None and self._audio_ok and not self._end_shown:
                     self._audio_player.play()
                     logger.info("伴奏开始播放")
             elif status == QMediaPlayer.MediaStatus.EndOfMedia:  # pyright: ignore[reportOptionalMemberAccess]
@@ -361,6 +362,24 @@ class NoteLyricDisplay(QWidget):
 
     # ===================== 主循环 =====================
 
+    def _resolve_end_step(self, current_tick: float) -> Optional[str]:
+        """根据当前位置与音频状态判定收尾步骤。
+
+        - 'end'：显示结束文字（有音频时=音频播完且内容结束；无音频时=tick 内容结束）。
+        - 'silent'：显示空拍/静默文字（有音频、内容已结束但音频未播完）。
+        - None：继续正常显示音符。
+        """
+        if self._audio_ok:
+            content_done = current_tick >= self.total_tick
+            if self._media_finished and content_done:
+                return "end"
+            if content_done:
+                return "silent"
+            return None
+        if current_tick >= self.total_tick:
+            return "end"
+        return None
+
     def _tick(self):
         """定时器回调：计算当前位置 → 更新绘制状态。"""
         try:
@@ -375,14 +394,27 @@ class NoteLyricDisplay(QWidget):
                 self._play_elapsed = time.time() - self.start_real_time
             current_tick = self._play_elapsed * self.tick_per_second
 
-            if current_tick >= self.total_tick:
+            step = self._resolve_end_step(current_tick)
+            if step == "end":
+                # 音频播完（或无音频内容结束）→ 显示结束文字，1 秒后关闭（之后不再有音频）
+                self._end_shown = True
                 self._current_lyric = self._get_end_text()
                 self._current_note_name = ""
                 self._current_note = None
+                if self._audio_ok and self._audio_player is not None:
+                    # 立刻停止音频，避免结束后被重复触发播放
+                    self._audio_player.stop()
                 self.update()
                 self._timer.stop()
                 logger.info("播放完成，1秒后关闭窗口")
                 self._close_timer.start(1000)
+                return
+            if step == "silent":
+                # 音符内容结束、但音频仍未播完 → 显示空拍/静默文字，继续等待音频
+                self._current_lyric = self._get_silent_text()
+                self._current_note_name = ""
+                self._current_note = None
+                self.update()
                 return
 
             current_note = None
@@ -559,8 +591,8 @@ class NoteLyricDisplay(QWidget):
             bpm_w = self._fm_small.horizontalAdvance(bpm_text)
             painter.drawText(ww - 20 - bpm_w, 34, bpm_text)
 
-        # 播放时间（左下角）
-        if self.show_play_time:
+        # 播放时间（左下角）—— 显示结束文字时隐藏秒表
+        if self.show_play_time and not self._end_shown:
             painter.setFont(self.small_font)
             painter.drawText(20, wh - 20, format_play_time(self._play_elapsed))
 

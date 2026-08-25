@@ -315,7 +315,7 @@ class MainWindow(FluentWindow):
         if len(sys.argv) <= 1:
             return
         dropped = sys.argv[1].strip()
-        if not (dropped and os.path.exists(dropped) and dropped.lower().endswith(".uplr")):
+        if not (dropped and os.path.exists(dropped) and dropped.lower().endswith((".uplr", ".uprd"))):
             return
         self._import_uplr_file(dropped)
 
@@ -343,7 +343,7 @@ class MainWindow(FluentWindow):
 
     def _accepts_drag(self, mime) -> bool:
         if self._current_interface is self.basic_page:
-            return self._has_ext_url(mime, ".uplr")
+            return self._has_ext_url(mime, ".uplr") or self._has_ext_url(mime, ".uprd")
         if self._current_interface is self.file_page:
             return self._has_ext_url(mime, ".ust")
         if self._current_interface is self.lyric_page:
@@ -360,7 +360,7 @@ class MainWindow(FluentWindow):
         if self._current_interface is self.basic_page:
             for url in e.mimeData().urls():
                 path = url.toLocalFile()
-                if path and path.lower().endswith(".uplr") and os.path.exists(path):
+                if path and path.lower().endswith((".uplr", ".uprd")) and os.path.exists(path):
                     self._import_uplr_file(path)
                     e.acceptProposedAction()
                     return
