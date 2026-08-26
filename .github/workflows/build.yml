@@ -2,11 +2,11 @@ name: Build / Release
 
 on:
   push:
-    # 所有分支提交都会触发构建；v* 标签推送也触发（避免任意 tag 触发）
+    # 所有分支提交都会触发构建；任何标签推送也触发（发版只走标签，见 release job）
     branches:
       - "**"
     tags:
-      - "v*"
+      - "**"
   pull_request:
     # 所有分支的 PR 都会触发构建
   workflow_dispatch:
@@ -154,11 +154,11 @@ jobs:
           path: build/converter/Release/uplr_converter.exe
 
   # ============================================================
-  # 发版：v* 标签推送，或任意分支上以 v 开头的提交（pass 开头除外）
+  # 发版：仅由标签推送触发（git tag <版本> && git push origin <版本>）；
+  # 版本号以标签为单一事实源，提交信息不再参与发版判定
   # ============================================================
   release:
-    if: |
-      (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'v'))) && !startsWith(github.event.head_commit.message, 'pass')
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [build, uplr-converter]
     runs-on: windows-latest
     permissions:
@@ -184,14 +184,9 @@ jobs:
         id: ver
         shell: bash
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            tag="${{ github.ref_name }}"
-            full="${{ github.ref_name }}"
-          else
-            msg="${{ github.event.head_commit.message }}"
-            tag=$(echo "$msg" | cut -d' ' -f1)
-            full=$(echo "$msg" | tr ' ' '-')
-          fi
+          # 标签触发：标签名即版本来源（带不带 v 前缀均可，校验步骤会归一化比对）
+          tag="${{ github.ref_name }}"
+          full="${{ github.ref_name }}"
           echo "tag=${tag}" >> $GITHUB_OUTPUT
           echo "file=$(echo "${full}" | tr ' ' '-' | sed 's/Beta/beta/g; s/Alpha/alpha/g')" >> $GITHUB_OUTPUT
           echo "title=${full#v}" >> $GITHUB_OUTPUT
@@ -203,24 +198,50 @@ jobs:
       - name: 从 CHANGELOG.md 提取版本信息
         id: changelog
         run: |
+          $ErrorActionPreference = 'Stop'
           $tag = '${{ steps.ver.outputs.tag }}'
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+              throw "版本号为空，无法提取更新说明。请检查「解析版本号」步骤的输出（tag/title/file）"
+          }
+          # 兼容多种小节标题写法：# v1.1.0 Beta 2 / # 1.1.0 Beta 2 / #1.1.0-Beta-2 均可匹配；
+          # (?!#) 排除 ## 二级小节；(?!数字) 防止 v1.1.0 误配到 v1.1.01 之类的前缀重叠版本
+          $ver = $tag.Trim() -replace '^v', ''
+          $pattern = ([regex]::Escape($ver) -replace '-', '[ -]')
           $content = Get-Content CHANGELOG.md -Raw -Encoding UTF8
-          # tag 名用连字符（如 v1.1.0-Beta-1），CHANGELOG 标题用空格（如 # v1.1.0 Beta 1）：
-          # 转义后把连字符替换成 [ -]（空格或连字符），两种写法都能匹配到对应小节。
-          # 注意：.NET 的 Regex.Escape 不转义连字符，需直接对 '-' 做替换
-          $pattern = ([regex]::Escape($tag) -replace '-', '[ -]')
-          if ($content -match "(?ms)^(# $pattern[^\n]*)\n(.*?)(?=\r?\n# |\Z)") {
-              $heading = ($matches[1] -replace '^# v?', '').Trim()
+          if ($content -match "(?ms)^(#(?!#)[ \t]*v?$pattern(?!\d)[^\r\n]*)\r?\n(.*?)(?=\r?\n#(?!#)|\Z)") {
+              $heading = ($matches[1] -replace '^#[ \t]*v?', '').Trim()
               $section = $matches[2].Trim()
-              "Found changelog section for $tag" | Write-Host
+              "Found changelog section: $heading" | Write-Host
           } else {
-              $heading = '${{ steps.ver.outputs.title }}'
-              $section = "<!-- 未在 CHANGELOG.md 中找到 $tag 的更新说明 -->"
-              "WARNING: No changelog section found for $tag" | Write-Host
+              # 找不到对应小节：直接中止发版，绝不带着占位符/错误标题发布
+              $candidates = (Select-String -Path CHANGELOG.md -Pattern '^#(?!#)' |
+                  ForEach-Object { $_.Line.Trim() } | Select-Object -First 10) -join ' / '
+              $msg = @(
+                  "未在 CHANGELOG.md 中找到版本 $tag 对应的小节，已中止发版。",
+                  "请在 CHANGELOG.md 顶部添加小节标题（形如「# $ver」，v 前缀与连字符/空格均可），修正后重新发版。",
+                  "当前检测到的顶层标题：$candidates"
+              ) -join "`n"
+              throw $msg
           }
           $section | Set-Content changelog_body.md -Encoding UTF8
           "title=$heading" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "tag_name=$($heading -replace ' ', '-')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          # Release 直接挂在被推送的标签上（不再从标题二次派生 tag 名，避免造出第二个 tag）
+          "tag_name=${{ github.ref_name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: 校验版本一致性（发版号 ↔ contracts.APP_VERSION）
+        run: |
+          # 防「提交信息/tag 版本写错」（如 v1.0.0 vs v1.1.0）：发版号必须与代码内
+          # APP_VERSION 一致（忽略 v 前缀、空格/连字符与大小写差异后比较）
+          $ErrorActionPreference = 'Stop'
+          $m = Select-String -Path src/ustplayer/core/contracts.py -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
+          if (-not $m) { throw "未能从 src/ustplayer/core/contracts.py 读取 APP_VERSION" }
+          $appVer = $m.Matches[0].Groups[1].Value.Trim()
+          $rel = '${{ steps.changelog.outputs.title }}'.Trim()
+          $norm = { param($s) (($s -replace '^[Vv]', '') -replace '[\s\-]+', '').ToLowerInvariant() }
+          if ((& $norm $appVer) -ne (& $norm $rel)) {
+              throw "版本不一致，已中止发版：contracts.APP_VERSION='$appVer'，本次发版='$rel'。请先统一 pyproject.toml / contracts.py / CHANGELOG.md 的版本号。"
+          }
+          "版本一致性校验通过: $appVer" | Write-Host
 
       - name: 打包 ustPlayer 主包（定位产物目录后只打包其内容，不含任何外层目录）
         run: |
@@ -250,14 +271,31 @@ jobs:
           Compress-Archive -Path "build/converter/uplr_converter.exe" -DestinationPath $cname -Force
           "Artifact: $cname" | Write-Host
 
-      - name: 创建 tag（commit 消息触发时）
-        if: github.ref_type != 'tag'
-        shell: bash
+      - name: 生成 SHA256 校验表（附加到发布说明）
         run: |
-          if ! git rev-parse "${{ steps.changelog.outputs.tag_name }}" >/dev/null 2>&1; then
-            git tag "${{ steps.changelog.outputs.tag_name }}"
-            git push origin "${{ steps.changelog.outputs.tag_name }}"
-          fi
+          # 对本次发布的全部 zip 计算 SHA256，把「核对校验值」提示与表格追加到
+          # CHANGELOG 正文之后；用户可离线比对，不依赖 API
+          $ErrorActionPreference = 'Stop'
+          $names = @(
+              "ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip",
+              "uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip"
+          ) | Where-Object { Test-Path $_ }
+          if (-not $names) { throw "未找到任何待发布的 zip，无法生成校验表" }
+          $lines = @(
+              '',
+              '> [!IMPORTANT]',
+              '>',
+              '> **下载后请核对文件的 SHA256**，与下表一致再使用：',
+              '',
+              '| 文件 | SHA256 |',
+              '| --- | --- |'
+          )
+          foreach ($f in $names) {
+              $hash = (Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant()
+              $lines += '> | `{0}` | `{1}` |' -f $f, $hash
+          }
+          Add-Content -Path changelog_body.md -Value $lines -Encoding UTF8
+          "已附加 {0} 个文件的校验表" -f $names.Count | Write-Host
 
       - name: 创建 Release 并上传产物
         uses: softprops/action-gh-release@v2
@@ -269,6 +307,7 @@ jobs:
             ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip
             uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip
           prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
-          draft: false
+          # 先建草稿：人工核对标题/说明/产物无误后手动 Publish，防误发
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

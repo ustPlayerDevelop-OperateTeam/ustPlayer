@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QWidget
 
 APP_NAME = "ustPlayer"
-APP_VERSION = "1.1.0 Beta 1"
+APP_VERSION = "1.1.0 Beta 2"
 APP_AUTHOR = "SYEternal_R"
 APP_COPYRIGHT = f"Presented with {APP_NAME} - {APP_VERSION}"
 

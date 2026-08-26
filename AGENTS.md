@@ -12,10 +12,10 @@
 ## 注意事项（Gotchas）
 
 - **不支持** USTX（`.ustx`）——解析器只处理 `.ust` 文本。不要声称支持 USTX，也不要将 `.ustx` 交给 `UstFileReader`。
-- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。CI 会**检出并 `cargo build --release` 编译 uPlRender**（`ustPlayerDevelop-OperateTeam/uPlRender`）产出 `ustplayer_renderer.dll`，经 Nuitka `include-data-files` 打进产物目录的 `renderer/` 子目录（供 `RendererLoader` 运行时加载）。提交信息以 `pass` 开头会跳过 CI；以 `v` 开头（任意分支的 push，或推送任何 `v*` 标签）会触发自动发版。除非确实要发版，否则绝不要使用 `v` 前缀。
-- CI 从 `ChangeLog.md` 中标题为 `# v{版本}` 的小节提取 Release 说明——新增条目时必须保持该标题格式。顶层的 `## Unreleased` 小节会被提取器忽略。
+- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。CI 会**检出并 `cargo build --release` 编译 uPlRender**（`ustPlayerDevelop-OperateTeam/uPlRender`）产出 `ustplayer_renderer.dll`，经 Nuitka `include-data-files` 打进产物目录的 `renderer/` 子目录（供 `RendererLoader` 运行时加载）。提交信息以 `pass` 开头会跳过 CI；**发版只由标签推送触发**（任意标签名，带不带 `v` 前缀均可；普通提交不再触发发版）。
+- CI 从 `ChangeLog.md` 中提取 Release 说明——小节标题形如 `# 1.1.0 Beta 2`（`v` 前缀可省略，连字符/空格与 tag 名互通）；找不到对应小节会**直接失败中止发版**（不再静默发布占位符）。顶层的 `## Unreleased` 小节会被提取器忽略。Release 说明末尾会自动附加全部发布附件的 **SHA256 校验表**（`[!important]` 提示框 + Markdown 表格）。Release 会先以**草稿**创建，需手动 Publish。发版前 CI 校验「提交信息/tag 推导出的版本 ↔ `contracts.APP_VERSION`」一致，不一致即中止。
 - 提交信息包含 `close #N` / `fixes #N` 等关键字时，会在 `main` / `dev` 分支自动关闭对应 Issue（见 `.github/workflows/auto-close-issue.yml`）。
-- 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.1.0b1，与 `contracts.APP_VERSION` 的 "1.1.0 Beta 1" 对应）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
+- 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.1.0b2，与 `contracts.APP_VERSION` 的 "1.1.0 Beta 2" 对应；有测试锁定该映射关系）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
 - 依赖说明：`pyside6-fluent-widgets` 刻意**不带** `[full]` extra——那会引入 scipy/numpy/pillow/colorthief（约 120MB 死依赖）。不要"修复"这一点。
 - `.vscode/tasks.json` 提供了一个构建任务（`Ctrl+Shift+B`），运行 `tools/uplr_converter/build.bat`——这是唯一的本地构建；转换器其余时候由 CI 构建。
 

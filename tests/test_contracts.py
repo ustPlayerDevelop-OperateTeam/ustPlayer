@@ -160,3 +160,21 @@ class TestEnsureWritableDir:
 def test_app_version_constant():
     assert isinstance(APP_VERSION, str)
     assert APP_VERSION  # 非空
+
+
+def test_app_version_matches_pyproject():
+    """contracts.APP_VERSION 必须与 pyproject.toml 的 version 对应
+    （如 1.1.0b2 ↔ "1.1.0 Beta 2"、1.1.0 ↔ "1.1.0"），
+    防止发版时只改一处导致程序内显示版本与发布版本脱节。"""
+    import re
+    import tomllib
+    from pathlib import Path
+
+    raw = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    m = re.fullmatch(r"(\d+\.\d+\.\d+)(?:(a|b|rc)(\d+))?", raw)
+    assert m, f"pyproject 版本号格式异常: {raw}"
+    labels = {"a": "Alpha", "b": "Beta", "rc": "RC"}
+    expected = (
+        f"{m.group(1)} {labels[m.group(2)]} {m.group(3)}" if m.group(2) else m.group(1)
+    )
+    assert APP_VERSION == expected
