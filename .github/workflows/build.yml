@@ -122,6 +122,34 @@ jobs:
           enable-plugins: pyside6
           windows-console-mode: disable
 
+      # ============================================================
+      # Nuitka 的 pyside6 插件虽会打包 QtMultimedia.pyd 与 Qt 库，
+      # 但不会打包 QtMultimedia 的「媒体后端插件」与「FFmpeg 动态库」，
+      # 二者缺失时打包后的 QMediaPlayer 找不到任何后端，伴奏音频静音。
+      # 这里把 venv 里 PySide6 的 plugins/multimedia/*.dll 与 av*/sw* 动态库
+      # 复制进产物树，位置与 from-source 运行时一致（PySide6/ 目录由
+      # Qt 的插件搜索路径 + PySide6 导入时的 os.add_dll_directory 命中）。
+      # ============================================================
+      - name: 补齐 QtMultimedia 媒体后端与 FFmpeg 动态库
+        shell: pwsh
+        run: |
+          $pyside = (python -c "import PySide6, pathlib; print(pathlib.Path(PySide6.__file__).parent)").Trim()
+          if (-not $pyside -or -not (Test-Path $pyside)) { throw "未定位到 PySide6 包目录: '$pyside'" }
+          $distPySide = Join-Path "build/main.dist" "PySide6"
+          if (-not (Test-Path $distPySide)) { throw "产物目录缺少 PySide6 数据目录: $distPySide" }
+          # 1) 媒体后端插件（ffmpegmediaplugin.dll / windowsmediaplugin.dll）
+          $mmDst = Join-Path $distPySide "plugins\multimedia"
+          New-Item -ItemType Directory -Force -Path $mmDst | Out-Null
+          Get-ChildItem (Join-Path $pyside "plugins\multimedia\*.dll") -File |
+            Copy-Item -Destination $mmDst -Force
+          # 2) FFmpeg 动态库（avcodec / avformat / avutil / swresample / swscale）
+          Get-ChildItem (Join-Path $pyside "*.dll") -File |
+            Where-Object { $_.Name -match '^(av|sw)\d' } |
+            Copy-Item -Destination $distPySide -Force
+          Write-Output "已补齐 QtMultimedia 资源："
+          Get-ChildItem $mmDst -File | Select-Object Name
+          Get-ChildItem $distPySide -File | Where-Object { $_.Name -match '^(av|sw)\d' } | Select-Object Name
+
       - name: 上传构建产物
         id: artifact
         uses: actions/upload-artifact@v4
