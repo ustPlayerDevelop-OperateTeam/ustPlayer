@@ -54,3 +54,4 @@
 - Release 改为**草稿创建**，人工核对标题/说明/产物后手动 Publish；修正 checkout 浅克隆导致已有同名 tag 检测失效的问题。
 - Release 说明末尾自动附加**SHA256 校验表**：列出每个发布附件的文件名与哈希值（`[!important]` 提示框），用户下载后可离线核对完整性。
 - **发版触发方式变更**：改为**仅由标签推送触发**（`git tag <版本> && git push origin <版本>`，标签名带不带 `v` 前缀均可），Release 直接挂在推送的标签上；提交信息不再参与发版判定，杜绝「消息手滑写错版本号导致误发版」。
+- **修复 Nuitka 打包后伴奏音频无法播放**：Nuitka `pyside6` 插件只打包了 `QtMultimedia.pyd` 与 Qt 库，未打包 QtMultimedia 的媒体后端插件（`plugins/multimedia/ffmpegmediaplugin.dll` / `windowsmediaplugin.dll`）与 FFmpeg 动态库（`avcodec-61.dll` 等），导致编译后的 `QMediaPlayer` 找不到任何后端、音频静音。现已在构建流程中把这两类运行资源一并复制进产物树（`build.yml`）。
