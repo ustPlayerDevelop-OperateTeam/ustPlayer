@@ -177,6 +177,18 @@ class ProjectIO(Protocol):
         """将全部配置与资源 + 视频参数导出为 .uprd 工程文件。"""
         ...
 
+    def cache_base(self) -> str:
+        """工程缓存根目录（一般在程序目录下 cache/）。"""
+        ...
+
+    def cache_usage(self) -> int:
+        """统计工程缓存占用字节数。"""
+        ...
+
+    def clear_cache(self) -> None:
+        """清空工程缓存。"""
+        ...
+
 
 class VideoExporter(Protocol):
     """视频导出接口（封装 uPlRender 渲染器 DLL）。"""

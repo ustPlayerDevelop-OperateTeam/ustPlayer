@@ -66,8 +66,8 @@
     <message>
         <location filename="../src/ustplayer/ui/basic_page.py" line="81"/>
         <location filename="../src/ustplayer/ui/basic_page.py" line="151"/>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="91"/>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="221"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="124"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="250"/>
         <source>导出视频</source>
         <translation type="unfinished"></translation>
     </message>
@@ -125,6 +125,10 @@
     </message>
     <message>
         <location filename="../src/ustplayer/ui/basic_page.py" line="205"/>
+        <source>ustPlayer工程文件 (*.uplr *.uprd);;所有文件 (*.*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ustplayer/ui/basic_page.py" line="223"/>
         <source>ustPlayer工程文件 (*.uplr);;所有文件 (*.*)</source>
         <translation type="unfinished"></translation>
@@ -133,7 +137,8 @@
         <location filename="../src/ustplayer/ui/basic_page.py" line="213"/>
         <location filename="../src/ustplayer/ui/basic_page.py" line="233"/>
         <location filename="../src/ustplayer/ui/main_window.py" line="328"/>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="275"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="323"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="307"/>
         <source>成功</source>
         <translation type="unfinished"></translation>
     </message>
@@ -154,7 +159,7 @@
     </message>
     <message>
         <location filename="../src/ustplayer/ui/basic_page.py" line="222"/>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="178"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="206"/>
         <source>未命名</source>
         <translation type="unfinished"></translation>
     </message>
@@ -229,7 +234,8 @@
     <message>
         <location filename="../src/ustplayer/ui/file_page.py" line="143"/>
         <location filename="../src/ustplayer/ui/main_window.py" line="279"/>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="230"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="318"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="259"/>
         <source>提示</source>
         <translation type="unfinished"></translation>
     </message>
@@ -367,173 +373,222 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="34"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="35"/>
         <location filename="../src/ustplayer/ui/player_style_page.py" line="31"/>
         <source>none</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="34"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="35"/>
         <source>关闭</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="34"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="35"/>
         <source>亚克力</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="34"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="35"/>
         <source>Mica</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="38"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="42"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="39"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="43"/>
         <source>auto</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="38"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="42"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="56"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="90"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="100"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="170"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="172"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="39"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="43"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="57"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="125"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="135"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="212"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="214"/>
         <source>跟随系统</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="38"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="90"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="170"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="39"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="125"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="212"/>
         <source>亮色</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="38"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="90"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="170"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="39"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="125"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="212"/>
         <source>暗色</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="42"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="100"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="172"/>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="122"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="43"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="135"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="214"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="153"/>
         <source>自定义</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="63"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="164"/>
-        <source>关于软件</source>
+        <location filename="../src/ustplayer/ui/other_page.py" line="101"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="206"/>
+        <source>清除缓存</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="65"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="165"/>
-        <source>点击访问 Bilibili 主页</source>
+        <location filename="../src/ustplayer/ui/other_page.py" line="95"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="205"/>
+        <source>工程缓存</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="70"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="166"/>
-        <source>外部工具与纠错</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="76"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="167"/>
-        <source>ERcodes纠错</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="83"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="168"/>
-        <source>主题</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="87"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="169"/>
-        <source>应用主题:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="97"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="171"/>
-        <source>强调色:</source>
+        <location filename="../src/ustplayer/ui/other_page.py" line="112"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="209"/>
+        <source>打开日志</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ustplayer/ui/other_page.py" line="107"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="173"/>
-        <source>自定义颜色:</source>
+        <location filename="../src/ustplayer/ui/other_page.py" line="208"/>
+        <source>日志</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="75"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="201"/>
+        <source>关于软件</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="266"/>
+        <source>缓存占用：{0}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="318"/>
+        <source>确定要清空工程缓存吗？</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="323"/>
+        <source>工程缓存已清除</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="330"/>
+        <source>打开日志文件失败：{0}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="77"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="202"/>
+        <source>点击访问 Bilibili 主页</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="82"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="203"/>
+        <source>外部工具与纠错</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="88"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="204"/>
+        <source>ERcodes纠错</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ustplayer/ui/other_page.py" line="110"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="174"/>
-        <source>选择强调色</source>
+        <source>打开应用运行日志</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ustplayer/ui/other_page.py" line="118"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="175"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="210"/>
+        <source>主题</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="122"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="211"/>
+        <source>应用主题:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="132"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="213"/>
+        <source>强调色:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="142"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="215"/>
+        <source>自定义颜色:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="145"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="216"/>
+        <source>选择强调色</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ustplayer/ui/other_page.py" line="153"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="217"/>
         <source>窗口效果:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="131"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="181"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="166"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="223"/>
         <source>语言 / Language</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="134"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="182"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="169"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="224"/>
         <source>界面语言:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="143"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="184"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="178"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="226"/>
         <source>协议与许可</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="146"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="185"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="181"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="227"/>
         <source>开源协议</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="149"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="186"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="184"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="228"/>
         <source>GitHub仓库</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="158"/>
-        <location filename="../src/ustplayer/ui/other_page.py" line="187"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="193"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="229"/>
         <source>你知道吗：alpha版本在提交至托管时曾被错误地命名为ustPlyaer。orz</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="275"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="337"/>
         <source>打开网页失败：{0}</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="289"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="351"/>
         <source>打开ERcode.txt失败：{0}</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="296"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="358"/>
         <source>打开LICENSE失败：{0}</source>
         <translation type="unfinished"></translation>
     </message>
@@ -684,93 +739,93 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="105"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="137"/>
         <source>输出视频：</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="109"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="139"/>
         <source>选择 .mp4 保存路径</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="111"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="141"/>
         <source>浏览</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="118"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="149"/>
         <source>分辨率：</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="137"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="169"/>
         <source>帧率：</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="147"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="180"/>
         <source>混入伴奏音频：</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="159"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="192"/>
         <source>待开始</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="165"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="100"/>
         <source>取消</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="168"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="99"/>
         <source>开始导出</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="222"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="251"/>
         <source>视频文件 (*.mp4);;所有文件 (*.*)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="230"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="259"/>
         <source>请先选择输出视频路径</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="242"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="271"/>
         <source>正在渲染…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="258"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="288"/>
         <source>正在取消…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="268"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="300"/>
         <source>完成</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="275"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="307"/>
         <source>视频已导出：{0}
 已保存工程：{1}</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="276"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="308"/>
         <source>（无）</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="284"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="316"/>
         <source>失败</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="286"/>
+        <location filename="../src/ustplayer/ui/video_export_dialog.py" line="318"/>
         <source>导出视频失败：{0}</source>
         <translation type="unfinished"></translation>
     </message>

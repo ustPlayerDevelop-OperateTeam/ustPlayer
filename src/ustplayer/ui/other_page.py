@@ -1,5 +1,5 @@
 # other_page.py — 其他设置页
-"""关于、外部工具、协议、主题/语言/窗口效果。"""
+"""关于、外部工具、协议、主题/语言/窗口效果、工程缓存、日志（SectionCard 样式）。"""
 
 import subprocess
 import webbrowser
@@ -9,14 +9,15 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout
 from PySide6.QtGui import QColor
 
 from qfluentwidgets import (
-    PushButton, BodyLabel,
+    PushButton, BodyLabel, StrongBodyLabel,
     ComboBox, ColorPickerButton, HyperlinkButton,
-    InfoBar, InfoBarPosition,
+    InfoBar, InfoBarPosition, MessageBox,
 )
 
 from ustplayer.context import AppContext
 from ustplayer.core.contracts import APP_AUTHOR, APP_NAME, APP_VERSION
 from ustplayer.core.i18n import SUPPORTED_LANGUAGES, tr
+from ustplayer.core.log import log_file_path
 from ustplayer.ui.section_card import ScrollPage, SectionCard
 
 
@@ -57,6 +58,17 @@ class OtherPage(ScrollPage):
         options.update(SUPPORTED_LANGUAGES)
         return options
 
+    @staticmethod
+    def _fmt_bytes(size: int) -> str:
+        if size < 1024:
+            return f"{size} B"
+        value = float(size)
+        for unit in ("KB", "MB", "GB", "TB"):
+            value /= 1024.0
+            if value < 1024:
+                return f"{value:.1f} {unit}"
+        return f"{value:.1f} TB"
+
     def _setup_ui(self):
         layout = self.page_layout
 
@@ -79,6 +91,29 @@ class OtherPage(ScrollPage):
         tool_row.addStretch()
         self.card_tools.addLayout(tool_row)
         layout.addWidget(self.card_tools)
+
+        self.card_cache = SectionCard(tr("工程缓存"))
+        cache_row = QHBoxLayout()
+        cache_row.setSpacing(8)
+        self.cache_usage_lbl = StrongBodyLabel("")
+        cache_row.addWidget(self.cache_usage_lbl)
+        self.clear_cache_btn = PushButton(tr("清除缓存"))
+        self.clear_cache_btn.clicked.connect(self._on_clear_cache)
+        cache_row.addWidget(self.clear_cache_btn)
+        cache_row.addStretch()
+        self.card_cache.addLayout(cache_row)
+        layout.addWidget(self.card_cache)
+
+        self.card_log = SectionCard(tr("日志"))
+        log_row = QHBoxLayout()
+        log_row.setSpacing(8)
+        log_row.addWidget(StrongBodyLabel(tr("打开应用运行日志")))
+        self.open_log_btn = PushButton(tr("打开日志"))
+        self.open_log_btn.clicked.connect(self._on_open_log)
+        log_row.addWidget(self.open_log_btn)
+        log_row.addStretch()
+        self.card_log.addLayout(log_row)
+        layout.addWidget(self.card_log)
 
         self.card_theme = SectionCard(tr("主题"))
 
@@ -160,11 +195,18 @@ class OtherPage(ScrollPage):
         layout.addWidget(self.easter)
         layout.addStretch()
 
+        self._refresh_cache_usage()
+
     def retranslate(self):
         self.card_about.setTitle(tr("关于软件"))
         self.copyright_btn.setToolTip(tr("点击访问 Bilibili 主页"))
         self.card_tools.setTitle(tr("外部工具与纠错"))
         self.er_btn.setText(tr("ERcodes纠错"))
+        self.card_cache.setTitle(tr("工程缓存"))
+        self.clear_cache_btn.setText(tr("清除缓存"))
+        self._refresh_cache_usage()
+        self.card_log.setTitle(tr("日志"))
+        self.open_log_btn.setText(tr("打开日志"))
         self.card_theme.setTitle(tr("主题"))
         self.theme_lbl.setText(tr("应用主题:"))
         self._refill_combo(self.theme_combo, {"auto": tr("跟随系统"), "light": tr("亮色"), "dark": tr("暗色")})
@@ -219,6 +261,10 @@ class OtherPage(ScrollPage):
 
         self._update_accent_custom_visible(s.theme.accent_color_mode)
 
+    def _refresh_cache_usage(self):
+        usage = self._ctx.project_io.cache_usage()
+        self.cache_usage_lbl.setText(tr("缓存占用：{0}").format(self._fmt_bytes(usage)))
+
     def _on_theme_combo_changed(self, _index: int):
         setattr(self._s.theme, "theme_mode", self.theme_combo.currentData())
 
@@ -268,6 +314,22 @@ class OtherPage(ScrollPage):
         self._set_combo_by_key(self.window_effect_combo, v)
         self.window_effect_combo.blockSignals(False)
 
+    def _on_clear_cache(self):
+        msg = MessageBox(tr("提示"), tr("确定要清空工程缓存吗？"), self)
+        if not msg.exec():
+            return
+        self._ctx.project_io.clear_cache()
+        self._refresh_cache_usage()
+        InfoBar.success(tr("成功"), tr("工程缓存已清除"), 3000,
+                        parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
+
+    def _on_open_log(self):
+        try:
+            self._open_with_notepad(log_file_path())
+        except Exception as e:
+            InfoBar.error("ERcode012", tr("打开日志文件失败：{0}").format(e), 5000,
+                          parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
+
     def _open_url(self, url: str):
         try:
             webbrowser.open(url, new=2)
@@ -304,6 +366,7 @@ class OtherPage(ScrollPage):
         self._set_combo_by_key(self.window_effect_combo, s.theme.window_effect)
         self._set_combo_by_key(self.lang_combo, s.language.language)
         self._update_accent_custom_visible(s.theme.accent_color_mode)
+        self._refresh_cache_usage()
 
     def sync_all_from_settings(self):
         self._sync_ui_from_settings()

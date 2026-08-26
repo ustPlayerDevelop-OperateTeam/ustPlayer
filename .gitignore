@@ -220,3 +220,6 @@ renderer/
 
 # 测试文件
 test/
+
+# 缓存
+cache/

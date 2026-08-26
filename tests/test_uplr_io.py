@@ -305,7 +305,35 @@ def test_normalize_uprd_info_removes_extra_and_adds_pitch_curve_color():
     assert out["video"] == {"fps": 60, "height": 1920, "width": 1080}
 
 
-# ===================== .uprd 导出与往返 =====================
+# ===================== 工程缓存目录与清除 =====================
+
+def test_cache_dir_under_program_root_usage_and_clear(manager_factory, tmp_path):
+    m1 = manager_factory("cachesrc")
+    ust = _write(tmp_path / "song.ust", "[#SETTING]\n")
+    music = tmp_path / "music.wav"; music.write_bytes(b"WAV")
+    m1.file.ust_path = ust
+    m1.project.music_path = str(music)
+    uplr = str(tmp_path / "cacheproj.uplr")
+    UplrProjectIO(m1).export_uplr(uplr)
+
+    m2 = manager_factory("cachedst")
+    io2 = UplrProjectIO(m2)
+    # cache_base 落在程序根（prog_root 已被 fixture 指向 tmp 子目录）下的 cache
+    cache_base = io2.cache_base()
+    assert os.path.basename(cache_base) == "cache"
+    # 导入前占用 0
+    assert io2.cache_usage() == 0
+
+    io2.import_uplr(uplr)
+    # 解压产物在 cache_base 下，且占用 > 0
+    assert os.path.exists(m2.file.ust_path)
+    assert os.path.commonpath([cache_base, os.path.abspath(m2.file.ust_path)]) == cache_base
+    usage = io2.cache_usage()
+    assert usage > 0
+
+    io2.clear_cache()
+    assert io2.cache_usage() == 0
+    assert not os.path.exists(m2.file.ust_path)
 
 def test_export_uprd_structure_and_roundtrip(manager_factory, tmp_path):
     m1 = manager_factory("src")

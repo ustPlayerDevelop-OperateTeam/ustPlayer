@@ -29,7 +29,7 @@
   - `settings_manager.py` —— `SettingsManager`：薄门面，负责组装 `core/settings/` 下的设置子域，并编排设置的读写 / 校验 / 播放参数组装。UI 通过 `ctx.settings.<子域>.<属性>` 访问设置（如 `ctx.settings.display.show_bpm`）；每个属性都有对应的 `<属性>_changed` 信号。
   - `settings/` —— 每个设置分组对应一个信号驱动的子域（原 ini 段，键保留在 `Settings.json` 中）：`project.py`（`ProjectSettings`）、`file.py`（`FileSettings`）、`display.py`（`DisplaySettings`）、`color.py`（`ColorSettings`）、`player.py`（`PlayerSettings`+`LyricSettings`）、`language.py`（`LanguageSettings`，不导出到 uplr）、`theme.py`（`ThemeSettings`，不导出到 uplr）。每个类自行持有属性 + `Signal`s + `read_from`/`write_to`/`validate`。
   - `settings_store.py` —— `SettingsStore`：`Settings.json` 的文件 I/O（分组→键值字典；路径解析，不可写时回退 `%LOCALAPPDATA%\ustPlayer`），首次运行自动迁移旧版 `Settings.ini`，无业务逻辑。
-  - `uplr_io.py` —— `UplrProjectIO` 实现 `contracts.ProjectIO`：`.uplr` 导入/导出。**新格式 = ZIP 容器**（`Info.json` + ust/lrc/音乐资源，导入时解压到 `%LOCALAPPDATA%\ustPlayer\projects\<工程名>-<hash8>\`）；**旧文本格式仍可导入**（按 ZIP 魔数自动识别）。依赖 `SettingsManager` 读写属性；导入会触发设置信号，UI 因此实时同步。
+  - `uplr_io.py` —— `UplrProjectIO` 实现 `contracts.ProjectIO`：`.uplr` 导入/导出。**新格式 = ZIP 容器**（`Info.json` + ust/lrc/音乐资源，导入时解压到**程序目录下 `cache/<工程名>-<hash8>\`**，程序目录不可写时回退 `%LOCALAPPDATA%\ustPlayer\cache`；`cache_base`/`cache_usage`/`clear_cache` 供设置页展示占用与清除）；**旧文本格式仍可导入**（按 ZIP 魔数自动识别）。依赖 `SettingsManager` 读写属性；导入会触发设置信号，UI 因此实时同步。
   - `ustreader.py` —— `UstFileReader` 实现 `UstParser`；只处理 `.ust` 文本（解析 Lyric/Length/NoteNum/Phoneme/PitchBend），接受 `encoding` 参数（默认 "Shift-JIS"）；编码错误时抛出 `UnicodeDecodeError`。
   - `player.py` —— `NotePlayerLauncher` 实现 `PlayerLauncher`；`NoteLyricDisplay` 是全屏 QPainter 播放器。通过 QtMultimedia 播放伴奏（`music_path`）并按媒体位置驱动时间轴；无音频或音频失败时回退到墙钟计时。按 `ShowConfig` 渲染歌词 / 音符名 / 音高曲线 / LRC 歌词。改动 QtMultimedia 相关代码时，请保留文件顶部的 `try/except` + `TYPE_CHECKING` 降级导入模式。
   - `renderer_ffi.py` —— uPlRender 渲染器 DLL（`ustplayer_renderer.dll`）的 ctypes 封装：`RendererLoader`（固定目录查找）+ `RendererContext`（C ABI 句柄生命周期），`UP_ERR_*` 错误码。
@@ -42,7 +42,7 @@
 ## 约定（Conventions）
 
 - 使用 `from ustplayer.core.log import logger`（loguru），绝不使用 `print`；需要堆栈时用 `logger.exception(...)`。
-- 面向用户的错误遵循 `InfoBar.error("ERcodeXXX", "提示文案", ...)` 模式；新错误码请登记到 `ERcode.txt`（001–011 与 999 已占用）。
+- 面向用户的错误遵循 `InfoBar.error("ERcodeXXX", "提示文案", ...)` 模式；新错误码请登记到 `ERcode.txt`（001–012 与 999 已占用）。
 - **i18n**：所有用户可见的 UI 字符串必须用 `from ustplayer.core.i18n import tr` 的 `tr("中文原文")` 包裹（自由函数 `tr`，lupdate 只认这个名字）；日志不翻译。改 UI 字符串后必须跑 `pyside6-lupdate -extensions py src/ustplayer -ts i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts i18n/ustplayer_zh_classic.ts` + `pyside6-lrelease i18n/*.ts` 并提交 `.qm`（详见 CONTRIBUTING.md「翻译贡献」）。
 - **存储层只存稳定 key**：`Settings.json` 与 `.uplr` 中的枚举值（`lyric_pos`/`silent_display`/`end_display`/`pitch_placeholder`）一律是英文 key（`top`/`r`/`custom`/`none` 等），显示文案由 UI 层 `tr()` 翻译；旧中文值由 `core/settings/player.py` 的 `migrate_value()` 兼容迁移。不要把显示文案写回存储层。
 - 语言偏好存 `Settings.json` 的 `[LanguageSettings]`（默认 `system` 跟随系统），**不写入 .uplr**；切换语言经 `LanguageSettings.language_changed` 信号 → 主窗口 `_on_language_changed` 全窗口重译。

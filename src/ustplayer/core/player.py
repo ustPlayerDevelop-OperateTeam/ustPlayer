@@ -178,6 +178,8 @@ class NoteLyricDisplay(QWidget):
         self._media_duration_s = 0.0
         self._media_finish_real = 0.0
         self._end_shown = False  # 已显示结束文字（之后不再播放音频、隐藏秒表）
+        self._audio_ready_checks = 0  # 音频就绪看门狗重试次数（超限防“永远加载中”卡死）
+        self._play_issued = False  # 是否已调用过 play()（播完后不再重播）
         self._init_audio()
 
         logger.debug("播放器 __init__ 完成")
@@ -271,7 +273,16 @@ class NoteLyricDisplay(QWidget):
         try:
             # QMediaPlayer 在 _HAS_AUDIO 时是实际类，不会是 None
             if status == QMediaPlayer.MediaStatus.LoadedMedia:  # pyright: ignore[reportOptionalMemberAccess]
-                if self._audio_player is not None and self._audio_ok and not self._end_shown:
+                # 只允许调用一次 play()：音频播完（EndOfMedia 已置 _media_finished）或
+                # 已进入结束态（_end_shown / _play_issued）后，不再自动 play，杜绝重播。
+                if (
+                    self._audio_player is not None
+                    and self._audio_ok
+                    and not self._play_issued
+                    and not self._media_finished
+                    and not self._end_shown
+                ):
+                    self._play_issued = True
                     self._audio_player.play()
                     logger.info("伴奏开始播放")
             elif status == QMediaPlayer.MediaStatus.EndOfMedia:  # pyright: ignore[reportOptionalMemberAccess]
@@ -312,9 +323,14 @@ class NoteLyricDisplay(QWidget):
                 logger.warning("音频媒体无效，降级为纯可视化")
                 self._audio_ok = False
             elif status in (mp.MediaStatus.LoadingMedia, mp.MediaStatus.StalledMedia):
-                # 仍在加载：再等 3 秒
-                logger.debug("音频仍在加载中，3 秒后再次检查")
-                QTimer.singleShot(3000, self._check_audio_ready)
+                # 仍在加载：再等 3 秒；超过总次数后强制降级，避免“永远加载中”导致时间轴停在 0 卡死
+                self._audio_ready_checks += 1
+                if self._audio_ready_checks >= 3:
+                    logger.warning("音频长时间未就绪，降级为纯可视化")
+                    self._audio_ok = False
+                else:
+                    logger.debug("音频仍在加载中，3 秒后再次检查")
+                    QTimer.singleShot(3000, self._check_audio_ready)
             # 其他状态（NoMedia / Unbuffered / EndOfMedia）暂不处理
         except Exception:
             pass

@@ -50,3 +50,8 @@ logger.add(
 # 打包后的 GUI 程序无控制台，sys.stdout 为 None，直接 add 会抛 TypeError
 if sys.stdout is not None:
     logger.add(sys.stdout, level="INFO", colorize=True)
+
+
+def log_file_path() -> str:
+    """返回当前日志文件的绝对路径（供 UI「打开日志」使用）。"""
+    return os.path.join(_log_dir, "ustPlayer.log")

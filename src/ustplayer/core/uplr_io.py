@@ -362,12 +362,47 @@ class UplrProjectIO:
         s.player.pitch_placeholder = migrate("pitch_placeholder", else_.get("pitch_placeholder") or "none")
         s.player.pitch_custom_text = else_.get("pitch_custom_text") or ""
 
-    @staticmethod
-    def _uplr_cache_dir(uplr_path: str) -> str:
+    # ===================== 工程缓存目录（程序目录下 cache/） =====================
+
+    def cache_base(self) -> str:
+        """缓存根目录：默认 <程序目录>/cache，程序目录不可写时回退 %LOCALAPPDATA%/ustPlayer/cache。"""
+        root = getattr(self._settings, "program_root", None) or os.getcwd()
+        preferred = os.path.join(root, "cache")
+        try:
+            if os.path.isdir(preferred) or os.access(root, os.W_OK):
+                return preferred
+        except OSError:
+            pass
+        fallback = os.path.join(
+            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ustPlayer", "cache"
+        )
+        return fallback
+
+    def _uplr_cache_dir(self, uplr_path: str) -> str:
         stem = os.path.splitext(os.path.basename(uplr_path))[0]
         digest = hashlib.sha1(os.path.abspath(uplr_path).encode("utf-8")).hexdigest()[:8]
-        base = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ustPlayer", "projects")
-        return os.path.join(base, f"{stem}-{digest}")
+        return os.path.join(self.cache_base(), f"{stem}-{digest}")
+
+    def cache_usage(self) -> int:
+        """统计缓存目录占用字节数（不存在返回 0）。"""
+        base = self.cache_base()
+        total = 0
+        if not os.path.isdir(base):
+            return 0
+        for dirpath, _dirnames, filenames in os.walk(base):
+            for fname in filenames:
+                try:
+                    total += os.path.getsize(os.path.join(dirpath, fname))
+                except OSError:
+                    continue
+        return total
+
+    def clear_cache(self) -> None:
+        """清空工程缓存目录（解压出的 .uplr/.uprd 资源）。"""
+        base = self.cache_base()
+        if os.path.isdir(base):
+            shutil.rmtree(base, ignore_errors=True)
+        logger.info(f"已清除工程缓存目录: {base}")
 
     @staticmethod
     def _extract_member_safe(zf, name: str, dest_dir: str) -> int:
