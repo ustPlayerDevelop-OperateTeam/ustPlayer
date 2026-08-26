@@ -11,6 +11,8 @@
 >[!TIP]
 >
 >若您在使用渲染功能的时候出现问题，请[点击这里](https://github.com/ustPlayerDevelop-OperateTeam/uPlRender/issues)进入uPlRender的项目Issue页来反馈，目前渲染功能还不是很稳定，请多多反馈^ ^
+>
+>渲染功能依赖系统环境变量的FFmpeg，如果系统环境变量没有请在[FFmpeg官网](https://ffmpeg.org/)下载并添加到系统环境变量中，如果您的系统运行着Windows 10 1709及以上版本也可以使用`winget install --id Gyan.FFmpeg -e`来调用系统自带的WinGet安装。
 
 ## 🎉 新功能
 
