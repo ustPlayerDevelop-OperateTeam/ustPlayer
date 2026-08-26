@@ -17,15 +17,15 @@ import sys
 
 from loguru import logger
 
-from ustplayer.core.contracts import resolve_program_root
+from ustplayer.core.contracts import ensure_writable_dir, resolve_program_root
 
 logger.remove()
 
 
 def _resolve_log_dir() -> str:
-    """确定日志目录：程序根目录优先，不可写时回退用户数据目录。"""
+    """确定日志目录：程序根目录优先，实际不可写时回退用户数据目录。"""
     root = resolve_program_root()
-    if os.access(root, os.W_OK):
+    if ensure_writable_dir(root):
         return root
 
     fallback = os.path.join(

@@ -7,6 +7,7 @@ import sys
 from ustplayer.core.contracts import (
     APP_VERSION,
     as_bool,
+    ensure_writable_dir,
     hex_to_rgb,
     is_valid_hex_color,
     resolve_program_root,
@@ -128,6 +129,30 @@ class TestResolveProgramRoot:
         monkeypatch.setattr(sys, "frozen", True, raising=False)
         expected = os.path.dirname(os.path.abspath(sys.executable))
         assert resolve_program_root() == expected
+
+
+# ===================== ensure_writable_dir =====================
+
+class TestEnsureWritableDir:
+    def test_creates_and_returns_true(self, tmp_path):
+        # 目录不存在时自动创建，并确认真实可写
+        d = tmp_path / "newdir"
+        assert ensure_writable_dir(str(d)) is True
+        assert d.is_dir()
+
+    def test_existing_dir_true(self, tmp_path):
+        assert ensure_writable_dir(str(tmp_path)) is True
+
+    def test_no_probe_file_left_behind(self, tmp_path):
+        assert ensure_writable_dir(str(tmp_path)) is True
+        leftovers = [p for p in tmp_path.iterdir() if "probe" in p.name]
+        assert leftovers == []
+
+    def test_false_when_parent_is_file(self, tmp_path):
+        # 父路径是文件 → makedirs 必败，返回 False 而非抛异常
+        f = tmp_path / "file.txt"
+        f.write_text("x", encoding="utf-8")
+        assert ensure_writable_dir(str(f / "sub")) is False
 
 
 # ===================== 版本常量 =====================

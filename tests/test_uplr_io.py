@@ -262,6 +262,45 @@ def test_import_zip_absolute_path_rejected(manager_factory, tmp_path):
         UplrProjectIO(m).import_uplr(str(p))
 
 
+# ===================== Info.json 资源名穿越防护 =====================
+
+@pytest.mark.parametrize(
+    "evil",
+    [
+        "..\\evil.ust",       # 反斜杠 .. 穿越
+        "../evil.ust",        # 正斜杠 .. 穿越
+        "..\\..\\evil.ust",   # 多级穿越
+        "sub/../../evil.ust", # 子目录内穿越
+        "C:\\evil.ust",       # 盘符绝对路径
+        "/abs/evil.ust",      # 根绝对路径
+    ],
+)
+def test_import_info_json_resource_traversal_rejected(manager_factory, tmp_path, evil):
+    """Info.json 里登记 .. 穿越 / 绝对路径 / 盘符资源名时，导入必须整体拒绝。
+
+    资源成员解压有 zip-slip 防护，但 Info.json 的 ust_path/music_path/lrc_path
+    是另一条“软路径”，同样不允许逃出缓存目录。"""
+    m = manager_factory("trav")
+    p = tmp_path / "trav.uplr"
+    info = {"basic": {"ust_path": evil}, "display": {}, "color": {}, "else": {}}
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("Info.json", json.dumps(info))
+        zf.writestr("song.ust", "[#SETTING]\n")
+    with pytest.raises(ValueError, match="不安全路径"):
+        UplrProjectIO(m).import_uplr(str(p))
+
+
+def test_import_zip_traversal_directory_entry_rejected(manager_factory, tmp_path):
+    """名为 ../x/ 的目录条目也必须拒绝（先做安全校验，再按目录条目放行）。"""
+    m = manager_factory("dirslip")
+    p = tmp_path / "dir.uplr"
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("Info.json", json.dumps({"basic": {}, "display": {}, "color": {}, "else": {}}))
+        zf.writestr("../evil/", "")
+    with pytest.raises(ValueError, match="不安全路径"):
+        UplrProjectIO(m).import_uplr(str(p))
+
+
 def test_normalize_uprd_info_removes_extra_and_adds_pitch_curve_color():
     """.uprd 归一化到 .uplr 兼容结构：
     移除 show_phoneme/show_midinote/show_waveform；curve_show 从 else 挪到 display；

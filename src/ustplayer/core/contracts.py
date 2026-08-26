@@ -49,6 +49,31 @@ def resolve_program_root() -> str:
     return os.path.dirname(os.path.abspath(sys.argv[0]))
 
 
+def ensure_writable_dir(directory: str) -> bool:
+    """探测目录是否实际可写：确保目录存在，并真实写入一个临时探针文件验证。
+
+    Windows 的 os.access(W_OK) 只检查只读属性、不检查 ACL，
+    对 Program Files 等受限目录会误报“可写”，因此用真实写探针验证。
+    """
+    try:
+        os.makedirs(directory, exist_ok=True)
+    except OSError:
+        return False
+    probe = os.path.join(directory, f".ustplayer_probe_{os.getpid()}.tmp")
+    try:
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("")
+        return True
+    except OSError:
+        return False
+    finally:
+        try:
+            if os.path.exists(probe):
+                os.remove(probe)
+        except OSError:
+            pass
+
+
 def as_bool(value, default: bool = False) -> bool:
     """宽松布尔转换：支持 0/1、bool、字符串 true/yes/on/1。"""
     if value is None:

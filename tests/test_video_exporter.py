@@ -7,6 +7,7 @@
 
 import os
 import shutil
+import sys
 
 import pytest
 
@@ -96,6 +97,62 @@ def test_render_requires_ust(make_manager, tmp_path):
     exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
     with pytest.raises(FileNotFoundError):
         exporter.render(str(tmp_path / "out.mp4"), 320, 240, 30, False)
+
+
+# ===================== 可取消子进程与半成品清理 =====================
+
+def test_run_cancellable_returns_exit_code():
+    code, _tail = VideoExporter._run_cancellable(
+        [sys.executable, "-c", "raise SystemExit(3)"], None, 60
+    )
+    assert code == 3
+
+
+def test_run_cancellable_cancel_kills_and_raises():
+    with pytest.raises(RuntimeError, match="导出已取消"):
+        VideoExporter._run_cancellable(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            lambda: True,
+            60,
+        )
+
+
+def test_render_cancel_cleans_partial_artifacts(make_manager, tmp_path, monkeypatch):
+    """渲染阶段取消后，已写出的 .uprd 与半成品 MP4 必须被清理，不留孤儿文件。"""
+    m = make_manager()
+    ust = tmp_path / "song.ust"
+    ust.write_text(
+        "[#SETTING]\nTempo=120\nTracks=1\n[#0000]\nLength=480\nLyric=あ\nNoteNum=69\n",
+        encoding="utf-8",
+    )
+    m.file.ust_path = str(ust)
+    m.file.encoding = "UTF-8"
+
+    out = str(tmp_path / "out.mp4")
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("导出已取消")
+
+    monkeypatch.setattr(exporter, "_drive_renderer", _boom)
+    with pytest.raises(RuntimeError, match="导出已取消"):
+        exporter.render(out, 320, 240, 30, False)
+
+    assert not os.path.exists(out)
+    assert not os.path.exists(str(tmp_path / "out.uprd"))
+    assert not os.path.exists(out + ".mux.tmp.mp4")
+
+
+def test_mux_audio_missing_ffmpeg_raises(make_manager, tmp_path, monkeypatch):
+    """无 ffmpeg 时混流抛出带“音频混流失败”前缀的 RuntimeError（UI 据此映射 ERcode011）。"""
+    m = make_manager()
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    video = str(tmp_path / "v.mp4")
+    audio = str(tmp_path / "a.wav")
+    open(audio, "wb").close()
+    with pytest.raises(RuntimeError, match="音频混流失败"):
+        exporter._mux_audio(video, audio)
 
 
 # ===================== 真实渲染冒烟（有 DLL + ffmpeg 才跑） =====================

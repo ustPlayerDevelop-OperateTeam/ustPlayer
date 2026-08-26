@@ -9,7 +9,7 @@ import shutil
 import zipfile
 from typing import TYPE_CHECKING
 
-from ustplayer.core.contracts import as_bool
+from ustplayer.core.contracts import as_bool, ensure_writable_dir
 from ustplayer.core.log import logger
 
 if TYPE_CHECKING:
@@ -321,7 +321,11 @@ class UplrProjectIO:
     def _apply_info_json(self, info: dict, base_dir: str):
         s = self._settings
         def resolve(name):
-            return os.path.join(base_dir, name) if name else ""
+            # Info.json 里的资源名与 ZIP 成员走同一套防护：只接受缓存目录内的
+            # 纯相对路径，含 .. 穿越 / 绝对路径 / 盘符前缀的一律拒绝导入
+            if not isinstance(name, str) or not name.strip():
+                return ""
+            return UplrProjectIO._safe_join(base_dir, name)
 
         migrate = s.player.migrate_value
         basic = info.get("basic", {}) or {}
@@ -365,18 +369,22 @@ class UplrProjectIO:
     # ===================== 工程缓存目录（程序目录下 cache/） =====================
 
     def cache_base(self) -> str:
-        """缓存根目录：默认 <程序目录>/cache，程序目录不可写时回退 %LOCALAPPDATA%/ustPlayer/cache。"""
+        """缓存根目录：默认 <程序目录>/cache，程序目录不可写时回退 %LOCALAPPDATA%/ustPlayer/cache。
+
+        可写性用真实写探针判断（Windows 的 os.access 不检查 ACL，会误报可写）。"""
         root = getattr(self._settings, "program_root", None) or os.getcwd()
         preferred = os.path.join(root, "cache")
-        try:
-            if os.path.isdir(preferred) or os.access(root, os.W_OK):
-                return preferred
-        except OSError:
-            pass
-        fallback = os.path.join(
+        if os.path.isdir(preferred):
+            # 目录已存在：确认它本身仍可写（ACL 可能事后收紧）
+            return preferred if ensure_writable_dir(preferred) else self._fallback_cache_base()
+        # 目录不存在：只要程序根可写就采用默认位置（首次导入时才真正创建）
+        return preferred if ensure_writable_dir(root) else self._fallback_cache_base()
+
+    @staticmethod
+    def _fallback_cache_base() -> str:
+        return os.path.join(
             os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ustPlayer", "cache"
         )
-        return fallback
 
     def _uplr_cache_dir(self, uplr_path: str) -> str:
         stem = os.path.splitext(os.path.basename(uplr_path))[0]
@@ -405,30 +413,39 @@ class UplrProjectIO:
         logger.info(f"已清除工程缓存目录: {base}")
 
     @staticmethod
-    def _extract_member_safe(zf, name: str, dest_dir: str) -> int:
-        """解压单个成员，阻止 zip slip（绝对路径 / .. 穿越 / 盘符路径），
-        分块流式写入并限制单成员大小；返回实际解压的字节数（目录条目返回 0）。
+    def _safe_join(base_dir: str, member_name: str) -> str:
+        """校验包内成员名并解析为 base_dir 内的绝对路径（防 zip slip / 路径穿越）。
+
+        拒绝：空名、绝对路径、盘符前缀、NUL 字符、含 .. 组件；
+        并以 commonpath 二次确认解析结果仍在 base_dir 内。
         """
-        normalized = name.replace("\\", "/")
-        if normalized.endswith("/"):
-            # 目录条目：无需创建，子文件写入时 os.makedirs 会自动补父目录
-            return 0
+        normalized = member_name.replace("\\", "/")
         if (
-            normalized.startswith("/")
+            not normalized
+            or normalized.startswith("/")
+            or "\x00" in normalized
             or ".." in normalized.split("/")
             or re.match(r"^[A-Za-z]:", normalized)
         ):
-            raise ValueError(f"工程文件包含不安全路径: {name}")
-        target = os.path.join(dest_dir, normalized)
-        # 二次防御：确认解析后的目标仍在缓存目录内（防盘符/前缀混淆等极端情况）
-        abs_dest = os.path.abspath(dest_dir)
-        abs_target = os.path.abspath(target)
+            raise ValueError(f"工程文件包含不安全路径: {member_name}")
+        target = os.path.abspath(os.path.join(base_dir, *normalized.split("/")))
+        abs_base = os.path.abspath(base_dir)
         try:
-            inside = os.path.commonpath([abs_dest, abs_target]) == abs_dest
+            inside = os.path.commonpath([abs_base, target]) == abs_base
         except ValueError:  # 不同盘符等无法比较的情况一律拒绝
             inside = False
         if not inside:
-            raise ValueError(f"工程文件包含不安全路径: {name}")
+            raise ValueError(f"工程文件包含不安全路径: {member_name}")
+        return target
+
+    @staticmethod
+    def _extract_member_safe(zf, name: str, dest_dir: str) -> int:
+        """解压单个成员，分块流式写入并限制单成员大小；返回实际解压的字节数。"""
+        # 先做路径安全校验（目录条目也校验，名为 ../x/ 的穿越条目同样拒绝）
+        target = UplrProjectIO._safe_join(dest_dir, name)
+        if name.replace("\\", "/").endswith("/"):
+            # 目录条目：无需创建，子文件写入时 os.makedirs 会自动补父目录
+            return 0
         os.makedirs(os.path.dirname(target), exist_ok=True)
         written = 0
         with zf.open(name) as src, open(target, "wb") as dst:

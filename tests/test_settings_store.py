@@ -72,9 +72,9 @@ def test_resolve_path_in_writable_root(prog_root):
 
 
 def test_resolve_path_fallback_when_readonly(prog_root, monkeypatch):
-    # 模拟程序根目录不可写：回退到 %LOCALAPPDATA%\ustPlayer
+    # 模拟程序根目录不可写（写探针失败）：回退到 %LOCALAPPDATA%\ustPlayer
     import ustplayer.core.settings_store as ss_mod
-    monkeypatch.setattr(ss_mod.os, "access", lambda *a, **k: False)
+    monkeypatch.setattr(ss_mod, "ensure_writable_dir", lambda directory: False)
     store = SettingsStore()
     expected = str(prog_root / "ustPlayer" / "Settings.json")
     assert store.settings_path == expected

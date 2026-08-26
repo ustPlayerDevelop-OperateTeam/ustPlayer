@@ -9,7 +9,7 @@ import configparser
 import json
 import os
 
-from ustplayer.core.contracts import resolve_program_root
+from ustplayer.core.contracts import ensure_writable_dir, resolve_program_root
 from ustplayer.core.log import logger
 
 
@@ -24,9 +24,9 @@ class SettingsStore:
 
     @staticmethod
     def _resolve_settings_path() -> str:
-        """解析 Settings.json 路径：程序根目录优先，只读时回退用户数据目录。"""
+        """解析 Settings.json 路径：程序根目录优先，实际不可写时回退用户数据目录。"""
         root = resolve_program_root()
-        if os.access(root, os.W_OK):
+        if ensure_writable_dir(root):
             return os.path.join(root, SettingsStore.FILE_NAME)
         fallback_dir = os.path.join(
             os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ustPlayer"
@@ -66,7 +66,7 @@ class SettingsStore:
     def _legacy_path(self) -> str:
         """旧版 Settings.ini 路径（与新版同目录逻辑）。"""
         root = resolve_program_root()
-        if os.access(root, os.W_OK):
+        if ensure_writable_dir(root):
             return os.path.join(root, self.LEGACY_FILE_NAME)
         fallback_dir = os.path.join(
             os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ustPlayer"

@@ -263,7 +263,7 @@ class VideoExportDialog(MessageBoxBase):
             output += ".mp4"
             self.edit_output.setText(output)
         width, height = self._current_resolution()
-        fps = self.combo_fps.currentData()
+        fps = self.combo_fps.currentData() or 60
         mux_audio = self.sw_mux.isChecked()
 
         self._reset_controls(exporting=True)
