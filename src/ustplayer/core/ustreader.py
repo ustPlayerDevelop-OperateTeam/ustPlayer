@@ -5,6 +5,7 @@
 供播放器和主窗口经 AppContext 统一调用。
 """
 
+import math
 from typing import Optional
 
 from ustplayer.core.contracts import NoteInfo, UstInfo, UstParser
@@ -42,6 +43,10 @@ class UstFileReader:
             UnicodeDecodeError: 编码错误
         """
         enc = encoding or self.DEFAULT_ENCODING
+        # UTF-8 家族统一用 utf-8-sig 打开：自动吞掉 BOM，避免 \ufeff 残留在首行
+        # 导致 [#VERSION]/[#SETTING]/首个音符段匹配失败、首段数据被静默丢弃。
+        if enc.lower().replace("-", "").replace("_", "") in ("utf8", "utf8sig"):
+            enc = "utf-8-sig"
 
         ust_version = ""
         ust_tempo = 120.0
@@ -128,6 +133,12 @@ class UstFileReader:
 
         if current_note is not None:
             note_list.append(current_note)
+
+        # 速度值边界校验：0 / 负数 / NaN / Inf 都会让下游时间轴失效
+        # （0 → 时间轴永远停在第 0 tick；NaN/Inf → 比较行为怪异），统一回退默认。
+        if not (math.isfinite(ust_tempo) and ust_tempo > 0):
+            logger.warning(f"UST 速度值非法（{ust_tempo}），回退默认 120 BPM")
+            ust_tempo = 120.0
 
         return UstInfo(
             version=ust_version,

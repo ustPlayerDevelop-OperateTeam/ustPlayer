@@ -320,21 +320,21 @@ class OtherPage(ScrollPage):
             return
         self._ctx.project_io.clear_cache()
         self._refresh_cache_usage()
-        InfoBar.success(tr("成功"), tr("工程缓存已清除"), 3000,
+        InfoBar.success(tr("成功"), tr("工程缓存已清除"), duration=3000,
                         parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _on_open_log(self):
         try:
             self._open_with_notepad(log_file_path())
         except Exception as e:
-            InfoBar.error("ERcode012", tr("打开日志文件失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode012", tr("打开日志文件失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _open_url(self, url: str):
         try:
             webbrowser.open(url, new=2)
         except Exception as e:
-            InfoBar.error("ERcode003", tr("打开网页失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode003", tr("打开网页失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     @staticmethod
@@ -348,14 +348,14 @@ class OtherPage(ScrollPage):
         try:
             self._open_with_notepad(self._s.ercode_file_path)
         except Exception as e:
-            InfoBar.error("ERcode008", tr("打开ERcode.txt失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode008", tr("打开ERcode.txt失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _open_terms(self):
         try:
             self._open_with_notepad(self._s.terms_file_path)
         except Exception as e:
-            InfoBar.error("ERcode009", tr("打开LICENSE失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode009", tr("打开LICENSE失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _sync_ui_from_settings(self):

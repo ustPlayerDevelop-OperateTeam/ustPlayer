@@ -258,7 +258,7 @@ class MainWindow(FluentWindow):
             logger.warning(f"UST 文件无效: {ust_path}")
             InfoBar.error(
                 "ERcode001", tr("请选择有效的UST文件！"),
-                5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+                duration=5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
             return
 
@@ -286,13 +286,13 @@ class MainWindow(FluentWindow):
             logger.exception("UST 编码错误")
             InfoBar.error(
                 "ERcode004", tr("解析UST文件失败：使用了错误的编码，请切换编码后重试"),
-                5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+                duration=5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
         except Exception as e:
             logger.exception("播放准备失败")
             InfoBar.error(
                 "ERcode999", tr("播放准备失败：{0}").format(e),
-                5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+                duration=5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
 
     def _launch_player(self, params: PlayerLaunchParams):
@@ -308,7 +308,7 @@ class MainWindow(FluentWindow):
             logger.exception("播放器启动失败")
             InfoBar.error(
                 "ERcode005", tr("播放器启动失败：{0}").format(e),
-                5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+                duration=5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
 
     def _load_dropped_uplr(self):
@@ -326,12 +326,12 @@ class MainWindow(FluentWindow):
             self._settings.write_settings()
             InfoBar.success(
                 tr("成功"), tr("已成功打开并加载工程：\n{0}").format(path),
-                3000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+                duration=3000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
         except Exception as e:
             InfoBar.error(
                 "ERcode006", tr("加载工程文件失败：\n{0}").format(e),
-                5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
+                duration=5000, parent=self, position=InfoBarPosition.TOP_RIGHT,
             )
 
     @staticmethod

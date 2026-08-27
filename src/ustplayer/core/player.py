@@ -5,31 +5,21 @@
 经 AppContext 统一调用。
 """
 
+import math
 import os
 import re
 import time
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from PySide6.QtWidgets import QApplication, QWidget
-from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QUrl
+from PySide6.QtCore import Qt, QTimer, QRectF, QPointF
 from PySide6.QtGui import (
     QPainter, QColor, QFont, QFontMetrics, QPen, QPolygonF,
 )
 
-if TYPE_CHECKING:
-    # 类型检查用别名（运行时不存在），避免降级导入的 None 污染注解类型
-    from PySide6.QtMultimedia import (
-        QAudioOutput as QAudioOutputType,
-        QMediaPlayer as QMediaPlayerType,
-    )
-
-try:
-    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
-    _HAS_AUDIO = True
-except Exception:  # QtMultimedia 缺失时降级为纯可视化
-    QAudioOutput = None  # type: ignore[assignment]
-    QMediaPlayer = None  # type: ignore[assignment]
-    _HAS_AUDIO = False
+# 音频已封装至 audio_backend.py：QtMultimedia 缺失时 create_audio_backend 返回
+# None，播放器自动降级为纯可视化计时，本模块不再直接接触 QMediaPlayer。
+from ustplayer.core.audio_backend import AudioBackend, create_audio_backend
 
 from ustplayer.core.contracts import (
     APP_COPYRIGHT,
@@ -79,7 +69,14 @@ class NoteLyricDisplay(QWidget):
         self._bg_color = QColor(self._bg_color_hex)
 
         self.notes = params.ust.notes
-        self.tempo = params.ust.tempo
+        # 防御性校验：解析器已保证 tempo 合法，但直接构造 PlayerLaunchParams
+        # 的调用方可能绕过；0/负数/NaN/Inf 会让时间轴失效，统一回退默认 120。
+        tempo = params.ust.tempo
+        self.tempo = (
+            tempo
+            if isinstance(tempo, (int, float)) and math.isfinite(tempo) and tempo > 0
+            else 120.0
+        )
         self.last_valid_lyric = ""
         pb_notes = sum(1 for n in self.notes if len(n.pitch_bend) >= 2)
         logger.info(
@@ -171,8 +168,7 @@ class NoteLyricDisplay(QWidget):
         self._close_timer.setSingleShot(True)
         self._close_timer.timeout.connect(self.close)
 
-        self._audio_player: Optional[QMediaPlayer] = None  # type: ignore[assignment]
-        self._audio_output: Optional[QAudioOutput] = None  # type: ignore[assignment]
+        self._audio: Optional[AudioBackend] = None
         self._audio_ok = False
         self._media_finished = False
         self._media_duration_s = 0.0
@@ -180,6 +176,9 @@ class NoteLyricDisplay(QWidget):
         self._end_shown = False  # 已显示结束文字（之后不再播放音频、隐藏秒表）
         self._audio_ready_checks = 0  # 音频就绪看门狗重试次数（超限防“永远加载中”卡死）
         self._play_issued = False  # 是否已调用过 play()（播完后不再重播）
+        # 降级锚点：音频失效瞬间重锚定墙钟零点，避免时间轴跳变（_audio_degraded_real=0 表示未降级）
+        self._audio_degraded_at = 0.0
+        self._audio_degraded_real = 0.0
         self._init_audio()
 
         logger.debug("播放器 __init__ 完成")
@@ -238,96 +237,82 @@ class NoteLyricDisplay(QWidget):
     # ===================== 伴奏音频 =====================
 
     def _init_audio(self):
-        """初始化伴奏音频（QMediaPlayer）；缺失/失败时降级为纯可视化计时。"""
-        if not _HAS_AUDIO or QAudioOutput is None or QMediaPlayer is None:
-            return
+        """初始化伴奏音频后端；缺失/失败时降级为纯可视化计时。"""
         path = (self.music_path or "").strip()
         if not path or not os.path.exists(path):
             logger.info("未配置伴奏音频，使用纯可视化计时")
             return
+        backend = create_audio_backend(parent=self)
+        if backend is None:
+            logger.info("QtMultimedia 不可用，使用纯可视化计时")
+            return
         try:
-            # 用局部变量承接构造结果：QMediaPlayer/QAudioOutput 在降级导入时是
-            # None 占位（见文件顶部），局部变量可让 pyright 正确推断出实际类型
-            audio_output = QAudioOutput(self)
-            audio_output.setVolume(1.0)
-            audio_player = QMediaPlayer(self)
-            audio_player.setAudioOutput(audio_output)
-            audio_player.mediaStatusChanged.connect(self._on_media_status)
-            audio_player.errorOccurred.connect(self._on_audio_error)
-            audio_player.setSource(QUrl.fromLocalFile(path))
-            self._audio_output = audio_output
-            self._audio_player = audio_player
-            self._audio_ok = True
-            logger.info(f"伴奏音频已加载: {path}")
+            backend.media_ready.connect(self._on_media_ready)
+            backend.media_ended.connect(self._on_media_ended)
+            backend.media_error.connect(self._on_audio_error)
+            backend.load(path)
         except Exception as e:
             logger.warning(f"音频初始化失败，降级为纯可视化: {e}")
-            self._audio_player = None
-            self._audio_output = None
-            self._audio_ok = False
+            return
+        self._audio = backend
+        self._audio_ok = True
+        logger.info(f"伴奏音频已加载: {path}")
+        QTimer.singleShot(3000, self._check_audio_ready)
 
-        if self._audio_ok:
-            QTimer.singleShot(3000, self._check_audio_ready)
+    def _on_media_ready(self):
+        """媒体加载完成 → 首次 play()；播完（_media_finished）或已进入结束态后不再重播。"""
+        if (
+            self._audio is not None
+            and self._audio_ok
+            and not self._play_issued
+            and not self._media_finished
+            and not self._end_shown
+        ):
+            self._play_issued = True
+            self._audio.play()
+            logger.info("伴奏开始播放")
 
-    def _on_media_status(self, status):
-        """媒体状态变化：就绪后开播；播放结束记录锚点。"""
-        try:
-            # QMediaPlayer 在 _HAS_AUDIO 时是实际类，不会是 None
-            if status == QMediaPlayer.MediaStatus.LoadedMedia:  # pyright: ignore[reportOptionalMemberAccess]
-                # 只允许调用一次 play()：音频播完（EndOfMedia 已置 _media_finished）或
-                # 已进入结束态（_end_shown / _play_issued）后，不再自动 play，杜绝重播。
-                if (
-                    self._audio_player is not None
-                    and self._audio_ok
-                    and not self._play_issued
-                    and not self._media_finished
-                    and not self._end_shown
-                ):
-                    self._play_issued = True
-                    self._audio_player.play()
-                    logger.info("伴奏开始播放")
-            elif status == QMediaPlayer.MediaStatus.EndOfMedia:  # pyright: ignore[reportOptionalMemberAccess]
-                self._media_finished = True
-                if self._audio_player is not None:
-                    duration_ms = self._audio_player.duration()
-                    pos_ms = self._audio_player.position()
-                    self._media_duration_s = (
-                        (duration_ms if duration_ms > 0 else pos_ms) / 1000.0
-                    )
-                self._media_finish_real = time.time()
-                logger.info("伴奏播放结束")
-        except Exception:
-            logger.exception("媒体状态处理异常")
+    def _on_media_ended(self):
+        """播放到结尾：记录结束锚点（时长优先，未知时退回当前位置）。"""
+        self._media_finished = True
+        dur = self._audio.duration_seconds() if self._audio is not None else 0.0
+        pos = self._audio.position_seconds() if self._audio is not None else 0.0
+        self._media_duration_s = dur if dur > 0 else pos
+        self._media_finish_real = time.time()
+        logger.info("伴奏播放结束")
 
-    def _on_audio_error(self, error, error_string):
-        logger.warning(f"音频错误({error}): {error_string}，降级为纯可视化")
+    def _on_audio_error(self, message: str):
+        logger.warning(f"音频错误：{message}，降级为纯可视化")
+        self._degrade_audio()
+
+    def _degrade_audio(self):
+        """降级为纯可视化：以当前播放位置为墙钟零点重锚定，避免时间轴跳变。"""
         self._audio_ok = False
+        self._audio_degraded_at = self._play_elapsed
+        self._audio_degraded_real = time.time()
 
     def _check_audio_ready(self):
         """看门狗：媒体就绪后未进入播放状态则降级（离屏/无声卡环境）。
-        改进：仅当媒体确已加载（LoadedMedia / BufferedMedia）但不在播放状态时才降级；
+
+        仅当媒体确已加载（LoadedMedia/BufferedMedia）但不在播放状态时才降级；
         仍在加载中时再等 3 秒；媒体无效时立即降级。
         """
-        if not self._audio_ok or self._audio_player is None:
+        if not self._audio_ok or self._audio is None:
             return
-        # 走到这里说明 _HAS_AUDIO 为真，QMediaPlayer 必为实际类而非 None
-        assert QMediaPlayer is not None
         try:
-            state = self._audio_player.playbackState()
-            status = self._audio_player.mediaStatus()
-            mp = QMediaPlayer
-            if status in (mp.MediaStatus.LoadedMedia, mp.MediaStatus.BufferedMedia):
-                if state != mp.PlaybackState.PlayingState:
+            if self._audio.is_loaded():
+                if not self._audio.is_playing():
                     logger.warning("音频已加载但未进入播放状态，降级为纯可视化")
-                    self._audio_ok = False
-            elif status == mp.MediaStatus.InvalidMedia:
+                    self._degrade_audio()
+            elif self._audio.is_invalid():
                 logger.warning("音频媒体无效，降级为纯可视化")
-                self._audio_ok = False
-            elif status in (mp.MediaStatus.LoadingMedia, mp.MediaStatus.StalledMedia):
-                # 仍在加载：再等 3 秒；超过总次数后强制降级，避免“永远加载中”导致时间轴停在 0 卡死
+                self._degrade_audio()
+            elif self._audio.is_loading():
+                # 仍在加载：再等 3 秒；超过总次数后强制降级，避免“永远加载中”卡死
                 self._audio_ready_checks += 1
                 if self._audio_ready_checks >= 3:
                     logger.warning("音频长时间未就绪，降级为纯可视化")
-                    self._audio_ok = False
+                    self._degrade_audio()
                 else:
                     logger.debug("音频仍在加载中，3 秒后再次检查")
                     QTimer.singleShot(3000, self._check_audio_ready)
@@ -399,13 +384,18 @@ class NoteLyricDisplay(QWidget):
     def _tick(self):
         """定时器回调：计算当前位置 → 更新绘制状态。"""
         try:
-            if self._audio_ok and self._audio_player is not None:
+            if self._audio_ok and self._audio is not None:
                 if self._media_finished:
                     self._play_elapsed = self._media_duration_s + (
                         time.time() - self._media_finish_real
                     )
                 else:
-                    self._play_elapsed = self._audio_player.position() / 1000.0
+                    self._play_elapsed = self._audio.position_seconds()
+            elif self._audio_degraded_real:
+                # 音频已降级：从降级瞬间的位置 + 墙钟增量继续，时间轴连续不跳变
+                self._play_elapsed = self._audio_degraded_at + (
+                    time.time() - self._audio_degraded_real
+                )
             else:
                 self._play_elapsed = time.time() - self.start_real_time
             current_tick = self._play_elapsed * self.tick_per_second
@@ -417,9 +407,9 @@ class NoteLyricDisplay(QWidget):
                 self._current_lyric = self._get_end_text()
                 self._current_note_name = ""
                 self._current_note = None
-                if self._audio_ok and self._audio_player is not None:
+                if self._audio_ok and self._audio is not None:
                     # 立刻停止音频，避免结束后被重复触发播放
-                    self._audio_player.stop()
+                    self._audio.stop()
                 self.update()
                 self._timer.stop()
                 logger.info("播放完成，1秒后关闭窗口")
@@ -691,8 +681,8 @@ class NoteLyricDisplay(QWidget):
     def closeEvent(self, event):
         self._timer.stop()
         self._close_timer.stop()
-        if self._audio_player is not None:
-            self._audio_player.stop()
+        if self._audio is not None:
+            self._audio.stop()
         super().closeEvent(event)
 
 

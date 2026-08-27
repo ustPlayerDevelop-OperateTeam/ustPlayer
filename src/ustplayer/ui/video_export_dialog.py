@@ -256,7 +256,7 @@ class VideoExportDialog(MessageBoxBase):
     def _on_export(self):
         output = self.edit_output.text().strip()
         if not output:
-            InfoBar.warning(tr("提示"), tr("请先选择输出视频路径"), 3000,
+            InfoBar.warning(tr("提示"), tr("请先选择输出视频路径"), duration=3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
         if not output.lower().endswith(".mp4"):
@@ -307,7 +307,7 @@ class VideoExportDialog(MessageBoxBase):
             tr("成功"), tr("视频已导出：{0}\n已保存工程：{1}").format(
                 self.edit_output.text(), uprd_path or tr("（无）")
             ),
-            5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+            duration=5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
         )
 
     def _on_failed(self, message: str):
@@ -316,7 +316,7 @@ class VideoExportDialog(MessageBoxBase):
         self.status_label.setText(tr("失败"))
         InfoBar.error(
             "ERcode011", tr("导出视频失败：{0}").format(message),
-            7000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+            duration=7000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
         )
 
     def _cleanup_thread(self):

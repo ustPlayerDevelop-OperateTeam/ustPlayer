@@ -142,13 +142,63 @@ jobs:
           New-Item -ItemType Directory -Force -Path $mmDst | Out-Null
           Get-ChildItem (Join-Path $pyside "plugins\multimedia\*.dll") -File |
             Copy-Item -Destination $mmDst -Force
-          # 2) FFmpeg 动态库（avcodec / avformat / avutil / swresample / swscale）
+          # 2) FFmpeg 动态库（avcodec-61.dll / avformat-61.dll / avutil-59.dll /
+          #    swresample-5.dll / swscale-8.dll —— av/sw 后是字母，版本号在连字符之后）
           Get-ChildItem (Join-Path $pyside "*.dll") -File |
-            Where-Object { $_.Name -match '^(av|sw)\d' } |
+            Where-Object { $_.Name -match '^(av|sw)[a-z]*-\d' } |
             Copy-Item -Destination $distPySide -Force
           Write-Output "已补齐 QtMultimedia 资源："
           Get-ChildItem $mmDst -File | Select-Object Name
-          Get-ChildItem $distPySide -File | Where-Object { $_.Name -match '^(av|sw)\d' } | Select-Object Name
+          Get-ChildItem $distPySide -File | Where-Object { $_.Name -match '^(av|sw)[a-z]*-\d' } | Select-Object Name
+
+      # ============================================================
+      # 内置完整 FFmpeg（ffmpeg.exe / ffprobe.exe 进产物 ffmpeg/ 子目录）：
+      # 视频导出的「混流」与「伴奏时长探测」优先使用程序目录内置版本，
+      # 用户无需自行安装 FFmpeg 或配置 PATH。
+      # ============================================================
+      - name: 内置 FFmpeg 可执行文件（ffmpeg / ffprobe）
+        shell: pwsh
+        run: |
+          # 多候选源 + 每源重试：gyan.dev 主源失败时回退 BtbN 的 GitHub Release
+          # （同网络环境更稳）。curl -L 跟随重定向，-f 让 HTTP 错误返回非零退出码。
+          $urls = @(
+            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"
+          )
+          $zip = Join-Path $env:RUNNER_TEMP "ffmpeg.zip"
+          $downloaded = $false
+          foreach ($url in $urls) {
+            for ($attempt = 1; $attempt -le 2; $attempt++) {
+              Write-Host "尝试下载 FFmpeg（第 $attempt 次）：$url"
+              try {
+                & curl.exe -L -f -sS --retry 2 -o $zip $url
+                if ($LASTEXITCODE -ne 0) { throw "curl 退出码 $LASTEXITCODE" }
+                if (-not (Test-Path $zip) -or (Get-Item $zip).Length -lt 10MB) {
+                  throw "下载文件无效或过小（疑似 404/被拦截）"
+                }
+                $downloaded = $true
+                break
+              } catch {
+                Write-Warning "下载失败：$_"
+              }
+            }
+            if ($downloaded) { break }
+          }
+          if (-not $downloaded) { throw "FFmpeg 下载失败：所有候选源均不可用" }
+          $extract = Join-Path $env:RUNNER_TEMP "ffmpeg-extract"
+          if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $root = Get-ChildItem $extract -Directory |
+            Where-Object { $_.Name -like "ffmpeg-*" } | Select-Object -First 1
+          if (-not $root) { throw "FFmpeg 解压后未找到 ffmpeg-* 目录" }
+          $bin = Join-Path $root.FullName "bin"
+          $distFfmpeg = Join-Path "build/main.dist" "ffmpeg"
+          New-Item -ItemType Directory -Force -Path $distFfmpeg | Out-Null
+          Copy-Item (Join-Path $bin "ffmpeg.exe") $distFfmpeg -Force
+          Copy-Item (Join-Path $bin "ffprobe.exe") $distFfmpeg -Force
+          Write-Output "已内置 FFmpeg（来源：$url）："
+          Get-ChildItem $distFfmpeg -File | Select-Object Name, Length
 
       - name: 上传构建产物
         id: artifact
@@ -232,11 +282,12 @@ jobs:
               throw "版本号为空，无法提取更新说明。请检查「解析版本号」步骤的输出（tag/title/file）"
           }
           # 兼容多种小节标题写法：# v1.1.0 Beta 2 / # 1.1.0 Beta 2 / #1.1.0-Beta-2 均可匹配；
+          # (?i) 大小写不敏感：tag 写 v1.1.0-beta-2（小写）也能匹配到「# 1.1.0 Beta 2」；
           # (?!#) 排除 ## 二级小节；(?!数字) 防止 v1.1.0 误配到 v1.1.01 之类的前缀重叠版本
           $ver = $tag.Trim() -replace '^v', ''
           $pattern = ([regex]::Escape($ver) -replace '-', '[ -]')
           $content = Get-Content CHANGELOG.md -Raw -Encoding UTF8
-          if ($content -match "(?ms)^(#(?!#)[ \t]*v?$pattern(?!\d)[^\r\n]*)\r?\n(.*?)(?=\r?\n#(?!#)|\Z)") {
+          if ($content -match "(?ims)^(#(?!#)[ \t]*v?$pattern(?!\d)[^\r\n]*)\r?\n(.*?)(?=\r?\n#(?!#)|\Z)") {
               $heading = ($matches[1] -replace '^#[ \t]*v?', '').Trim()
               $section = $matches[2].Trim()
               "Found changelog section: $heading" | Write-Host

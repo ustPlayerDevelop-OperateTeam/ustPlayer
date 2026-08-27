@@ -148,6 +148,20 @@ class VideoExporter:
         except OSError as e:
             logger.warning(f"清理半成品文件失败: {path} ({e})")
 
+    # ===================== 外部工具定位 =====================
+
+    def _find_tool(self, name: str) -> Optional[str]:
+        """查找外部工具（ffmpeg / ffprobe）：优先程序目录内置版本（打包时置于
+        ffmpeg/ 子目录），其次程序根目录，最后回退 PATH。"""
+        root = getattr(self._settings, "program_root", None) or os.getcwd()
+        for candidate in (
+            os.path.join(root, "ffmpeg", f"{name}.exe"),
+            os.path.join(root, f"{name}.exe"),
+        ):
+            if os.path.isfile(candidate):
+                return candidate
+        return shutil.which(name)
+
     # ===================== 可取消的子进程执行 =====================
 
     @staticmethod
@@ -280,7 +294,7 @@ class VideoExporter:
         mus = self._music_path
         if not mus or not os.path.exists(mus):
             return 0.0
-        exe = shutil.which("ffprobe")
+        exe = self._find_tool("ffprobe")
         if exe is None:
             return 0.0
         tmp = f"{mus}.dur.tmp"
@@ -321,7 +335,7 @@ class VideoExporter:
         if not os.path.exists(audio_path):
             logger.warning(f"伴奏文件不存在，跳过混流: {audio_path}")
             return
-        exe = shutil.which("ffmpeg")
+        exe = self._find_tool("ffmpeg")
         if exe is None:
             raise RuntimeError(f"{_AUDIO_MUX_FAILED}：未找到 ffmpeg")
         tmp_path = f"{video_path}.mux.tmp.mp4"

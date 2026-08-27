@@ -1,3 +1,22 @@
+## Unreleased
+
+## 🐛 问题修复
+
+- **修复所有 InfoBar 提示 1 秒即消失且布局错乱**：`InfoBar.error/success/warning` 的毫秒数此前被当作第 3 个位置参数传给了 `orient`（`duration` 保持默认 1000ms，`orient=5000` 非法导致提示渲染成竖排）。全应用 23 处调用改为关键字传参（`duration=3000/5000/7000`），错误提示恢复 5~7 秒展示时长与横排布局。
+- **修复带 UTF-8 BOM 的 UST 首段被静默丢弃**：`\ufeff` 残留首行导致 `[#VERSION]`/`[#SETTING]`/首个音符段匹配失败（版本号丢失；若首行即音符段，该音符整段丢失且无提示）。解析器对 UTF-8 家族改用 `utf-8-sig` 打开，自动吞掉 BOM。
+- **修复 UST 速度值（Tempo）无边界校验**：`Tempo=0`/负数/`NaN`/`Inf` 此前原样接受，`Tempo=0` 会让播放器时间轴永远停在 0:00（无提示卡死）。解析器与播放器双端校验，非法值统一回退 120 BPM（与视频导出侧防护一致）。
+- **修复 .uplr 导入失败时设置被部分篡改并落盘**：`_apply_info_json` 边校验边赋值，遇到 Info.json 中不安全资源路径抛异常时已赋值属性不回滚，退出时会被 `write_settings` 持久化。导入改为事务化——失败即回滚全部已触碰设置并清理半成品缓存，导入失败 ≠ 状态被污染。
+- **修复音频失效降级时播放时间轴跳变**：音频初始化失败 / 看门狗判定异常降级为纯可视化后，时间轴此前从 0:00 重新走墙钟（若音频一直未就绪，画面会从 0:00 直接跳到约 9 秒处）。降级瞬间改为以当前播放位置重锚定墙钟零点，时间轴连续不跳变。
+- 新增回归测试：UTF-8 BOM（版本/首音符）、Tempo 非法值（0/-5/nan/inf）、导入失败后设置回滚与缓存清理、音频状态机（就绪只播一次 / 播完锚点 / 看门狗降级 / 降级时间轴连续）。
+
+## 🏗️ 底层重构（面向开发者的变更）
+
+- **封装伴奏音频后端**：新增 `core/audio_backend.py`——QtMultimedia 的降级导入（`try/except` + None 占位）与加载/播放/状态机从 `player.py` 迁移至此，`create_audio_backend` 工厂按环境返回 `QtAudioBackend` 或 `None`；播放器只依赖 `AudioBackend` 窄接口（`media_ready`/`media_ended`/`media_error` 信号 + 位置/时长/媒体阶段布尔查询），不再直接 import QtMultimedia。音频状态机由此可在无音频设备环境用可编程 fake 后端测试（新增 `tests/test_audio_backend.py`，9 个用例）。
+- **内置 FFmpeg**：构建流程（`build.yml`）下载 ffmpeg/ffprobe 并打进产物的 `ffmpeg/` 子目录；视频导出的混流与伴奏时长探测（`video_exporter._find_tool`）**优先使用程序目录内置版本**，缺失时才回退 PATH——用户不再需要自行安装 FFmpeg 或配置环境变量。
+- **修复 CI 的 FFmpeg 动态库复制正则**：`^(av|sw)\d` 无法匹配 `avcodec-61.dll` / `swresample-5.dll` 等（av/sw 后是字母、版本号在连字符之后），导致打包产物缺失全部 FFmpeg 动态库；改为 `^(av|sw)[a-z]*-\d`。
+- **发版版本匹配大小写兜底**：tag 写成 `v1.1.0-beta-2`（小写）也能匹配到 `# 1.1.0 Beta 2` 小节（ChangeLog 提取正则加 `(?i)`），不再因大小写不一致中止发版。
+- **文档同步**：`CONTRIBUTING.md` / `CLAUDE.md` 的发版机制描述更正为现行规则——发版**只由标签推送触发**、提交信息不参与发版判定、ChangeLog 小节为 `# {版本}` 一级标题（`v` 前缀可省略、连字符/空格互通、大小写不敏感）、版本校验为「tag ↔ `contracts.APP_VERSION`」；版本号示例同步为 1.1.0b2。Issue 模板同步修正：Bug 报告中的版本号示例更新为语义化版本（`1.1.0 Beta 2`）、日志路径更正为程序目录下的 `ustPlayer.log`（不再指向不存在的 `logs/` 文件夹）、"更新日志"链接改为 `ustPlayerDevelop-OperateTeam/ustPlayer` 组织仓库地址。
+
 # 1.1.0 Beta 2
 
 > [!NOTE]

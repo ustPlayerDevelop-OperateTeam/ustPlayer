@@ -210,10 +210,10 @@ class BasicPage(ScrollPage):
             self._ctx.project_io.import_uplr(file_path)
             self._s.last_open_dir = os.path.dirname(file_path)
             self._s.write_settings()
-            InfoBar.success(tr("成功"), tr("已加载工程：{0}").format(file_path), 3000,
+            InfoBar.success(tr("成功"), tr("已加载工程：{0}").format(file_path), duration=3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
         except Exception as e:
-            InfoBar.error("ERcode006", tr("加载工程文件失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode006", tr("加载工程文件失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _on_export(self):
@@ -230,10 +230,10 @@ class BasicPage(ScrollPage):
             self._ctx.project_io.export_uplr(file_path)
             self._s.last_export_dir = os.path.dirname(file_path)
             self._s.write_settings()
-            InfoBar.success(tr("成功"), tr("工程已导出到：{0}").format(file_path), 3000,
+            InfoBar.success(tr("成功"), tr("工程已导出到：{0}").format(file_path), duration=3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
         except Exception as e:
-            InfoBar.error("ERcode010", tr("导出失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode010", tr("导出失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def _on_export_video(self):

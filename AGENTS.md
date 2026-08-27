@@ -6,7 +6,7 @@
 
 - 环境搭建：`uv sync`（uv；`.python-version` 固定 Python 3.13.12，要求 >=3.11）。`pyproject.toml` 是依赖的唯一事实源——不要另建 `requirements.txt`。
 - 运行：`uv run main.py` —— 唯一真实入口（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts] ustplayer` → `ustplayer.app:main`）；两条入口路径共用 `AppContext`。
-- 测试：`uv run pytest`（185 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
+- 测试：`uv run pytest`（220 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
 - 仅 Windows：`ustplayer/ui/main_window.py` 使用了 `winreg`（读取系统强调色）。在 WSL/Linux 上无法运行。
 
 ## 注意事项（Gotchas）
@@ -31,9 +31,10 @@
   - `settings_store.py` —— `SettingsStore`：`Settings.json` 的文件 I/O（分组→键值字典；路径解析，不可写时回退 `%LOCALAPPDATA%\ustPlayer`），首次运行自动迁移旧版 `Settings.ini`，无业务逻辑。
   - `uplr_io.py` —— `UplrProjectIO` 实现 `contracts.ProjectIO`：`.uplr` 导入/导出。**新格式 = ZIP 容器**（`Info.json` + ust/lrc/音乐资源，导入时解压到**程序目录下 `cache/<工程名>-<hash8>\`**，程序目录不可写时回退 `%LOCALAPPDATA%\ustPlayer\cache`；`cache_base`/`cache_usage`/`clear_cache` 供设置页展示占用与清除）；**旧文本格式仍可导入**（按 ZIP 魔数自动识别）。依赖 `SettingsManager` 读写属性；导入会触发设置信号，UI 因此实时同步。
   - `ustreader.py` —— `UstFileReader` 实现 `UstParser`；只处理 `.ust` 文本（解析 Lyric/Length/NoteNum/Phoneme/PitchBend），接受 `encoding` 参数（默认 "Shift-JIS"）；编码错误时抛出 `UnicodeDecodeError`。
-  - `player.py` —— `NotePlayerLauncher` 实现 `PlayerLauncher`；`NoteLyricDisplay` 是全屏 QPainter 播放器。通过 QtMultimedia 播放伴奏（`music_path`）并按媒体位置驱动时间轴；无音频或音频失败时回退到墙钟计时。按 `ShowConfig` 渲染歌词 / 音符名 / 音高曲线 / LRC 歌词。改动 QtMultimedia 相关代码时，请保留文件顶部的 `try/except` + `TYPE_CHECKING` 降级导入模式。
+  - `audio_backend.py` —— 伴奏音频后端封装：QtMultimedia 的**降级导入模式**（`try/except` + None 占位）与加载/播放/状态机隔离在本模块；`create_audio_backend` 工厂按环境返回 `QtAudioBackend` 或 `None`，播放器只依赖 `AudioBackend` 窄接口（`media_ready`/`media_ended`/`media_error` 信号 + 位置/时长/媒体阶段布尔查询）。
+  - `player.py` —— `NotePlayerLauncher` 实现 `PlayerLauncher`；`NoteLyricDisplay` 是全屏 QPainter 播放器。经 `audio_backend` 播放伴奏（`music_path`）并按媒体位置驱动时间轴；无音频或音频失败时回退到墙钟计时（降级瞬间以当前位置重锚定，时间轴不跳变）。按 `ShowConfig` 渲染歌词 / 音符名 / 音高曲线 / LRC 歌词。**不要在 `player.py` 里直接 import QtMultimedia**——QtMultimedia 相关改动请改 `audio_backend.py`。
   - `renderer_ffi.py` —— uPlRender 渲染器 DLL（`ustplayer_renderer.dll`）的 ctypes 封装：`RendererLoader`（固定目录查找）+ `RendererContext`（C ABI 句柄生命周期），`UP_ERR_*` 错误码。
-  - `video_exporter.py` —— `VideoExporter` 实现 `contracts.VideoExporter`：解析 UST 后由当前设置组装渲染器需要的 `RenderConfig` JSON，调用 DLL 逐帧渲染出 MP4（无声），可选再用外部 `ffmpeg` 混入伴奏；同时写入一个 `.uprd` 工程文件（配置 + 资源 + `video` 段）。**时序与播放器一致**：以“音频播完”为结束边界（ffprobe 读时长），音符 tick 结束后、音频未播完的区间靠补一个尾部休止音符（`R`）显示空拍/静默文字，音频播完后进入结束文字并保留 1 秒。依赖 `RendererLoader` 从主程序如 `renderer/` 子目录加载 DLL，需 `ffmpeg`/`ffprobe` 在 PATH。
+  - `video_exporter.py` —— `VideoExporter` 实现 `contracts.VideoExporter`：解析 UST 后由当前设置组装渲染器需要的 `RenderConfig` JSON，调用 DLL 逐帧渲染出 MP4（无声），可选再用外部 `ffmpeg` 混入伴奏；同时写入一个 `.uprd` 工程文件（配置 + 资源 + `video` 段）。**时序与播放器一致**：以“音频播完”为结束边界（ffprobe 读时长），音符 tick 结束后、音频未播完的区间靠补一个尾部休止音符（`R`）显示空拍/静默文字，音频播完后进入结束文字并保留 1 秒。依赖 `RendererLoader` 从主程序如 `renderer/` 子目录加载 DLL；`ffmpeg`/`ffprobe`（混流与伴奏时长探测）**优先使用程序目录内置版本**（打包时置于 `ffmpeg/` 子目录，见 `.github/workflows/build.yml`），缺失时回退 PATH。
 - `src/ustplayer/ui/` —— 每个侧边栏项对应一个页面：`basic_page.py`、`file_page.py`、`player_style_page.py`、`lyric_page.py`、`other_page.py`，另有 `main_window.py`（带侧边导航的 FluentWindow）与共享控件 `section_card.py`。每个页面都实现 `sync_all_from_settings()`。
 - `tools/uplr_converter/` —— 独立的 C++17 转换器（旧文本 .uplr → 新版 ZIP .uplr），零第三方依赖；由 CI 在 windows-latest 上构建，随 Release 发布。
 - `Settings.ini` / `Settings.json` 已 gitignore（用户本地）。

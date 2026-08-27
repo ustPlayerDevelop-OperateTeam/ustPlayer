@@ -426,3 +426,38 @@ def test_export_uprd_structure_and_roundtrip(manager_factory, tmp_path):
     # 资源被解压到缓存目录
     assert os.path.exists(m2.file.ust_path)
 
+
+def test_import_failure_rolls_back_settings_and_cache(manager_factory, tmp_path):
+    """导入失败（Info.json 资源名穿越）后，已触碰的设置必须回滚、半成品缓存必须清理
+    ——否则部分篡改的值会被 closeEvent 的 write_settings 持久化（回归测试）。"""
+    m = manager_factory("rollback")
+    # 预先设置一组"用户已有"的值
+    m.project.project_name = "我的工程"
+    m.file.ust_path = "C:/old/song.ust"
+    m.display.show_bpm = False
+    m.color.bg_color = "#123456"
+    m.player.silent_display = "dash"
+
+    evil = "..\\evil.ust"
+    p = tmp_path / "evil.uplr"
+    info = {
+        "basic": {"project_name": "恶意工程", "ust_path": evil},
+        "display": {}, "color": {}, "else": {},
+    }
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("Info.json", json.dumps(info))
+        zf.writestr("song.ust", "[#SETTING]\n")
+
+    io = UplrProjectIO(m)
+    with pytest.raises(ValueError, match="不安全路径"):
+        io.import_uplr(str(p))
+
+    # 状态未被污染：已被部分赋值的属性必须恢复原值
+    assert m.project.project_name == "我的工程"
+    assert m.file.ust_path == "C:/old/song.ust"
+    assert m.display.show_bpm is False
+    assert m.color.bg_color == "#123456"
+    assert m.player.silent_display == "dash"
+    # 已解压的半成品缓存也被清理
+    assert not os.path.exists(io._uplr_cache_dir(str(p)))
+

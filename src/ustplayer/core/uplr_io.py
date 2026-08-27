@@ -69,6 +69,32 @@ class UplrProjectIO:
     _MAX_MEMBER_SIZE = 512 * 1024 * 1024  # 512MB
     _MAX_TOTAL_SIZE = 1024 * 1024 * 1024  # 1GB
 
+    # .uplr 导入会触碰的全部设置属性（快照/回滚用），与 _apply_info_json 保持同步
+    _IMPORT_TOUCHED = (
+        ("file", ("encoding", "ust_path", "curve_show")),
+        ("project", ("project_name", "music_path", "song_name", "song_author", "ust_author")),
+        ("display", ("show_bpm", "show_play_time", "show_song_name", "show_song_author",
+                     "show_ust_author", "fullscreen", "show_lyric")),
+        ("color", ("bg_color", "note_color", "lyric_color", "lyric_text_color",
+                   "other_text_color", "pitch_curve_color")),
+        ("player", ("lyric_pos", "lrc_path", "silent_display", "silent_custom_text",
+                    "end_display", "end_custom_text", "pitch_placeholder", "pitch_custom_text")),
+    )
+
+    def _snapshot_import_settings(self) -> dict:
+        """快照 .uplr 导入会触碰的全部设置属性，供失败回滚。"""
+        snap = {}
+        for holder, attrs in self._IMPORT_TOUCHED:
+            obj = getattr(self._settings, holder)
+            for attr in attrs:
+                snap[(holder, attr)] = getattr(obj, attr)
+        return snap
+
+    def _restore_import_settings(self, snapshot: dict) -> None:
+        """按快照恢复设置（setter 触发信号，UI 自动同步回旧值）。"""
+        for (holder, attr), value in snapshot.items():
+            setattr(getattr(self._settings, holder), attr, value)
+
     def __init__(self, settings: "SettingsManager"):
         self._settings = settings
 
@@ -262,61 +288,74 @@ class UplrProjectIO:
         }
         truthy = ("1", "true", "yes", "on")
 
-        content = ""
-        for enc in ("utf-8-sig", "utf-8", "gbk", "gb2312", "shift-jis"):
-            try:
-                with open(input_file, "r", encoding=enc) as f:
+        snapshot = self._snapshot_import_settings()
+        try:
+            content = ""
+            for enc in ("utf-8-sig", "utf-8", "gbk", "gb2312", "shift-jis"):
+                try:
+                    with open(input_file, "r", encoding=enc) as f:
+                        content = f.read()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if not content:
+                with open(input_file, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
-                break
-            except UnicodeDecodeError:
-                continue
-        if not content:
-            with open(input_file, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
 
-        migrate = s.player.migrate_value
-        for line in content.splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("=", 1)
-            if len(parts) != 2:
-                continue
-            key, value = parts[0].strip(), parts[1].strip()
-            if key in str_keys:
-                holder, attr = str_keys[key]
-                if attr in ("lyric_pos", "silent_display", "end_display", "pitch_placeholder"):
-                    value = migrate(attr, value)
-                setattr(getattr(s, holder), attr, value)
-            elif key in bool_keys:
-                holder, attr = bool_keys[key]
-                setattr(getattr(s, holder), attr, value.lower() in truthy)
+            migrate = s.player.migrate_value
+            for line in content.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("=", 1)
+                if len(parts) != 2:
+                    continue
+                key, value = parts[0].strip(), parts[1].strip()
+                if key in str_keys:
+                    holder, attr = str_keys[key]
+                    if attr in ("lyric_pos", "silent_display", "end_display", "pitch_placeholder"):
+                        value = migrate(attr, value)
+                    setattr(getattr(s, holder), attr, value)
+                elif key in bool_keys:
+                    holder, attr = bool_keys[key]
+                    setattr(getattr(s, holder), attr, value.lower() in truthy)
 
-        s.sanitize()
-        for attr, holder in (("ust_path", s.file), ("lrc_path", s.player), ("music_path", s.project)):
-            p = getattr(holder, attr, "").strip()
-            if p and not os.path.exists(p):
-                logger.warning(f"旧版 .uplr 路径在本机不存在: {p}")
+            s.sanitize()
+            for attr, holder in (("ust_path", s.file), ("lrc_path", s.player), ("music_path", s.project)):
+                p = getattr(holder, attr, "").strip()
+                if p and not os.path.exists(p):
+                    logger.warning(f"旧版 .uplr 路径在本机不存在: {p}")
+        except BaseException:
+            # 事务化：任一环节失败即回滚设置，避免部分篡改残留
+            self._restore_import_settings(snapshot)
+            raise
 
     def _import_uplr_zip(self, input_file: str):
         cache_dir = self._uplr_cache_dir(input_file)
         shutil.rmtree(cache_dir, ignore_errors=True)
-        with zipfile.ZipFile(input_file, "r") as zf:
-            if "Info.json" not in zf.namelist():
-                raise ValueError("ZIP 工程文件缺少 Info.json")
-            info_entry = zf.getinfo("Info.json")
-            if info_entry.file_size > self._MAX_INFO_SIZE:
-                raise ValueError("Info.json 异常过大，已中止导入")
-            info = json.loads(zf.read(info_entry).decode("utf-8"))
-            total = 0
-            for name in zf.namelist():
-                if name == "Info.json":
-                    continue
-                total += self._extract_member_safe(zf, name, cache_dir)
-                if total > self._MAX_TOTAL_SIZE:
-                    raise ValueError("工程文件解压总量超限，已中止导入")
-        self._apply_info_json(info, cache_dir)
-        self._settings.sanitize()
+        snapshot = self._snapshot_import_settings()
+        try:
+            with zipfile.ZipFile(input_file, "r") as zf:
+                if "Info.json" not in zf.namelist():
+                    raise ValueError("ZIP 工程文件缺少 Info.json")
+                info_entry = zf.getinfo("Info.json")
+                if info_entry.file_size > self._MAX_INFO_SIZE:
+                    raise ValueError("Info.json 异常过大，已中止导入")
+                info = json.loads(zf.read(info_entry).decode("utf-8"))
+                total = 0
+                for name in zf.namelist():
+                    if name == "Info.json":
+                        continue
+                    total += self._extract_member_safe(zf, name, cache_dir)
+                    if total > self._MAX_TOTAL_SIZE:
+                        raise ValueError("工程文件解压总量超限，已中止导入")
+            self._apply_info_json(info, cache_dir)
+            self._settings.sanitize()
+        except BaseException:
+            # 事务化：回滚已改设置并清理半成品缓存，导入失败 ≠ 状态被污染
+            self._restore_import_settings(snapshot)
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            raise
 
     def _apply_info_json(self, info: dict, base_dir: str):
         s = self._settings

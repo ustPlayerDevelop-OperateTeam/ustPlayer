@@ -140,11 +140,11 @@ class FilePage(QWidget):
         """手动触发编码检查：以当前编码严格模式试读，验证编码是否正确。"""
         path = self._s.file.ust_path.strip()
         if not path:
-            InfoBar.warning(tr("提示"), tr("请先选择 UST 文件"), 3000,
+            InfoBar.warning(tr("提示"), tr("请先选择 UST 文件"), duration=3000,
                             parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
         if not os.path.exists(path):
-            InfoBar.error("ERcode001", tr("UST 文件不存在"), 5000,
+            InfoBar.error("ERcode001", tr("UST 文件不存在"), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
             return
         self._preview(path, strict=True)
@@ -163,7 +163,7 @@ class FilePage(QWidget):
             self.preview_edit.setPlainText(content)
             if strict:
                 InfoBar.success(
-                    tr("编码正确"), tr("使用 {0} 可以正常读取该文件").format(encoding), 3000,
+                    tr("编码正确"), tr("使用 {0} 可以正常读取该文件").format(encoding), duration=3000,
                     parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except UnicodeDecodeError:
@@ -173,10 +173,10 @@ class FilePage(QWidget):
                 InfoBar.error(
                     "ERcode004",
                     tr("当前编码 {0} 无法读取该文件，请尝试其他编码").format(encoding),
-                    5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+                    duration=5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except Exception as e:
-            InfoBar.error("ERcode002", tr("读取文件失败：{0}").format(e), 5000,
+            InfoBar.error("ERcode002", tr("读取文件失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
     def refresh_preview(self):

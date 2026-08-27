@@ -155,6 +155,42 @@ def test_mux_audio_missing_ffmpeg_raises(make_manager, tmp_path, monkeypatch):
         exporter._mux_audio(video, audio)
 
 
+# ===================== 外部工具定位（内置 ffmpeg） =====================
+
+def test_find_tool_prefers_bundled_ffmpeg(make_manager):
+    """程序目录内置 ffmpeg/ 子目录优先于 PATH（回归测试：内置 ffmpeg 生效）。"""
+    m = make_manager()
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+    ffmpeg_dir = os.path.join(m.program_root, "ffmpeg")
+    os.makedirs(ffmpeg_dir, exist_ok=True)
+    for name in ("ffmpeg.exe", "ffprobe.exe"):
+        with open(os.path.join(ffmpeg_dir, name), "wb") as f:
+            f.write(b"MZ")
+    assert exporter._find_tool("ffmpeg") == os.path.join(ffmpeg_dir, "ffmpeg.exe")
+    assert exporter._find_tool("ffprobe") == os.path.join(ffmpeg_dir, "ffprobe.exe")
+
+
+def test_find_tool_root_level_fallback(make_manager):
+    """程序根目录直接放 ffmpeg.exe（无 ffmpeg/ 子目录）也能命中。"""
+    m = make_manager()
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+    with open(os.path.join(m.program_root, "ffmpeg.exe"), "wb") as f:
+        f.write(b"MZ")
+    assert exporter._find_tool("ffmpeg") == os.path.join(m.program_root, "ffmpeg.exe")
+
+
+def test_find_tool_falls_back_to_path(make_manager, monkeypatch):
+    """无内置版本时回退 PATH（shutil.which）。"""
+    m = make_manager()
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+    monkeypatch.setattr(
+        shutil, "which",
+        lambda name: r"C:\tools\ffmpeg.exe" if name == "ffmpeg" else None,
+    )
+    assert exporter._find_tool("ffmpeg") == r"C:\tools\ffmpeg.exe"
+    assert exporter._find_tool("ffprobe") is None
+
+
 # ===================== 真实渲染冒烟（有 DLL + ffmpeg 才跑） =====================
 
 @pytest.mark.skipif(

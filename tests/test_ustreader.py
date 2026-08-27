@@ -178,3 +178,40 @@ class TestParse:
         path.write_text(content, encoding="shift-jis")
         info = UstFileReader().parse(str(path))
         assert info.notes[0].lyric == "あ"
+
+    def test_utf8_bom_first_note_section_preserved(self, tmp_path):
+        """带 UTF-8 BOM 且首行是音符段的 UST：首个音符不能整段丢失（回归测试）。"""
+        path = tmp_path / "bom_note.ust"
+        path.write_bytes(
+            b"\xef\xbb\xbf[#0000]\nLength=480\nLyric=do\nNoteNum=60\n"
+            b"[#0001]\nLength=480\nLyric=re\nNoteNum=62\n"
+        )
+        info = UstFileReader().parse(str(path), "UTF-8")
+        assert len(info.notes) == 2
+        assert info.notes[0].index == "0000"
+        assert info.notes[0].lyric == "do"
+        assert info.notes[1].lyric == "re"
+
+    def test_utf8_bom_version_and_tempo_parsed(self, tmp_path):
+        """带 BOM + [#VERSION] 开头：版本号 / Tempo 不再丢失（回归测试）。"""
+        path = tmp_path / "bom_ver.ust"
+        path.write_bytes(
+            b"\xef\xbb\xbf[#VERSION]\nUST Version2.0\n"
+            b"[#SETTING]\nTempo=150\nTracks=1\n"
+            b"[#0000]\nLength=480\nLyric=do\nNoteNum=60\n"
+        )
+        info = UstFileReader().parse(str(path), "UTF-8")
+        assert info.version == "UST Version2.0"
+        assert info.tempo == 150.0
+        assert len(info.notes) == 1
+
+    @pytest.mark.parametrize("tempo_value", ["0", "-5", "nan", "inf"])
+    def test_invalid_tempo_falls_back_to_default(self, tmp_path, tempo_value):
+        """Tempo=0/负数/NaN/Inf 一律回退默认 120，避免播放器时间轴失效（回归测试）。"""
+        path = tmp_path / "bad_tempo.ust"
+        path.write_text(
+            f"[#SETTING]\nTempo={tempo_value}\n[#0000]\nLength=480\nLyric=do\nNoteNum=60\n",
+            encoding="utf-8",
+        )
+        info = UstFileReader().parse(str(path), "UTF-8")
+        assert info.tempo == 120.0
