@@ -33,6 +33,7 @@ class FakeAudioBackend(AudioBackend):
         self._loaded = False
         self._loading = False
         self._invalid = False
+        self._finished = False
 
     def load(self, music_path: str):
         self.loaded_path = music_path
@@ -63,6 +64,9 @@ class FakeAudioBackend(AudioBackend):
 
     def is_invalid(self):
         return self._invalid
+
+    def is_finished(self):
+        return self._finished
 
     # ---- 测试辅助：模拟 Qt 状态流转 ----
     def emit_ready(self):
@@ -168,6 +172,28 @@ class TestPlayerAudioStateMachine:
         d._check_audio_ready()
         d._check_audio_ready()
         assert d._audio_ok is False
+
+    def test_watchdog_not_degrade_after_ended_signal(self, fake_backend):
+        """EndOfMedia 信号已发（_media_finished=True）后，Qt FFmpeg 后端把
+        mediaStatus 回落为 LoadedMedia 属正常现象——看门狗不得降级（回归测试）。"""
+        fake, d = fake_backend
+        fake.emit_ended()
+        assert d._media_finished is True
+        # 模拟播完后 status 回落为 LoadedMedia + Stopped
+        fake._loaded = True
+        fake._playing = False
+        d._check_audio_ready()
+        assert d._audio_ok is True
+
+    def test_watchdog_treats_finished_status_as_ended(self, fake_backend):
+        """后端停留在 EndOfMedia 状态但信号未发出：看门狗补记播完，不降级。"""
+        fake, d = fake_backend
+        fake._loaded = True
+        fake._playing = False
+        fake._finished = True
+        d._check_audio_ready()
+        assert d._audio_ok is True
+        assert d._media_finished is True
 
     def test_no_music_path_keeps_visual_only(self, qapp):
         d = NoteLyricDisplay(PlayerLaunchParams())

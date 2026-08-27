@@ -72,6 +72,15 @@ class AudioBackend(QObject):
         """媒体无效（InvalidMedia）。"""
         return False
 
+    def is_finished(self) -> bool:
+        """媒体已播放到结尾（EndOfMedia）。
+
+        注意：Qt 的 FFmpeg 后端在播放结束后可能把 mediaStatus **回落为
+        LoadedMedia**（而非停留在 EndOfMedia），因此看门狗判断"播完"时
+        应同时参考 `_media_finished` 信号状态与本查询，避免误判降级。
+        """
+        return False
+
 
 class QtAudioBackend(AudioBackend):
     """QtMultimedia 实现：包装 QMediaPlayer + QAudioOutput。"""
@@ -156,6 +165,11 @@ class QtAudioBackend(AudioBackend):
         if self._player is None or QMediaPlayer is None:
             return False
         return self._player.mediaStatus() == QMediaPlayer.MediaStatus.InvalidMedia  # pyright: ignore[reportOptionalMemberAccess]
+
+    def is_finished(self) -> bool:
+        if self._player is None or QMediaPlayer is None:
+            return False
+        return self._player.mediaStatus() == QMediaPlayer.MediaStatus.EndOfMedia  # pyright: ignore[reportOptionalMemberAccess]
 
 
 def create_audio_backend(parent: Optional[QObject] = None) -> Optional[AudioBackend]:

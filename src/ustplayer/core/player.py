@@ -302,6 +302,14 @@ class NoteLyricDisplay(QWidget):
         try:
             if self._audio.is_loaded():
                 if not self._audio.is_playing():
+                    if self._audio.is_finished():
+                        # 后端停留在 EndOfMedia 但信号未发出：补记播完，不降级
+                        self._on_media_ended()
+                        return
+                    if self._media_finished:
+                        # 已播完（EndOfMedia 信号已发）：Qt FFmpeg 后端播完后
+                        # mediaStatus 会回落为 LoadedMedia，属正常现象，不降级
+                        return
                     logger.warning("音频已加载但未进入播放状态，降级为纯可视化")
                     self._degrade_audio()
             elif self._audio.is_invalid():
