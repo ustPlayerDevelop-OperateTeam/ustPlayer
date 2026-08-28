@@ -6,7 +6,7 @@
 
 - 环境搭建：`uv sync`（uv；`.python-version` 固定 Python 3.13.12，要求 >=3.11）。`pyproject.toml` 是依赖的唯一事实源——不要另建 `requirements.txt`。
 - 运行：`uv run main.py` —— 唯一真实入口（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts] ustplayer` → `ustplayer.app:main`）；两条入口路径共用 `AppContext`。
-- 测试：`uv run pytest`（220 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
+- 测试：`uv run pytest`（222 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
 - 仅 Windows：`ustplayer/ui/main_window.py` 使用了 `winreg`（读取系统强调色）。在 WSL/Linux 上无法运行。
 
 ## 注意事项（Gotchas）

@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 环境搭建：`uv sync`（uv 管理依赖与虚拟环境；`.python-version` 固定 Python 3.13.12，最低 >=3.11）。`pyproject.toml` 是依赖的**唯一事实源**——不要另建 `requirements.txt`。
 - 运行：`uv run main.py`（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts]`）；两条入口共用 `AppContext`。
 - 类型检查：`npx --yes pyright main.py src`（Standard 模式，目标 **0 error**；仓库未提交 `pyrightconfig.json`，需要时本地创建）。PySide6 存根缺口优先改用限定枚举名（如 `Qt.AlignmentFlag.AlignCenter`）而非 `# type: ignore`。
-- 测试：`uv run pytest`（220 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。
+- 测试：`uv run pytest`（222 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。
 - 翻译：改 UI 字符串后必须 `pyside6-lupdate -extensions py src/ustplayer -ts i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts i18n/ustplayer_zh_classic.ts`，再 `pyside6-lrelease i18n/*.ts`，并提交 `.qm`（运行时只读 `.qm`）。
 
 ## 架构（依赖方向）

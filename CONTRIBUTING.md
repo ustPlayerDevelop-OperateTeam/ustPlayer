@@ -305,7 +305,7 @@ ustPlayer 在 v26f19 及之前的版本使用**日期式版本号**：`v{年份�
 
 提交 PR 前请至少完成：
 
-- [ ] **测试**：`uv run pytest` 全部通过（220 个用例，`QT_QPA_PLATFORM=offscreen` 已在 `tests/conftest.py` 顶层设置）。
+- [ ] **测试**：`uv run pytest` 全部通过（222 个用例，`QT_QPA_PLATFORM=offscreen` 已在 `tests/conftest.py` 顶层设置）。
 - [ ] **类型检查**：`pyright` Standard 模式 0 error（见下方说明）。
 - [ ] 本地运行 `uv run main.py` 能正常启动，无报错。
 - [ ] 你修改的功能 / 修复的 Bug 经实际使用验证过（例如：选择 UST 文件 → 点击播放 → 正常显示；或验证相关页面设置生效）。
