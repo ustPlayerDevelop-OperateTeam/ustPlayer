@@ -12,7 +12,10 @@
 
 ## 🏗️ 底层重构（面向开发者的变更）
 
-- **封装伴奏音频后端**：新增 `core/audio_backend.py`——QtMultimedia 的降级导入（`try/except` + None 占位）与加载/播放/状态机从 `player.py` 迁移至此，`create_audio_backend` 工厂按环境返回 `QtAudioBackend` 或 `None`；播放器只依赖 `AudioBackend` 窄接口（`media_ready`/`media_ended`/`media_error` 信号 + 位置/时长/媒体阶段布尔查询），不再直接 import QtMultimedia。音频状态机由此可在无音频设备环境用可编程 fake 后端测试（新增 `tests/test_audio_backend.py`，9 个用例）。
+- **封装伴奏音频后端**：新增 `core/audio_backend.py`——QtMultimedia 的降级导入（`try/except` + None 占位）与加载/播放/状态机从 `player.py` 迁移至此，`create_audio_backend` 工厂按环境返回 `QtAudioBackend` 或 `None`；播放器只依赖 `AudioBackend` 窄接口（`media_ready`/`media_ended`/`media_error` 信号 + 位置/时长/媒体阶段布尔查询），不再直接 import QtMultimedia。音频状态机由此可在无音频设备环境用可编程 fake 后端测试（新增 `tests/test_audio_backend.py`，11 个用例）。
+- **修正音频看门狗「EndOfMedia 兜底」分支**：`is_finished()` 判断此前嵌套在 `is_loaded()` 分支内，而 `LoadedMedia/BufferedMedia` 与 `EndOfMedia` 是互斥状态，该分支对真实后端不可能执行（回归测试亦模拟了不会出现的状态组合）；现提前到最前判断，与「信号已发（`_media_finished`）」一起构成完整的播完排除。
+- **统一更新日志文件名大小写**：Git 跟踪名统一为 `CHANGELOG.md`，与 CI 提取脚本、README / CONTRIBUTING / AGENTS / CLAUDE 的引用保持一致（此前跟踪名为 `ChangeLog.md`，仅靠 Windows 大小写不敏感文件系统才不失效）。
+- **同步三份翻译源文件并清理过期条目**：按当前代码重建 `i18n/*.ts`（`lupdate -no-obsolete`），移除已从代码消失的 17 条旧文案（`i18n/ustplayer_en_US.ts`、`i18n/ustplayer_zh_classic.ts` 此前滞后于 `i18n/ustplayer_zh_CN.ts`），并重建 `.qm`。英文/文言翻译完成度 30/144，欢迎 PR 补全。
 - **内置 FFmpeg**：构建流程（`build.yml`）下载 ffmpeg/ffprobe 并打进产物的 `ffmpeg/` 子目录；视频导出的混流与伴奏时长探测（`video_exporter._find_tool`）**优先使用程序目录内置版本**，缺失时才回退 PATH——用户不再需要自行安装 FFmpeg 或配置环境变量。
 - **修复 CI 的 FFmpeg 动态库复制正则**：`^(av|sw)\d` 无法匹配 `avcodec-61.dll` / `swresample-5.dll` 等（av/sw 后是字母、版本号在连字符之后），导致打包产物缺失全部 FFmpeg 动态库；改为 `^(av|sw)[a-z]*-\d`。
 - **发版版本匹配大小写兜底**：tag 写成 `v1.1.0-beta-2`（小写）也能匹配到 `# 1.1.0 Beta 2` 小节（ChangeLog 提取正则加 `(?i)`），不再因大小写不一致中止发版。

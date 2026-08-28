@@ -15,7 +15,7 @@
 ![Star](https://img.shields.io/github/stars/ustPlayerDevelop-OperateTeam/ustPlayer?style=for-the-badge)
 
 
-[配布视频](https://www.bilibili.com/video/BV1YjcwzVEcX "bilibili弹幕网") | <a href="ChangeLog.md">更新日志</a>
+[配布视频](https://www.bilibili.com/video/BV1YjcwzVEcX "bilibili弹幕网") | <a href="CHANGELOG.md">更新日志</a>
 
 </div>
 

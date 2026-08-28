@@ -186,9 +186,13 @@ class TestPlayerAudioStateMachine:
         assert d._audio_ok is True
 
     def test_watchdog_treats_finished_status_as_ended(self, fake_backend):
-        """后端停留在 EndOfMedia 状态但信号未发出：看门狗补记播完，不降级。"""
+        """后端停留在 EndOfMedia 状态但信号未发出：看门狗补记播完，不降级。
+
+        注意 EndOfMedia 与 LoadedMedia/BufferedMedia 是互斥状态（mediaStatus 单枚举），
+        因此模拟时 is_loaded() 必须为 False——否则走不进真实 Qt 后端会经过的分支。
+        """
         fake, d = fake_backend
-        fake._loaded = True
+        fake._loaded = False  # EndOfMedia 状态下 is_loaded() 为 False
         fake._playing = False
         fake._finished = True
         d._check_audio_ready()

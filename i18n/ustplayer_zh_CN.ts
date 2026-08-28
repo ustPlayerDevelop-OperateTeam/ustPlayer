@@ -433,7 +433,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="101"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="100"/>
         <location filename="../src/ustplayer/ui/other_page.py" line="206"/>
         <source>清除缓存</source>
         <translation type="unfinished"></translation>
@@ -445,7 +445,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="112"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="111"/>
         <location filename="../src/ustplayer/ui/other_page.py" line="209"/>
         <source>打开日志</source>
         <translation type="unfinished"></translation>

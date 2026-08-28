@@ -41,14 +41,14 @@ UI 页面 ──构造注入──> AppContext（唯一组合根 / 门面）─�
 - **新增 / 重命名设置项要同步改四处**：① 子域类（属性 + 信号 + `read_from`/`write_to`）→ ② `SettingsManager`（若参与播放参数）→ ③ `uplr_io.py`（`_settings_to_info_json` 导出 / `_apply_info_json` 导入）→ ④ UI 接线。漏一处会导致设置不生效 / 重启丢失 / `.uplr` 往返不完整。
 - **存储层只存稳定英文 key**：枚举值（`lyric_pos` / `silent_display` / `end_display` / `pitch_placeholder`）在 `Settings.json` 与 `.uplr` 中始终是英文 key（`top` / `r` / `custom` / `none` 等），显示文案由 UI `tr()` 翻译；旧中文值由 `core/settings/player.py` 的 `migrate_value()` 兼容迁移。**不要把显示文案写回存储层**。
 - **日志**：`from ustplayer.core.log import logger`（loguru），绝不 `print`；异常用 `logger.exception(...)`。日志不翻译。
-- **错误码**：用户可见错误用 `InfoBar.error("ERcodeXXX", "提示文案", ...)`，新错误码登记到 `ERcode.txt`（001–011、999 已占用）。
+- **错误码**：用户可见错误用 `InfoBar.error("ERcodeXXX", "提示文案", ...)`，新错误码登记到 `ERcode.txt`（001–012、999 已占用）。
 - **i18n**：UI 字符串必须 `tr("中文原文")`（`from ustplayer.core.i18n import tr`，自由函数名必须叫 `tr`——lupdate 只认这个名字）。语言偏好存 `Settings.json` 的 `[LanguageSettings]`（默认 `system` 跟随系统），**不写入 .uplr**。
 
 ## 提交与发版陷阱
 
 - 提交信息以 `feat:` / `fix:` / `docs:` / `refactor:` / `style:` / `chore:` 等常规前缀开头。含 `close #N` / `fixes #N` 会自动关闭 Issue。
 - ⚠️ 提交信息以 `pass` 开头会**跳过 CI 构建**（留给纯文档提交）。**发版只由标签推送触发**（`git tag <版本> && git push origin <版本>`），提交信息不参与发版判定——以 `v` 开头的提交信息不会触发发版，发版由维护者负责。
-- CI 从 `ChangeLog.md` 的 `# {版本}` 一级标题提取 Release 说明（`v` 前缀可省略、连字符/空格与 tag 名互通、大小写不敏感）；顶部 `## Unreleased` 不被提取。用户可见变更补进 `## Unreleased` 的「更新内容」列表。
+- CI 从 `CHANGELOG.md` 的 `# {版本}` 一级标题提取 Release 说明（`v` 前缀可省略、连字符/空格与 tag 名互通、大小写不敏感）；顶部 `## Unreleased` 不被提取。用户可见变更补进 `## Unreleased` 的「更新内容」列表。
 - 版本号用语义化（`pyproject.toml` 当前 `1.1.0b2` ↔ `contracts.APP_VERSION` "1.1.0 Beta 2"）；旧的日期式版本号（如 `v26f19`）已废弃，不要重新引入。
 - `pyside6-fluent-widgets` 刻意**不带** `[full]` extra（那会引入 ~120MB scipy/numpy/pillow/colorthief 死依赖），不要"修复"这一点。
 

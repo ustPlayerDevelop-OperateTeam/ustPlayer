@@ -116,8 +116,8 @@ ustPlayer/
 ├── pyproject.toml              # 项目元信息与依赖声明（唯一事实源）
 ├── uv.lock                     # uv 锁定文件（请勿手动编辑）
 ├── .python-version             # 固定 Python 3.13.12
-├── ERcode.txt                  # 错误码字典（001–010、999 已占用）
-├── ChangeLog.md                # 更新日志（发布工作流从此提取 Release 说明）
+├── ERcode.txt                  # 错误码字典（001–012、999 已占用）
+├── CHANGELOG.md                # 更新日志（发布工作流从此提取 Release 说明）
 ├── LICENSE                     # GPL-3.0 开源协议
 ├── icon.ico / icon.png / icon-128.ico
 ├── .github/
@@ -275,9 +275,9 @@ ustPlayer 在 v26f19 及之前的版本使用**日期式版本号**：`v{年份�
 | v26a24 | 0.1.1 | uPl 的第一个正式版本 |
 | **alpha** | 0.1.0 | uPl 的 demo |
 
-### 更新日志（ChangeLog.md）
+### 更新日志（CHANGELOG.md）
 
-发布工作流会从 [ChangeLog.md](ChangeLog.md) 中提取对应版本的说明作为 Release 内容，因此**格式必须严格一致**：
+发布工作流会从 [CHANGELOG.md](CHANGELOG.md) 中提取对应版本的说明作为 Release 内容，因此**格式必须严格一致**：
 
 - 每个已发布版本一个 `# {版本号}` **一级标题**（如 `# 1.1.0 Beta 2`）；`v` 前缀可省略，标题里的连字符/空格与 tag 名互通（`# v1.1.0 Beta 2` / `# 1.1.0 Beta 2` / `#1.1.0-Beta-2` 均可），匹配大小写不敏感。其下内容到下一个 `#` 一级标题之前，会作为该版本的 Release 说明。
 - 顶部 `## Unreleased` 小节**不会被发布提取器读取**，仅供开发期记录待发布改动。

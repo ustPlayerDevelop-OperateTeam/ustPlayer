@@ -13,7 +13,7 @@
 
 - **不支持** USTX（`.ustx`）——解析器只处理 `.ust` 文本。不要声称支持 USTX，也不要将 `.ustx` 交给 `UstFileReader`。
 - 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。CI 会**检出并 `cargo build --release` 编译 uPlRender**（`ustPlayerDevelop-OperateTeam/uPlRender`）产出 `ustplayer_renderer.dll`，经 Nuitka `include-data-files` 打进产物目录的 `renderer/` 子目录（供 `RendererLoader` 运行时加载）。提交信息以 `pass` 开头会跳过 CI；**发版只由标签推送触发**（任意标签名，带不带 `v` 前缀均可；普通提交不再触发发版）。
-- CI 从 `ChangeLog.md` 中提取 Release 说明——小节标题形如 `# 1.1.0 Beta 2`（`v` 前缀可省略，连字符/空格与 tag 名互通）；找不到对应小节会**直接失败中止发版**（不再静默发布占位符）。顶层的 `## Unreleased` 小节会被提取器忽略。Release 说明末尾会自动附加全部发布附件的 **SHA256 校验表**（`[!important]` 提示框 + Markdown 表格）。Release 会先以**草稿**创建，需手动 Publish。发版前 CI 校验「提交信息/tag 推导出的版本 ↔ `contracts.APP_VERSION`」一致，不一致即中止。
+- CI 从 `CHANGELOG.md` 中提取 Release 说明——小节标题形如 `# 1.1.0 Beta 2`（`v` 前缀可省略，连字符/空格与 tag 名互通）；找不到对应小节会**直接失败中止发版**（不再静默发布占位符）。顶层的 `## Unreleased` 小节会被提取器忽略。Release 说明末尾会自动附加全部发布附件的 **SHA256 校验表**（`[!important]` 提示框 + Markdown 表格）。Release 会先以**草稿**创建，需手动 Publish。发版前 CI 校验「提交信息/tag 推导出的版本 ↔ `contracts.APP_VERSION`」一致，不一致即中止。
 - 提交信息包含 `close #N` / `fixes #N` 等关键字时，会在 `main` / `dev` 分支自动关闭对应 Issue（见 `.github/workflows/auto-close-issue.yml`）。
 - 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.1.0b2，与 `contracts.APP_VERSION` 的 "1.1.0 Beta 2" 对应；有测试锁定该映射关系）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。
 - 依赖说明：`pyside6-fluent-widgets` 刻意**不带** `[full]` extra——那会引入 scipy/numpy/pillow/colorthief（约 120MB 死依赖）。不要"修复"这一点。
@@ -49,4 +49,4 @@
 - 语言偏好存 `Settings.json` 的 `[LanguageSettings]`（默认 `system` 跟随系统），**不写入 .uplr**；切换语言经 `LanguageSettings.language_changed` 信号 → 主窗口 `_on_language_changed` 全窗口重译。
 - 新增/重命名设置项意味着要改四处：子域类、`SettingsManager`（若参与播放参数）、`uplr_io.py`（`_settings_to_info_json` / `_apply_info_json`），以及任何 UI 接线——否则设置会静默不生效、无法持久化，或无法随 `.uplr` 完整往返。
 - 大文件用 `# ===================== 段落名 =====================` 分隔不同功能块。
-- 用户可见的变更要在最新 `ChangeLog.md` 小节中补一条（未发版时写在 `## Unreleased` 下）。
+- 用户可见的变更要在最新 `CHANGELOG.md` 小节中补一条（未发版时写在 `## Unreleased` 下）。

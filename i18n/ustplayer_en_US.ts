@@ -435,47 +435,7 @@
         <translation type="unfinished">Custom</translation>
     </message>
     <message>
-        <source>应用主题</source>
-        <translation type="vanished">App Theme</translation>
-    </message>
-    <message>
-        <source>选择应用的主题模式</source>
-        <translation type="vanished">Choose the app theme mode</translation>
-    </message>
-    <message>
-        <source>强调色</source>
-        <translation type="vanished">Accent Color</translation>
-    </message>
-    <message>
-        <source>跟随系统或使用自定义颜色</source>
-        <translation type="vanished">Follow system or use a custom color</translation>
-    </message>
-    <message>
-        <source>自定义颜色</source>
-        <translation type="vanished">Custom Color</translation>
-    </message>
-    <message>
-        <source>选择自定义强调色</source>
-        <translation type="vanished">Choose a custom accent color</translation>
-    </message>
-    <message>
-        <source>窗口效果</source>
-        <translation type="vanished">Window Effect</translation>
-    </message>
-    <message>
-        <source>关闭 / 亚克力 / Mica</source>
-        <translation type="vanished">Off / Acrylic / Mica</translation>
-    </message>
-    <message>
-        <source>界面语言</source>
-        <translation type="vanished">Interface Language</translation>
-    </message>
-    <message>
-        <source>切换界面显示语言</source>
-        <translation type="vanished">Switch the interface display language</translation>
-    </message>
-    <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="101"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="100"/>
         <location filename="../src/ustplayer/ui/other_page.py" line="206"/>
         <source>清除缓存</source>
         <translation>Clear Cache</translation>
@@ -487,7 +447,7 @@
         <translation>Project Cache</translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="112"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="111"/>
         <location filename="../src/ustplayer/ui/other_page.py" line="209"/>
         <source>打开日志</source>
         <translation>Open Log</translation>
@@ -497,34 +457,6 @@
         <location filename="../src/ustplayer/ui/other_page.py" line="208"/>
         <source>日志</source>
         <translation>Logs</translation>
-    </message>
-    <message>
-        <source>查看应用运行日志</source>
-        <translation type="vanished">View application run logs</translation>
-    </message>
-    <message>
-        <source>外部工具</source>
-        <translation type="vanished">External Tools</translation>
-    </message>
-    <message>
-        <source>UtaFormatix 曲谱转换</source>
-        <translation type="vanished">UtaFormatix score conversion</translation>
-    </message>
-    <message>
-        <source>纠错</source>
-        <translation type="vanished">Error Codes</translation>
-    </message>
-    <message>
-        <source>打开 ERcode 错误码表</source>
-        <translation type="vanished">Open the ERcode error-code table</translation>
-    </message>
-    <message>
-        <source>源码仓库</source>
-        <translation type="vanished">Source Repository</translation>
-    </message>
-    <message>
-        <source>前往 GitHub 仓库</source>
-        <translation type="vanished">Go to the GitHub repository</translation>
     </message>
     <message>
         <location filename="../src/ustplayer/ui/other_page.py" line="75"/>

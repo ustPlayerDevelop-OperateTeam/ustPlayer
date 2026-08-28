@@ -435,47 +435,7 @@
         <translation type="unfinished">自定義</translation>
     </message>
     <message>
-        <source>应用主题</source>
-        <translation type="vanished">應用主題</translation>
-    </message>
-    <message>
-        <source>选择应用的主题模式</source>
-        <translation type="vanished">選擇應用的主題模式</translation>
-    </message>
-    <message>
-        <source>强调色</source>
-        <translation type="vanished">強調色</translation>
-    </message>
-    <message>
-        <source>跟随系统或使用自定义颜色</source>
-        <translation type="vanished">跟隨系統或使用自訂顏色</translation>
-    </message>
-    <message>
-        <source>自定义颜色</source>
-        <translation type="vanished">自訂顏色</translation>
-    </message>
-    <message>
-        <source>选择自定义强调色</source>
-        <translation type="vanished">選擇自訂強調色</translation>
-    </message>
-    <message>
-        <source>窗口效果</source>
-        <translation type="vanished">視窗效果</translation>
-    </message>
-    <message>
-        <source>关闭 / 亚克力 / Mica</source>
-        <translation type="vanished">關閉 / 亞克力 / Mica</translation>
-    </message>
-    <message>
-        <source>界面语言</source>
-        <translation type="vanished">介面語言</translation>
-    </message>
-    <message>
-        <source>切换界面显示语言</source>
-        <translation type="vanished">切換介面顯示語言</translation>
-    </message>
-    <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="101"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="100"/>
         <location filename="../src/ustplayer/ui/other_page.py" line="206"/>
         <source>清除缓存</source>
         <translation>清除快取</translation>
@@ -487,7 +447,7 @@
         <translation>工程快取</translation>
     </message>
     <message>
-        <location filename="../src/ustplayer/ui/other_page.py" line="112"/>
+        <location filename="../src/ustplayer/ui/other_page.py" line="111"/>
         <location filename="../src/ustplayer/ui/other_page.py" line="209"/>
         <source>打开日志</source>
         <translation>開啟日誌</translation>
@@ -497,34 +457,6 @@
         <location filename="../src/ustplayer/ui/other_page.py" line="208"/>
         <source>日志</source>
         <translation>日誌</translation>
-    </message>
-    <message>
-        <source>查看应用运行日志</source>
-        <translation type="vanished">檢視應用程式執行日誌</translation>
-    </message>
-    <message>
-        <source>外部工具</source>
-        <translation type="vanished">外部工具</translation>
-    </message>
-    <message>
-        <source>UtaFormatix 曲谱转换</source>
-        <translation type="vanished">UtaFormatix 曲譜轉換</translation>
-    </message>
-    <message>
-        <source>纠错</source>
-        <translation type="vanished">糾錯</translation>
-    </message>
-    <message>
-        <source>打开 ERcode 错误码表</source>
-        <translation type="vanished">開啟 ERcode 錯誤碼表</translation>
-    </message>
-    <message>
-        <source>源码仓库</source>
-        <translation type="vanished">原始碼倉庫</translation>
-    </message>
-    <message>
-        <source>前往 GitHub 仓库</source>
-        <translation type="vanished">前往 GitHub 倉庫</translation>
     </message>
     <message>
         <location filename="../src/ustplayer/ui/other_page.py" line="75"/>

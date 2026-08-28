@@ -296,20 +296,25 @@ class NoteLyricDisplay(QWidget):
 
         仅当媒体确已加载（LoadedMedia/BufferedMedia）但不在播放状态时才降级；
         仍在加载中时再等 3 秒；媒体无效时立即降级。
+        「播完」优先排除（不降级）：`_media_finished` 已置位（EndOfMedia 信号已发，
+        Qt FFmpeg 后端播完后 mediaStatus 可能回落为 LoadedMedia）或后端仍停留在
+        EndOfMedia（信号未发出的兜底，此时补记播完锚点）。
         """
         if not self._audio_ok or self._audio is None:
             return
         try:
+            if self._media_finished:
+                # 已播完（EndOfMedia 信号已发）：Qt FFmpeg 后端播完后
+                # mediaStatus 会回落为 LoadedMedia，属正常现象，不降级
+                return
+            if self._audio.is_finished():
+                # 后端停留在 EndOfMedia 但信号未发出：补记播完锚点，不降级
+                # （必须放在 is_loaded() 之前：LoadedMedia/BufferedMedia 与
+                # EndOfMedia 是互斥状态，嵌套在里面永远不会执行）
+                self._on_media_ended()
+                return
             if self._audio.is_loaded():
                 if not self._audio.is_playing():
-                    if self._audio.is_finished():
-                        # 后端停留在 EndOfMedia 但信号未发出：补记播完，不降级
-                        self._on_media_ended()
-                        return
-                    if self._media_finished:
-                        # 已播完（EndOfMedia 信号已发）：Qt FFmpeg 后端播完后
-                        # mediaStatus 会回落为 LoadedMedia，属正常现象，不降级
-                        return
                     logger.warning("音频已加载但未进入播放状态，降级为纯可视化")
                     self._degrade_audio()
             elif self._audio.is_invalid():
@@ -324,7 +329,7 @@ class NoteLyricDisplay(QWidget):
                 else:
                     logger.debug("音频仍在加载中，3 秒后再次检查")
                     QTimer.singleShot(3000, self._check_audio_ready)
-            # 其他状态（NoMedia / Unbuffered / EndOfMedia）暂不处理
+            # 其他状态（NoMedia / Unbuffered）暂不处理
         except Exception:
             pass
 
