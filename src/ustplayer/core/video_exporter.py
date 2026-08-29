@@ -5,6 +5,7 @@
 加载 `ustplayer_renderer.dll` 逐帧渲染 → 编码 MP4；可选再把伴奏音乐混入视频。
 """
 
+import contextlib
 import dataclasses
 import json
 import math
@@ -56,6 +57,7 @@ class VideoExporter:
             写入的 .uprd 工程文件路径。
         """
         output_path = self._ensure_mp4(output_path)
+        width, height, fps = self._validate_video_params(width, height, fps)
         core_ust = self._parse_ust()
 
         # 以「音频播完」为结束边界（无音频则按音符 tick 总长）：
@@ -92,6 +94,17 @@ class VideoExporter:
         if not path.lower().endswith(".mp4"):
             path += ".mp4"
         return path
+
+    @staticmethod
+    def _validate_video_params(width: int, height: int, fps: int) -> tuple:
+        """视频参数必须为正整数；非法值直接抛出可读错误（否则后续可能除零）。"""
+        try:
+            width, height, fps = int(width), int(height), int(fps)
+        except (TypeError, ValueError) as e:
+            raise ValueError("视频参数必须是整数：width/height/fps") from e
+        if width <= 0 or height <= 0 or fps <= 0:
+            raise ValueError(f"视频参数必须为正数：width={width}, height={height}, fps={fps}")
+        return width, height, fps
 
     def _parse_ust(self) -> UstInfo:
         ust_path = self._settings.file.ust_path.strip()
@@ -222,25 +235,49 @@ class VideoExporter:
         config_json = json.dumps(config, ensure_ascii=False)
         ust_json = json.dumps(dataclasses.asdict(render_ust), ensure_ascii=False)
 
-        with RendererContext(lib) as ctx:
-            ctx.set_config(config_json)
-            ctx.set_ust_text(ust_json)
-            lrc_text = self._lrc_text()
-            if lrc_text:
-                ctx.set_lrc_text(lrc_text)
+        # 渲染器 DLL 的编码器只从 PATH 查找 ffmpeg；打包后的 ffmpeg.exe 位于
+        # <程序目录>/ffmpeg，必须在调用 begin_export 前临时加入 PATH。
+        with self._bundled_ffmpeg_on_path():
+            with RendererContext(lib) as ctx:
+                ctx.set_config(config_json)
+                ctx.set_ust_text(ust_json)
+                lrc_text = self._lrc_text()
+                if lrc_text:
+                    ctx.set_lrc_text(lrc_text)
 
-            ctx.begin_export()
-            logger.info(f"开始渲染视频: {config['output_path']} (fps={config['fps']}, 总帧={total_frames})")
-            for i in range(total_frames):
-                if cancel_check and cancel_check():
-                    raise RuntimeError("导出已取消")
-                elapsed = i / config["fps"]
-                ctx.render_frame(elapsed)
-                if progress_cb and (i % 5 == 0 or i == total_frames - 1):
-                    progress_cb(int((i + 1) / total_frames * 1000) if total_frames else 1000)
-            ctx.end_export()
+                ctx.begin_export()
+                logger.info(f"开始渲染视频: {config['output_path']} (fps={config['fps']}, 总帧={total_frames})")
+                for i in range(total_frames):
+                    if cancel_check and cancel_check():
+                        raise RuntimeError("导出已取消")
+                    elapsed = i / config["fps"]
+                    ctx.render_frame(elapsed)
+                    if progress_cb and (i % 5 == 0 or i == total_frames - 1):
+                        progress_cb(int((i + 1) / total_frames * 1000) if total_frames else 1000)
+                ctx.end_export()
 
         logger.info("视频渲染完成（无声 MP4）")
+
+    @contextlib.contextmanager
+    def _bundled_ffmpeg_on_path(self):
+        """把程序目录内置的 ffmpeg/ 子目录临时加入 PATH（渲染器需要）。"""
+        root = getattr(self._settings, "program_root", None) or os.getcwd()
+        bundled = os.path.join(root, "ffmpeg")
+        old_path = os.environ.get("PATH")
+        if os.path.isdir(bundled) and bundled.lower() not in [
+            p.lower() for p in (old_path or "").split(os.pathsep) if p
+        ]:
+            os.environ["PATH"] = bundled + os.pathsep + (old_path or "")
+            logger.info(f"已将内置 ffmpeg 目录加入 PATH: {bundled}")
+            try:
+                yield
+            finally:
+                if old_path is None:
+                    os.environ.pop("PATH", None)
+                else:
+                    os.environ["PATH"] = old_path
+        else:
+            yield
 
     # ===================== 音频驱动的结束边界 =====================
 
@@ -297,7 +334,14 @@ class VideoExporter:
         exe = self._find_tool("ffprobe")
         if exe is None:
             return 0.0
-        tmp = f"{mus}.dur.tmp"
+        # 输出文件放系统临时目录：伴奏目录可能是只读/网络盘，不能依赖其可写性。
+        try:
+            fd, tmp = tempfile.mkstemp(prefix="ustplayer_dur_", suffix=".tmp")
+            os.close(fd)
+            os.remove(tmp)  # 让 ffprobe 自己创建输出文件
+        except OSError as e:
+            logger.warning(f"创建 ffprobe 临时输出文件失败: {e}")
+            return 0.0
         cmd = [
             exe,
             "-v", "error",

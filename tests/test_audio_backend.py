@@ -203,3 +203,94 @@ class TestPlayerAudioStateMachine:
         d = NoteLyricDisplay(PlayerLaunchParams())
         assert d._audio is None
         assert d._audio_ok is False
+
+    def test_watchdog_degrades_when_stuck_in_nomedia(self, fake_backend, monkeypatch):
+        """后端缺失（已 setSource 但 mediaStatus 停在 NoMedia）：不能永久卡死，
+        3 次未就绪后强制降级为纯可视化（回归测试：打包缺媒体后端资源的场景）。"""
+        fake, d = fake_backend
+        scheduled = []
+        monkeypatch.setattr(player_mod.QTimer, "singleShot", lambda ms, cb: scheduled.append(cb))
+
+        d._check_audio_ready()
+        assert d._audio_ok is True
+        assert len(scheduled) == 1  # 首次：登记 3 秒后复查
+
+        d._check_audio_ready()
+        d._check_audio_ready()
+        assert d._audio_ok is False  # 第 3 次仍未就绪 → 强制降级
+
+
+# ===================== 回归：同步信号 / 重复结束 / 看门狗异常 =====================
+
+class SyncSignalBackend(AudioBackend):
+    """在 load() 内同步发信号的后端，验证初始化顺序。"""
+
+    def __init__(self, ready=False, error=False):
+        super().__init__()
+        self._ready = ready
+        self._error = error
+        self.play_calls = 0
+        self.stop_calls = 0
+
+    def load(self, music_path: str):
+        if self._error:
+            self.media_error.emit("同步错误")
+        if self._ready:
+            self.media_ready.emit()
+
+    def play(self):
+        self.play_calls += 1
+
+    def stop(self):
+        self.stop_calls += 1
+
+
+def test_sync_media_ready_during_load_starts_playback(qapp, tmp_path, monkeypatch):
+    music = tmp_path / "music.wav"
+    music.write_bytes(b"WAV")
+    backend = SyncSignalBackend(ready=True)
+    monkeypatch.setattr(player_mod, "create_audio_backend", lambda parent=None: backend)
+    params = PlayerLaunchParams()
+    params.style.music_path = str(music)
+    display = NoteLyricDisplay(params)
+    assert display._play_issued is True
+    assert backend.play_calls == 1
+
+
+def test_sync_media_error_during_load_not_overridden(qapp, tmp_path, monkeypatch):
+    music = tmp_path / "music.wav"
+    music.write_bytes(b"WAV")
+    backend = SyncSignalBackend(error=True)
+    monkeypatch.setattr(player_mod, "create_audio_backend", lambda parent=None: backend)
+    params = PlayerLaunchParams()
+    params.style.music_path = str(music)
+    display = NoteLyricDisplay(params)
+    assert display._audio_ok is False
+    assert display._audio_degraded_real > 0
+
+
+def test_repeated_media_ended_keeps_first_anchor(fake_backend):
+    fake, d = fake_backend
+    fake._dur = 10.0
+    fake._pos = 10.0
+    fake.emit_ended()
+    first_anchor = d._media_finish_real
+    import time as _time
+
+    _time.sleep(0.01)
+    fake.emit_ended()
+    assert d._media_finish_real == first_anchor
+
+
+def test_watchdog_query_exception_degrades(fake_backend, monkeypatch):
+    fake, d = fake_backend
+
+    def _boom():
+        raise RuntimeError("后端查询异常")
+
+    fake.is_loaded = _boom
+    scheduled = []
+    monkeypatch.setattr(player_mod.QTimer, "singleShot", lambda ms, cb: scheduled.append(cb))
+    d._check_audio_ready()
+    assert d._audio_ok is False
+    assert scheduled == []

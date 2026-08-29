@@ -15,6 +15,68 @@ def test_defaults(qapp):
     assert s.show_ust_author is True
     assert s.fullscreen is True
     assert s.show_lyric is False
+    assert s.show_note_name is True
+    assert s.show_ust_lyric is True
+    assert s.show_copyright is True
+    assert s.font_note == ""
+    assert s.font_ust_lyric == ""
+    assert s.font_lrc == ""
+    assert s.font_other == ""
+    assert s.custom_font_paths == []
+
+
+def test_new_display_controls_setters_and_signals(qapp, slot):
+    """音名/歌字/版权开关与分槽字体：setter 发信号、同值不重发。"""
+    s = DisplaySettings()
+    s.show_note_name_changed.connect(slot)
+    s.show_ust_lyric_changed.connect(slot)
+    s.show_copyright_changed.connect(slot)
+    s.font_note_changed.connect(slot)
+    s.font_other_changed.connect(slot)
+    s.custom_font_paths_changed.connect(slot)
+
+    s.show_note_name = False
+    s.show_ust_lyric = False
+    s.show_copyright = False
+    s.font_note = "黑体"
+    s.font_other = "华文黑体"
+    s.custom_font_paths = ["C:/f.ttf"]
+    assert s.show_note_name is False
+    assert s.show_ust_lyric is False
+    assert s.show_copyright is False
+    assert s.font_note == "黑体"
+    assert s.font_other == "华文黑体"
+    assert s.custom_font_paths == ["C:/f.ttf"]
+    assert len(slot.calls) == 6
+
+    s.show_note_name = False  # 同值不重发
+    assert len(slot.calls) == 6
+
+
+def test_new_display_controls_read_write(qapp):
+    s = DisplaySettings()
+    s.read_from({SECTION: {
+        "show_note_name": "0", "show_ust_lyric": "1", "show_copyright": "0",
+        "font_note": "黑体", "font_other": None, "custom_font_paths": ["a.ttf", 3, "b.ttf"],
+    }})
+    assert s.show_note_name is False
+    assert s.show_ust_lyric is True
+    assert s.show_copyright is False
+    assert s.font_note == "黑体"
+    assert s.font_other == ""
+    assert s.custom_font_paths == ["a.ttf", "b.ttf"]
+
+    cfg = {}
+    s.show_copyright = True
+    s.font_lrc = "楷体"
+    s.custom_font_paths = ["Segoe.ttf"]
+    s.write_to(cfg)
+    assert cfg[SECTION]["show_note_name"] == "0"
+    assert cfg[SECTION]["show_ust_lyric"] == "1"
+    assert cfg[SECTION]["show_copyright"] == "1"
+    assert cfg[SECTION]["font_note"] == "黑体"
+    assert cfg[SECTION]["font_lrc"] == "楷体"
+    assert cfg[SECTION]["custom_font_paths"] == ["Segoe.ttf"]
 
 
 def test_setters(qapp):

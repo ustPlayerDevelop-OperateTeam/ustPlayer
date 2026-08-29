@@ -5,6 +5,7 @@ import subprocess
 import webbrowser
 from typing import Optional
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QHBoxLayout
 from PySide6.QtGui import QColor
 
@@ -16,7 +17,7 @@ from qfluentwidgets import (
 
 from ustplayer.context import AppContext
 from ustplayer.core.contracts import APP_AUTHOR, APP_NAME, APP_VERSION
-from ustplayer.core.i18n import SUPPORTED_LANGUAGES, tr
+from ustplayer.core.i18n import tr
 from ustplayer.core.log import log_file_path
 from ustplayer.ui.section_card import ScrollPage, SectionCard
 
@@ -54,8 +55,13 @@ class OtherPage(ScrollPage):
 
     @staticmethod
     def _language_options() -> dict:
-        options = {"system": tr("跟随系统")}
-        options.update(SUPPORTED_LANGUAGES)
+        # 语言名称本身也走 tr()，切换界面语言后下拉项才会同步翻译
+        options = {
+            "system": tr("跟随系统"),
+            "zh_CN": tr("简体中文"),
+            "zh_classic": tr("文言（华夏）"),
+            "en_US": tr("English"),
+        }
         return options
 
     @staticmethod
@@ -107,7 +113,8 @@ class OtherPage(ScrollPage):
         self.card_log = SectionCard(tr("日志"))
         log_row = QHBoxLayout()
         log_row.setSpacing(8)
-        log_row.addWidget(StrongBodyLabel(tr("打开应用运行日志")))
+        self.open_log_label = StrongBodyLabel(tr("打开应用运行日志"))
+        log_row.addWidget(self.open_log_label)
         self.open_log_btn = PushButton(tr("打开日志"))
         self.open_log_btn.clicked.connect(self._on_open_log)
         log_row.addWidget(self.open_log_btn)
@@ -206,6 +213,7 @@ class OtherPage(ScrollPage):
         self.clear_cache_btn.setText(tr("清除缓存"))
         self._refresh_cache_usage()
         self.card_log.setTitle(tr("日志"))
+        self.open_log_label.setText(tr("打开应用运行日志"))
         self.open_log_btn.setText(tr("打开日志"))
         self.card_theme.setTitle(tr("主题"))
         self.theme_lbl.setText(tr("应用主题:"))
@@ -278,6 +286,7 @@ class OtherPage(ScrollPage):
 
     def _on_window_effect_changed(self, _index: int):
         setattr(self._s.theme, "window_effect", self.window_effect_combo.currentData())
+        self._s.write_settings()
 
     def _on_language_changed(self, _index: int):
         setattr(self._s.language, "language", self.lang_combo.currentData())
@@ -316,6 +325,7 @@ class OtherPage(ScrollPage):
 
     def _on_clear_cache(self):
         msg = MessageBox(tr("提示"), tr("确定要清空工程缓存吗？"), self)
+        msg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         if not msg.exec():
             return
         self._ctx.project_io.clear_cache()

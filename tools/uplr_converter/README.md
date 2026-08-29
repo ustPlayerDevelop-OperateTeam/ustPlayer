@@ -46,15 +46,16 @@ uplr_converter.exe
 uplr_converter.exe <input.uplr> <output.uplr>
 ```
 
-- `input.uplr`：旧版文本 .uplr（UTF-8）
+- `input.uplr`：旧版文本 .uplr（UTF-8 / GBK / Shift-JIS，自动识别）
 - `output.uplr`：新版 ZIP .uplr
 
 资源文件（`ust_path`/`lrc_path`/`music_path`）按旧文件中的路径解析：
 相对路径以 input 所在目录为基准；文件存在才打包，缺失时 Info.json 对应字段为
-`null`。旧格式没有 `music_path`，故转换结果该字段恒为 `null`。
+`null`。旧工程声明 `encoding=Shift-JIS` 时优先按 Shift-JIS 解码，避免被误判为 GBK。
 
 ## 与 Python 侧的一致性
 
 字段映射、Info.json 结构与
-`src/ustplayer/core/settings_manager.py`（`_import_uplr_text` / `_settings_to_info_json`）
-保持一致：`display` 分组含 `curve_show`，`color` 分组含 `pitch_curve_color`。
+`src/ustplayer/core/uplr_io.py`（`_import_uplr_text` / `_settings_to_info_json`）
+保持一致：`display` 分组含 `curve_show`，`color` 分组含 `pitch_curve_color`；
+ZIP 内同名资源与 Python 侧一样自动 `_2/_3` 去重。

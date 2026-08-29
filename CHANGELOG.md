@@ -1,5 +1,10 @@
 ## Unreleased
 
+## ✨ 新功能
+
+- **自定义字体按用途分槽**：（原「自定义字体」升级）「播放器」样式页新增**四路独立字体下拉**——音名字体 / 歌字字体 / 歌词字体（LRC）/ 其他文字字体（BPM、时间、标题、版权），排列在颜色行之后，仿颜色选项按用途分类。每路下拉：内置字体（等线/微软雅黑/黑体/楷体/宋体，**每项以自身字体预览**）+ 已导入字体 + 「自定义…」入口（文件选择框导入 `.ttf`/`.otf`，非原生对话框避免 Windows Fonts 虚拟文件夹列表为空）。导入的字体文件路径记入 `custom_font_paths` 并随 `.uplr`/`.uprd` 往返，播放器启动时自动恢复注册；家族名不可用时回退语言默认并记日志。
+- **版权信息独立显示开关**：「基础」页显示选项新增「显示版权」开关——至此播放器各组分的显示闭合（BPM / 时间 / 曲目 / 作者 / 音名 / 歌字 / LRC 歌词 / 音高线 / 版权）全部可独立控制，随 `.uplr`/`.uprd` 往返。
+
 ## 🐛 问题修复
 
 - **修复所有 InfoBar 提示 1 秒即消失且布局错乱**：`InfoBar.error/success/warning` 的毫秒数此前被当作第 3 个位置参数传给了 `orient`（`duration` 保持默认 1000ms，`orient=5000` 非法导致提示渲染成竖排）。全应用 23 处调用改为关键字传参（`duration=3000/5000/7000`），错误提示恢复 5~7 秒展示时长与横排布局。
@@ -9,15 +14,28 @@
 - **修复音频失效降级时播放时间轴跳变**：音频初始化失败 / 看门狗判定异常降级为纯可视化后，时间轴此前从 0:00 重新走墙钟（若音频一直未就绪，画面会从 0:00 直接跳到约 9 秒处）。降级瞬间改为以当前播放位置重锚定墙钟零点，时间轴连续不跳变。
 - **修复播放完误报"音频未进入播放状态"WARNING 并误降级**：Qt 的 FFmpeg 后端在播放结束后会把 `mediaStatus` 回落为 LoadedMedia（而非停留 EndOfMedia），3 秒后触发的一次性看门狗据此把"已播完"误判为"已加载但未播放"而降级（短伴奏尤其必现）。看门狗现增加「已播完」排除：`_media_finished` 已置位或后端处于 EndOfMedia 状态时不再降级；后者（信号未发出的兜底情形）会补记播完锚点。
 - 新增回归测试：UTF-8 BOM（版本/首音符）、Tempo 非法值（0/-5/nan/inf）、导入失败后设置回滚与缓存清理、音频状态机（就绪只播一次 / 播完锚点 / 看门狗降级 / 降级时间轴连续）。
+- **修复视频导出无法使用内置 FFmpeg**：渲染器 DLL 只从 PATH 查找 ffmpeg，而内置 `ffmpeg/` 只用于混流/ffprobe；现在渲染前把程序目录内置 `ffmpeg/` 临时加入 PATH。
+- **修复导入损坏 .uplr 会先删旧缓存**：ZIP 导入改为“先解压到暂存目录 → 全部校验成功 → 原子切换”，失败时旧工程缓存与设置都保持原样；同时拒绝 Info.json 引用了但不存在的资源。
+- **修复旧 Settings.ini 含 `%` 时迁移崩溃、Settings.json 带 BOM 被误判损坏**；只读 Settings.json 现在自动回退 `%LOCALAPPDATA%` 并清理临时文件。
+- **修复 OpenUtau 风格音高曲线完全丢失**：解析器新增 `PBS/PBW/PBY/PBM` 支持，`PBS+PBY` 合并为 `pitch_bend` 点序列。
+- **修复 C++ 转换器把 Shift-JIS 旧工程误读成 GBK**：优先使用旧文件声明的 `encoding`；ZIP 内同名资源自动 `_2/_3` 去重。
+- **修复导出对话框无法取消**：导出期间取消按钮保持可用，取消结果走独立“已取消”提示；后台线程/Worker 结束后及时 `deleteLater`。
+- **修复英文/文言界面“自定义字体”入口失效**：菜单项改用稳定 `userData` 判断，不再比较翻译后的显示文本。
+- **修复播放器时间轴边界**：重复 EndOfMedia 不再回跳；窗口重新显示不再重置墙钟零点；LRC 支持一行多时间戳与无毫秒写法；负八度音名正确应用占位符。
+- **修复颜色输入无校验**：非法颜色在 setter 即回退默认，不再写入 Settings.json / .uplr / 渲染配置。
+- **修复语言切换漏译“打开应用运行日志”**，并补齐英文/文言全部翻译。
+- **修复发版工作流**：upload-artifact 不提供 `name` 输出，现由独立步骤显式记录产物名；依赖改为 `uv export --locked` 锁定安装；`pass` 跳过不再影响 tag 发版；`1.1.0b2` 等标签正确识别为预发布；自动关 Issue 正则加词边界并扫描一次 push 的全部 commit。
 
 ## 🏗️ 底层重构（面向开发者的变更）
 
-- **封装伴奏音频后端**：新增 `core/audio_backend.py`——QtMultimedia 的降级导入（`try/except` + None 占位）与加载/播放/状态机从 `player.py` 迁移至此，`create_audio_backend` 工厂按环境返回 `QtAudioBackend` 或 `None`；播放器只依赖 `AudioBackend` 窄接口（`media_ready`/`media_ended`/`media_error` 信号 + 位置/时长/媒体阶段布尔查询），不再直接 import QtMultimedia。音频状态机由此可在无音频设备环境用可编程 fake 后端测试（新增 `tests/test_audio_backend.py`，11 个用例）。
+- **新增 `API_Docs.md`（uPlRender 对接文档）**：完整记录渲染器 DLL 的 C ABI（11 个函数 / 错误码 / 生命周期与线程约定）、`RenderConfig` JSON 结构（含默认值与 serde 忽略未知字段行为）、时序与帧约定（480 tick/拍、宿主驱动帧、+1s 结束画面、尾部休止音符）、字体回退、构建放置方式，以及与 ustPlayer 各模块的字段映射和「已写入但渲染器暂未消费的字段」清单（font_* / show_copyright / custom_font_paths 等，后续渲染器消费即可打通）。
+- **更新内置渲染器 DLL**：`renderer/ustplayer_renderer.dll` 重建（uPlRender 2026-08-28 工作区，含字号 pt→px 换算、时间/BPM 显示与播放器逐字对齐、Mutex poison 兜底、`up_render_to_buffer` 溢出安全修复）；已通过加载 / 建上下文 / `set_config` 冒烟验证。
+- **封装伴奏音频后端**：新增 `core/audio_backend.py`——QtMultimedia 的降级导入（`try/except` + None 占位）与加载/播放/状态机从 `player.py` 迁移至此，`create_audio_backend` 工厂按环境返回 `QtAudioBackend` 或 `None`；播放器只依赖 `AudioBackend` 窄接口（`media_ready`/`media_ended`/`media_error` 信号 + 位置/时长/媒体阶段布尔查询），不再直接 import QtMultimedia。音频状态机由此可在无音频设备环境用可编程 fake 后端测试（新增 `tests/test_audio_backend.py`，16 个用例）。
 - **修正音频看门狗「EndOfMedia 兜底」分支**：`is_finished()` 判断此前嵌套在 `is_loaded()` 分支内，而 `LoadedMedia/BufferedMedia` 与 `EndOfMedia` 是互斥状态，该分支对真实后端不可能执行（回归测试亦模拟了不会出现的状态组合）；现提前到最前判断，与「信号已发（`_media_finished`）」一起构成完整的播完排除。
 - **统一更新日志文件名大小写**：Git 跟踪名统一为 `CHANGELOG.md`，与 CI 提取脚本、README / CONTRIBUTING / AGENTS / CLAUDE 的引用保持一致（此前跟踪名为 `ChangeLog.md`，仅靠 Windows 大小写不敏感文件系统才不失效）。
-- **同步三份翻译源文件并清理过期条目**：按当前代码重建 `i18n/*.ts`（`lupdate -no-obsolete`），移除已从代码消失的 17 条旧文案（`i18n/ustplayer_en_US.ts`、`i18n/ustplayer_zh_classic.ts` 此前滞后于 `i18n/ustplayer_zh_CN.ts`），并重建 `.qm`。英文/文言翻译完成度 30/144，欢迎 PR 补全。
+- **同步三份翻译源文件并清理过期条目**：按当前代码重建 `i18n/*.ts`（`lupdate -no-obsolete`），移除已从代码消失的 17 条旧文案（`i18n/ustplayer_en_US.ts`、`i18n/ustplayer_zh_classic.ts` 此前滞后于 `i18n/ustplayer_zh_CN.ts`），并重建 `.qm`。英文/文言翻译完成度 **161/161**。
 - **内置 FFmpeg**：构建流程（`build.yml`）下载 ffmpeg/ffprobe 并打进产物的 `ffmpeg/` 子目录；视频导出的混流与伴奏时长探测（`video_exporter._find_tool`）**优先使用程序目录内置版本**，缺失时才回退 PATH——用户不再需要自行安装 FFmpeg 或配置环境变量。
-- **修复 CI 的 FFmpeg 动态库复制正则**：`^(av|sw)\d` 无法匹配 `avcodec-61.dll` / `swresample-5.dll` 等（av/sw 后是字母、版本号在连字符之后），导致打包产物缺失全部 FFmpeg 动态库；改为 `^(av|sw)[a-z]*-\d`。
+- **CI 改用官方 `include-qt-plugins: multimedia`**：此前的"补齐 QtMultimedia 资源"手工复制步骤存在两个问题——① 复制正则 `^(av|sw)\d` 匹配不到 `avcodec-61.dll` / `swresample-5.dll` 等（av/sw 后是字母、版本号在连字符之后），理论上产物缺失全部 FFmpeg 动态库；② 依赖 venv 路径与手工清单，PySide6 版本升级容易漂移。现删除该 20 行步骤，改用 Nuitka 官方插件参数（内部由 Dependency Walker 分析依赖自动带入 media 插件与 FFmpeg 库）。已本地实测（Nuitka 4.2 + MSVC 14.5）：打包产物含 `qt-plugins/multimedia/ffmpegmediaplugin.dll`、`windowsmediaplugin.dll` 与全部 5 个 FFmpeg DLL，`ustPlayer.exe` 正常启动（主窗口事件循环运行、日志完整）。
 - **发版版本匹配大小写兜底**：tag 写成 `v1.1.0-beta-2`（小写）也能匹配到 `# 1.1.0 Beta 2` 小节（ChangeLog 提取正则加 `(?i)`），不再因大小写不一致中止发版。
 - **文档同步**：`CONTRIBUTING.md` / `CLAUDE.md` 的发版机制描述更正为现行规则——发版**只由标签推送触发**、提交信息不参与发版判定、ChangeLog 小节为 `# {版本}` 一级标题（`v` 前缀可省略、连字符/空格互通、大小写不敏感）、版本校验为「tag ↔ `contracts.APP_VERSION`」；版本号示例同步为 1.1.0b2。Issue 模板同步修正：Bug 报告中的版本号示例更新为语义化版本（`1.1.0 Beta 2`）、日志路径更正为程序目录下的 `ustPlayer.log`（不再指向不存在的 `logs/` 文件夹）、"更新日志"链接改为 `ustPlayerDevelop-OperateTeam/ustPlayer` 组织仓库地址。
 

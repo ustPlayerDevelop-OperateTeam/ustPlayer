@@ -215,3 +215,15 @@ class TestParse:
         )
         info = UstFileReader().parse(str(path), "UTF-8")
         assert info.tempo == 120.0
+
+def test_openutau_pbs_pby_merged_into_pitch_bend(tmp_path):
+    """PBS/PBW/PBY 是 OpenUtau 常用音高曲线字段，必须合成 pitch_bend。"""
+    path = tmp_path / "openutau.ust"
+    path.write_text(
+        "[#SETTING]\nTempo=120\n"
+        "[#0000]\nLength=480\nLyric=あ\nNoteNum=60\n"
+        "PBS=-10.5\nPBW=50,50\nPBY=8,16\nPBM=s\n",
+        encoding="utf-8",
+    )
+    info = UstFileReader().parse(str(path), "UTF-8")
+    assert info.notes[0].pitch_bend == [-10, 8, 16]

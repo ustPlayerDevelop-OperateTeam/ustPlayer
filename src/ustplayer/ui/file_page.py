@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt
 
 from qfluentwidgets import (
     LineEdit, PushButton, ComboBox, TextEdit, CheckBox,
-    BodyLabel, HorizontalSeparator, InfoBar, InfoBarPosition,
+    BodyLabel, InfoBar, InfoBarPosition,
 )
 
 from ustplayer.context import AppContext
@@ -176,6 +176,7 @@ class FilePage(QWidget):
                     duration=5000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
                 )
         except Exception as e:
+            self.preview_edit.clear()
             InfoBar.error("ERcode002", tr("读取文件失败：{0}").format(e), duration=5000,
                           parent=self.window(), position=InfoBarPosition.TOP_RIGHT)
 
@@ -184,6 +185,9 @@ class FilePage(QWidget):
         path = self._s.file.ust_path.strip()
         if path and os.path.exists(path):
             self._preview(path)
+        else:
+            # 路径清空或文件已删除时不能继续展示旧内容，避免误导用户
+            self.preview_edit.clear()
 
     def sync_all_from_settings(self):
         """导入 uplr 后同步 UI（信号驱动的兜底）。"""

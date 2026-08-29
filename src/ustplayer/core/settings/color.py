@@ -5,7 +5,7 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, Signal
 
-from ustplayer.core.contracts import is_valid_hex_color
+from ustplayer.core.contracts import is_valid_hex_color, validate_hex_color
 
 
 class ColorSettings(QObject):
@@ -43,6 +43,7 @@ class ColorSettings(QObject):
 
     @bg_color.setter
     def bg_color(self, v: str):
+        v = validate_hex_color(v, self._FALLBACKS["bg_color"])
         if self._bg_color != v:
             self._bg_color = v
             self.bg_color_changed.emit(v)
@@ -53,6 +54,7 @@ class ColorSettings(QObject):
 
     @note_color.setter
     def note_color(self, v: str):
+        v = validate_hex_color(v, self._FALLBACKS["note_color"])
         if self._note_color != v:
             self._note_color = v
             self.note_color_changed.emit(v)
@@ -63,6 +65,7 @@ class ColorSettings(QObject):
 
     @lyric_color.setter
     def lyric_color(self, v: str):
+        v = validate_hex_color(v, self._FALLBACKS["lyric_color"])
         if self._lyric_color != v:
             self._lyric_color = v
             self.lyric_color_changed.emit(v)
@@ -73,6 +76,7 @@ class ColorSettings(QObject):
 
     @lyric_text_color.setter
     def lyric_text_color(self, v: str):
+        v = validate_hex_color(v, self._FALLBACKS["lyric_text_color"])
         if self._lyric_text_color != v:
             self._lyric_text_color = v
             self.lyric_text_color_changed.emit(v)
@@ -83,6 +87,7 @@ class ColorSettings(QObject):
 
     @other_text_color.setter
     def other_text_color(self, v: str):
+        v = validate_hex_color(v, self._FALLBACKS["other_text_color"])
         if self._other_text_color != v:
             self._other_text_color = v
             self.other_text_color_changed.emit(v)
@@ -93,6 +98,7 @@ class ColorSettings(QObject):
 
     @pitch_curve_color.setter
     def pitch_curve_color(self, v: str):
+        v = validate_hex_color(v, self._FALLBACKS["pitch_curve_color"])
         if self._pitch_curve_color != v:
             self._pitch_curve_color = v
             self.pitch_curve_color_changed.emit(v)

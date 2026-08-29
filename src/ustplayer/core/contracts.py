@@ -36,17 +36,28 @@ def validate_hex_color(hex_color: str, fallback: str = "#FFFFFF") -> str:
 def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
     """#RRGGBB → (R, G, B)，无效时返回白色。"""
     try:
-        h = hex_color.lstrip("#")
+        h = str(hex_color).lstrip("#")
+        if len(h) != 6 or any(c not in "0123456789abcdefABCDEF" for c in h):
+            return (255, 255, 255)
         return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
     except Exception:
         return (255, 255, 255)
 
 
 def resolve_program_root() -> str:
-    """解析程序根目录：打包后为 exe 目录，开发时为入口脚本所在目录。"""
+    """解析程序根目录：打包后为 exe 目录，开发时为入口脚本所在目录。
+
+    `uv run ustplayer` 走 console script 时 sys.argv[0] 是 .venv/Scripts/ustplayer.exe，
+    会让根目录错误地解析到 venv Scripts；此时优先采用包含 main.py 的当前工作目录。
+    """
     if getattr(sys, "frozen", False) or "__compiled__" in globals():
         return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.abspath(sys.argv[0]))
+    argv0 = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else os.getcwd()
+    if os.path.basename(argv0).lower() == "ustplayer.exe":
+        cwd = os.getcwd()
+        if os.path.exists(os.path.join(cwd, "main.py")):
+            return cwd
+    return os.path.dirname(argv0)
 
 
 def ensure_writable_dir(directory: str) -> bool:
@@ -118,6 +129,14 @@ class ShowConfig:
     ust_author: bool = True
     lyric: bool = True
     curve_show: bool = False
+    note_name: bool = True       # 音名显示
+    ust_lyric: bool = True       # 歌字（UST 歌词）显示
+    copyright: bool = True       # 底部版权信息显示
+    font_note: str = ""          # 音名字体族（空 = 语言默认「等线」/「Segoe UI」）
+    font_ust_lyric: str = ""     # 歌字字体族
+    font_lrc: str = ""           # 歌词（LRC）字体族
+    font_other: str = ""         # 其他文字（BPM/时间/标题/版权）字体族
+    custom_font_paths: List[str] = field(default_factory=list)  # 自定义字体文件路径（恢复注册用）
 
 
 @dataclass

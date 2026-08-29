@@ -5,7 +5,12 @@
 main.py/app.py 只负责创建 AppContext 与主窗口。
 """
 
-from ustplayer.core.contracts import PlayerLauncher, ProjectIO, UstParser, VideoExporter
+from ustplayer.core.contracts import (
+    PlayerLauncher,
+    ProjectIO,
+    UstParser,
+    VideoExporter as VideoExporterProtocol,
+)
 from ustplayer.core.player import NotePlayerLauncher
 from ustplayer.core.settings_manager import SettingsManager
 from ustplayer.core.ustreader import UstFileReader
@@ -24,6 +29,6 @@ class AppContext:
         self.parser: UstParser = UstFileReader()
         self.player: PlayerLauncher = NotePlayerLauncher()
         self.project_io: ProjectIO = UplrProjectIO(self.settings)
-        self.video_exporter: VideoExporter = VideoExporter(
+        self.video_exporter: VideoExporterProtocol = VideoExporter(
             self.settings, self.parser, self.project_io
         )

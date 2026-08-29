@@ -6,13 +6,13 @@
 
 - 环境搭建：`uv sync`（uv；`.python-version` 固定 Python 3.13.12，要求 >=3.11）。`pyproject.toml` 是依赖的唯一事实源——不要另建 `requirements.txt`。
 - 运行：`uv run main.py` —— 唯一真实入口（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts] ustplayer` → `ustplayer.app:main`）；两条入口路径共用 `AppContext`。
-- 测试：`uv run pytest`（222 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `npx --yes pyright main.py src`；未提交 `pyrightconfig.json`——需要时在本地自行创建）。
+- 测试：`uv run pytest`（249 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。没有已提交的 linter 配置。类型检查目标是 **Pylance / pyright Standard 模式 0 error**（CONTRIBUTING.md 有说明，例如 `uvx --from pyright pyright --pythonpath .venv/Scripts/python.exe main.py src`）。
 - 仅 Windows：`ustplayer/ui/main_window.py` 使用了 `winreg`（读取系统强调色）。在 WSL/Linux 上无法运行。
 
 ## 注意事项（Gotchas）
 
 - **不支持** USTX（`.ustx`）——解析器只处理 `.ust` 文本。不要声称支持 USTX，也不要将 `.ustx` 交给 `UstFileReader`。
-- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。CI 会**检出并 `cargo build --release` 编译 uPlRender**（`ustPlayerDevelop-OperateTeam/uPlRender`）产出 `ustplayer_renderer.dll`，经 Nuitka `include-data-files` 打进产物目录的 `renderer/` 子目录（供 `RendererLoader` 运行时加载）。提交信息以 `pass` 开头会跳过 CI；**发版只由标签推送触发**（任意标签名，带不带 `v` 前缀均可；普通提交不再触发发版）。
+- 构建/发版只通过 GitHub Actions（`.github/workflows/build.yml`，windows-latest 上的 Nuitka standalone，另有 `uplr-converter` 任务与发版打包）。CI 会**检出并 `cargo build --release` 编译 uPlRender**（`ustPlayerDevelop-OperateTeam/uPlRender`）产出 `ustplayer_renderer.dll`，经 Nuitka `include-data-files` 打进产物目录的 `renderer/` 子目录（供 `RendererLoader` 运行时加载）。分支提交信息以 `pass` 开头会跳过构建 CI（标签发版不受影响）；**发版只由标签推送触发**（任意标签名，带不带 `v` 前缀均可；普通提交不再触发发版）。
 - CI 从 `CHANGELOG.md` 中提取 Release 说明——小节标题形如 `# 1.1.0 Beta 2`（`v` 前缀可省略，连字符/空格与 tag 名互通）；找不到对应小节会**直接失败中止发版**（不再静默发布占位符）。顶层的 `## Unreleased` 小节会被提取器忽略。Release 说明末尾会自动附加全部发布附件的 **SHA256 校验表**（`[!important]` 提示框 + Markdown 表格）。Release 会先以**草稿**创建，需手动 Publish。发版前 CI 校验「提交信息/tag 推导出的版本 ↔ `contracts.APP_VERSION`」一致，不一致即中止。
 - 提交信息包含 `close #N` / `fixes #N` 等关键字时，会在 `main` / `dev` 分支自动关闭对应 Issue（见 `.github/workflows/auto-close-issue.yml`）。
 - 版本号：现在采用语义化版本（见 `pyproject.toml`，当前为 1.1.0b2，与 `contracts.APP_VERSION` 的 "1.1.0 Beta 2" 对应；有测试锁定该映射关系）；旧的日期式版本号（`v26f19`）已成历史——不要重新引入。

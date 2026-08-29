@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -182,23 +183,60 @@ static bool utf8_valid(const std::string& s);
 // 按指定代码页把窄字符串解码为 UTF-8；含无效字节时返回空串表示解码失败
 static std::string decode_codepage(const std::string& s, UINT cp) {
     if (s.empty()) return {};
-    int n = MultiByteToWideChar(cp, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+    // 启用 MB_ERR_INVALID_CHARS：编码探测不能把非法字节序列“硬解”成乱码
+    int n = MultiByteToWideChar(cp, MB_ERR_INVALID_CHARS, s.data(),
+                                static_cast<int>(s.size()), nullptr, 0);
     if (n <= 0) return {};
     std::wstring w(static_cast<size_t>(n), L'\0');
-    MultiByteToWideChar(cp, 0, s.data(), static_cast<int>(s.size()), &w[0], n);
+    MultiByteToWideChar(cp, MB_ERR_INVALID_CHARS, s.data(),
+                        static_cast<int>(s.size()), &w[0], n);
     return wstr_to_utf8(w);
 }
 
-// 旧版 .uplr 文本可能是 UTF-8 / GBK / Shift-JIS：统一解码为 UTF-8
-//（与 Python 侧 _import_uplr_text 的编码尝试链保持一致）
+// 旧版 .uplr 文本可能是 UTF-8 / GBK / Shift-JIS：统一解码为 UTF-8。
+// 优先相信旧文件里声明的 encoding 字段：Shift-JIS 与 GBK 存在大量互相可解码的
+// 字节序列，靠“GBK 先试、非空即返回”会把日文旧工程误读成中文乱码。
+static int detect_declared_codepage(const std::string& raw) {
+    std::istringstream lines(raw);
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        std::string key = line.substr(0, eq);
+        size_t b = key.find_first_not_of(" \t");
+        size_t e = key.find_last_not_of(" \t");
+        if (b == std::string::npos) continue;
+        key = key.substr(b, e - b + 1);
+        if (key != "encoding") continue;
+        std::string value = line.substr(eq + 1);
+        b = value.find_first_not_of(" \t");
+        if (b == std::string::npos) continue;
+        e = value.find_last_not_of(" \t");
+        value = value.substr(b, e - b + 1);
+        for (char& c : value) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (value == "shift-jis" || value == "shift_jis" || value == "cp932") return 932;
+        if (value == "gbk" || value == "gb2312" || value == "cp936") return 936;
+        if (value == "utf-8" || value == "utf8" || value == "utf-8-sig") return 0;
+    }
+    return -1;
+}
+
 static std::string decode_text_to_utf8(const std::vector<uint8_t>& data) {
     size_t start = 0;
     // 剥离 UTF-8 BOM，否则首个 key 会带 BOM 被跳过
     if (data.size() >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) start = 3;
     std::string raw(reinterpret_cast<const char*>(data.data() + start), data.size() - start);
     if (utf8_valid(raw)) return raw;
-    // GBK（CP936）→ Shift-JIS（CP932）
+
+    const int declared = detect_declared_codepage(raw);
+    if (declared > 0) {
+        std::string r = decode_codepage(raw, static_cast<UINT>(declared));
+        if (!r.empty()) return r;
+    }
+    // 未声明编码时按历史兼容顺序探测；GBK 放在前以免影响中文旧工程。
     for (UINT cp : {936u, 932u}) {
+        if (declared == static_cast<int>(cp)) continue;
         std::string r = decode_codepage(raw, cp);
         if (!r.empty()) return r;
     }
@@ -349,8 +387,27 @@ static bool read_file(const fs::path& path, std::vector<uint8_t>& out) {
     return in.good() || in.eof();
 }
 
-// 解析资源路径：相对路径以 base 目录为准，并返回包内文件名（UTF-8）
+// 保证 ZIP 内成员名唯一：同名资源改成 stem_2.ext / stem_3.ext
+static std::string unique_zip_name(std::set<std::string>& used, const std::string& base) {
+    if (used.find(base) == used.end()) {
+        used.insert(base);
+        return base;
+    }
+    const fs::path p = fs::u8path(base);
+    const std::string stem = p.stem().u8string();
+    const std::string ext = p.extension().u8string();
+    for (int i = 2; ; i++) {
+        std::string candidate = stem + "_" + std::to_string(i) + ext;
+        if (used.find(candidate) == used.end()) {
+            used.insert(candidate);
+            return candidate;
+        }
+    }
+}
+
+// 解析资源路径：相对路径以 base 目录为准，并返回去重后的包内文件名（UTF-8）
 static bool collect_resource(const fs::path& base, const std::string& raw,
+                             std::set<std::string>& used_names,
                              std::string& out_name, std::vector<uint8_t>& out_data) {
     if (raw.empty()) return false;
     fs::path p;
@@ -364,7 +421,7 @@ static bool collect_resource(const fs::path& base, const std::string& raw,
     std::error_code ec;
     if (!fs::exists(p, ec)) return false;
     if (!read_file(p, out_data)) return false;
-    out_name = p.filename().u8string();  // UTF-8 文件名写入 zip
+    out_name = unique_zip_name(used_names, p.filename().u8string());  // UTF-8 文件名写入 zip
     return true;
 }
 
@@ -390,21 +447,22 @@ static int convert_file(const fs::path& input, const fs::path& output) {
 
         const fs::path base = input.parent_path().empty() ? fs::current_path() : input.parent_path();
 
-        // ---- 收集资源 ----
+        // ---- 收集资源（同名文件自动 _2/_3 去重，避免 ZIP 内成员互相覆盖）----
         std::vector<ZipEntry> entries;
+        std::set<std::string> used_names;
         std::string ust_name, music_name, lrc_name;
 
         std::string name;
         std::vector<uint8_t> data;
-        if (collect_resource(base, settings["ust_path"], name, data)) {
+        if (collect_resource(base, settings["ust_path"], used_names, name, data)) {
             ust_name = name;
             entries.push_back({name, std::move(data)});
         }
-        if (collect_resource(base, settings["music_path"], name, data)) {
+        if (collect_resource(base, settings["music_path"], used_names, name, data)) {
             music_name = name;
             entries.push_back({name, std::move(data)});
         }
-        if (collect_resource(base, settings["lrc_path"], name, data)) {
+        if (collect_resource(base, settings["lrc_path"], used_names, name, data)) {
             lrc_name = name;
             entries.push_back({name, std::move(data)});
         }

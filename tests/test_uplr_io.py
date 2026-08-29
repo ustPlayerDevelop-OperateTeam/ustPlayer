@@ -111,6 +111,14 @@ def test_export_import_round_trip(manager_factory, tmp_path):
     m1.display.show_bpm = False
     m1.display.show_lyric = True
     m1.display.fullscreen = False
+    m1.display.show_note_name = False
+    m1.display.show_ust_lyric = False
+    m1.display.show_copyright = False
+    m1.display.font_note = "黑体"
+    m1.display.font_ust_lyric = ""
+    m1.display.font_lrc = "楷体"
+    m1.display.font_other = "华文黑体"
+    m1.display.custom_font_paths = [str(tmp_path / "custom1.ttf")]
     m1.color.bg_color = "#112233"
     m1.color.note_color = "#445566"
     m1.player.lyric_pos = "bottom"
@@ -142,6 +150,14 @@ def test_export_import_round_trip(manager_factory, tmp_path):
     assert m2.display.show_bpm is False
     assert m2.display.show_lyric is True
     assert m2.display.fullscreen is False
+    assert m2.display.show_note_name is False
+    assert m2.display.show_ust_lyric is False
+    assert m2.display.show_copyright is False
+    assert m2.display.font_note == "黑体"
+    assert m2.display.font_ust_lyric == ""
+    assert m2.display.font_lrc == "楷体"
+    assert m2.display.font_other == "华文黑体"
+    assert m2.display.custom_font_paths == [str(tmp_path / "custom1.ttf")]
     assert m2.color.bg_color == "#112233"
     assert m2.color.note_color == "#445566"
     assert m2.player.lyric_pos == "bottom"
@@ -460,4 +476,81 @@ def test_import_failure_rolls_back_settings_and_cache(manager_factory, tmp_path)
     assert m.player.silent_display == "dash"
     # 已解压的半成品缓存也被清理
     assert not os.path.exists(io._uplr_cache_dir(str(p)))
+
+
+def test_import_failure_preserves_previous_cache(manager_factory, tmp_path):
+    """同一路径先成功导入、再导入损坏 ZIP：旧缓存不能被预先删除。"""
+    m1 = manager_factory("preserve_src")
+    ust = _write(tmp_path / "song.ust", "OLD CACHE")
+    m1.file.ust_path = ust
+    uplr = tmp_path / "same.uplr"
+    UplrProjectIO(m1).export_uplr(str(uplr))
+
+    m2 = manager_factory("preserve_dst")
+    io = UplrProjectIO(m2)
+    io.import_uplr(str(uplr))
+    old_ust_path = m2.file.ust_path
+    assert os.path.exists(old_ust_path)
+
+    # 覆盖成坏 ZIP 后再次导入：失败，但旧缓存文件仍在
+    uplr.write_bytes(b"PK\x03\x04broken-zip")
+    with pytest.raises(Exception):
+        io.import_uplr(str(uplr))
+    assert os.path.exists(old_ust_path)
+
+
+def test_import_missing_referenced_resource_rejected(manager_factory, tmp_path):
+    """Info.json 引用的资源不在 ZIP 中时必须拒绝，不能留下悬空路径。"""
+    m = manager_factory("missing")
+    p = tmp_path / "missing.uplr"
+    info = {"basic": {"ust_path": "missing.ust"}, "display": {}, "color": {}, "else": {}}
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("Info.json", json.dumps(info))
+    with pytest.raises(ValueError, match="资源不存在"):
+        UplrProjectIO(m).import_uplr(str(p))
+
+
+def test_import_non_string_fields_are_cleaned(manager_factory, tmp_path):
+    """JSON 里字符串字段写成 list/int 时应清洗为默认值而不是污染设置。"""
+    m = manager_factory("typed")
+    p = tmp_path / "typed.uplr"
+    info = {
+        "basic": {"project_name": ["evil"]},
+        "display": {"show_bpm": "1"},
+        "color": {},
+        "else": {"silent_custom_text": {"x": 1}},
+    }
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("Info.json", json.dumps(info))
+    UplrProjectIO(m).import_uplr(str(p))
+    assert m.project.project_name == ""
+    assert m.player.silent_custom_text == ""
+
+
+def test_legacy_text_resets_missing_fields_and_resolves_relative_path(
+    manager_factory, tmp_path
+):
+    """旧文本导入应与 ZIP 导入同语义：未出现字段重置，相对路径按文件目录解析。"""
+    m = manager_factory("legacy_reset")
+    m.display.show_note_name = False
+    m.display.font_note = "OldFont"
+    ust = tmp_path / "song.ust"
+    ust.write_text("[#SETTING]\n", encoding="utf-8")
+    p = tmp_path / "legacy.uplr"
+    p.write_text(
+        "project_name=x\nust_path=song.ust\nencoding=UTF-8\n", encoding="utf-8"
+    )
+    UplrProjectIO(m).import_uplr(str(p))
+    assert m.display.show_note_name is True  # 未出现的新字段恢复默认
+    assert m.display.font_note == ""
+    assert os.path.abspath(m.file.ust_path) == os.path.abspath(str(ust))
+
+
+def test_cache_base_falls_back_when_file_occupies_cache(manager_factory, tmp_path):
+    """程序根下存在同名普通文件 cache 时不能返回该文件路径。"""
+    m = manager_factory("cachefile")
+    (tmp_path / "cachefile" / "cache").write_text("not a dir", encoding="utf-8")
+    io = UplrProjectIO(m)
+    assert io.cache_base() != str(tmp_path / "cachefile" / "cache")
+    assert not os.path.isfile(io.cache_base())
 

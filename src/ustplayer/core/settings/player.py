@@ -47,6 +47,8 @@ class PlayerSettings(QObject):
     @classmethod
     def migrate_value(cls, field: str, value: str) -> str:
         valid, legacy, default = cls._FIELDS[field]
+        if not isinstance(value, str):
+            return default
         return value if value in valid else legacy.get(value, default)
 
     @property
@@ -129,18 +131,23 @@ class PlayerSettings(QObject):
             self._lrc_path = v
             self.lrc_path_changed.emit(v)
 
+    @staticmethod
+    def _clean_str(value, default: str = "") -> str:
+        """自定义文本/lrc 路径只接受 str；异常 JSON 类型回退默认。"""
+        return value if isinstance(value, str) else default
+
     def read_from(self, config):
         if "PlayerSettings" in config:
             cs = config["PlayerSettings"]
             self._lyric_pos = self.migrate_value("lyric_pos", cs.get("lyric_pos", self._lyric_pos))
             self._silent_display = self.migrate_value("silent_display", cs.get("silent_display", self._silent_display))
-            self._silent_custom_text = cs.get("silent_custom_text", self._silent_custom_text)
+            self._silent_custom_text = self._clean_str(cs.get("silent_custom_text"), self._silent_custom_text)
             self._end_display = self.migrate_value("end_display", cs.get("end_display", self._end_display))
-            self._end_custom_text = cs.get("end_custom_text", self._end_custom_text)
+            self._end_custom_text = self._clean_str(cs.get("end_custom_text"), self._end_custom_text)
             self._pitch_placeholder = self.migrate_value("pitch_placeholder", cs.get("pitch_placeholder", self._pitch_placeholder))
-            self._pitch_custom_text = cs.get("pitch_custom_text", self._pitch_custom_text)
+            self._pitch_custom_text = self._clean_str(cs.get("pitch_custom_text"), self._pitch_custom_text)
         if "LyricSettings" in config:
-            self._lrc_path = config["LyricSettings"].get("lrc_path", self._lrc_path)
+            self._lrc_path = self._clean_str(config["LyricSettings"].get("lrc_path"), self._lrc_path)
 
     def write_to(self, config):
         config["PlayerSettings"] = {

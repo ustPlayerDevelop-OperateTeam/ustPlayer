@@ -18,11 +18,13 @@ concurrency:
 
 jobs:
   # ============================================================
-  # 构建：所有分支提交 + PR + 手动触发（pass 开头的消息跳过）
+  # 构建：所有分支提交 + PR + 手动触发（分支提交以 pass 开头跳过；tag 发版不跳过）
   # ============================================================
   build:
     if: |
-      github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'pass')
+      github.event_name != 'push' ||
+      github.ref_type == 'tag' ||
+      !startsWith(github.event.head_commit.message, 'pass')
     runs-on: windows-latest
     outputs:
       artifact_name: ${{ steps.artifact.outputs.name }}
@@ -36,13 +38,18 @@ jobs:
         shell: bash
         run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
+      - name: 记录构建产物名
+        id: artifact
+        shell: bash
+        # upload-artifact@v4 不输出 name（只有 artifact-id/artifact-url），
+        # 由本步骤显式记录，供 release job 下载主包。
+        run: echo "name=ustPlayer-${{ steps.sha.outputs.short }}-Windows" >> "$GITHUB_OUTPUT"
+
       - name: 设置 Python 3.13.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.13.12"
           architecture: "x64"
-          # 依赖实际由下方 uv pip install 安装（另有 uv 专用缓存步骤），
-          # 无需再配 pip 缓存
 
       - name: 缓存 uv 依赖缓存
         uses: actions/cache@v4
@@ -52,16 +59,16 @@ jobs:
           restore-keys: |
             uv-${{ runner.os }}-
 
-      - name: 安装依赖（uv 加速，替代 pip）
+      - name: 安装依赖（按 uv.lock 锁定解析）
         env:
           UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
         run: |
           python -m pip install --upgrade pip
           python -m pip install uv
-          # 依赖与项目本体统一由 pyproject.toml 声明；
-          # uv 并行下载/安装显著快于 pip（PySide6 全家桶尤其明显），
+          # 从 uv.lock 导出带哈希的精确依赖，保证 CI 与本地/发版一致；
           # 同时安装 build backend（uv_build），Nuitka 可找到 src/ 布局下的 ustplayer 包
-          uv pip install --system .
+          uv export --locked --no-dev --format requirements-txt -o ci-requirements.txt
+          uv pip install --system -r ci-requirements.txt
 
       - name: 运行测试
         env:
@@ -120,36 +127,12 @@ jobs:
             renderer/ustplayer_renderer.dll=renderer/ustplayer_renderer.dll
           windows-icon-from-ico: icon.ico
           enable-plugins: pyside6
+          # QtMultimedia 媒体后端插件（ffmpegmediaplugin.dll 等）与 FFmpeg 动态库
+          # （avcodec-61.dll / swresample-5.dll 等）由官方插件参数自动带入：
+          # 内部走 Dependency Walker 分析依赖，比手工复制更可靠（2026-08 实测
+          # Nuitka 4.2：multimedia 一键带齐 2 个 media 插件 + 5 个 FFmpeg DLL）。
+          include-qt-plugins: multimedia
           windows-console-mode: disable
-
-      # ============================================================
-      # Nuitka 的 pyside6 插件虽会打包 QtMultimedia.pyd 与 Qt 库，
-      # 但不会打包 QtMultimedia 的「媒体后端插件」与「FFmpeg 动态库」，
-      # 二者缺失时打包后的 QMediaPlayer 找不到任何后端，伴奏音频静音。
-      # 这里把 venv 里 PySide6 的 plugins/multimedia/*.dll 与 av*/sw* 动态库
-      # 复制进产物树，位置与 from-source 运行时一致（PySide6/ 目录由
-      # Qt 的插件搜索路径 + PySide6 导入时的 os.add_dll_directory 命中）。
-      # ============================================================
-      - name: 补齐 QtMultimedia 媒体后端与 FFmpeg 动态库
-        shell: pwsh
-        run: |
-          $pyside = (python -c "import PySide6, pathlib; print(pathlib.Path(PySide6.__file__).parent)").Trim()
-          if (-not $pyside -or -not (Test-Path $pyside)) { throw "未定位到 PySide6 包目录: '$pyside'" }
-          $distPySide = Join-Path "build/main.dist" "PySide6"
-          if (-not (Test-Path $distPySide)) { throw "产物目录缺少 PySide6 数据目录: $distPySide" }
-          # 1) 媒体后端插件（ffmpegmediaplugin.dll / windowsmediaplugin.dll）
-          $mmDst = Join-Path $distPySide "plugins\multimedia"
-          New-Item -ItemType Directory -Force -Path $mmDst | Out-Null
-          Get-ChildItem (Join-Path $pyside "plugins\multimedia\*.dll") -File |
-            Copy-Item -Destination $mmDst -Force
-          # 2) FFmpeg 动态库（avcodec-61.dll / avformat-61.dll / avutil-59.dll /
-          #    swresample-5.dll / swscale-8.dll —— av/sw 后是字母，版本号在连字符之后）
-          Get-ChildItem (Join-Path $pyside "*.dll") -File |
-            Where-Object { $_.Name -match '^(av|sw)[a-z]*-\d' } |
-            Copy-Item -Destination $distPySide -Force
-          Write-Output "已补齐 QtMultimedia 资源："
-          Get-ChildItem $mmDst -File | Select-Object Name
-          Get-ChildItem $distPySide -File | Where-Object { $_.Name -match '^(av|sw)[a-z]*-\d' } | Select-Object Name
 
       # ============================================================
       # 内置完整 FFmpeg（ffmpeg.exe / ffprobe.exe 进产物 ffmpeg/ 子目录）：
@@ -201,7 +184,7 @@ jobs:
           Get-ChildItem $distFfmpeg -File | Select-Object Name, Length
 
       - name: 上传构建产物
-        id: artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: ustPlayer-${{ steps.sha.outputs.short }}-Windows
@@ -213,7 +196,9 @@ jobs:
   # ============================================================
   uplr-converter:
     if: |
-      github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'pass')
+      github.event_name != 'push' ||
+      github.ref_type == 'tag' ||
+      !startsWith(github.event.head_commit.message, 'pass')
     runs-on: windows-latest
 
     steps:
@@ -268,9 +253,12 @@ jobs:
           echo "tag=${tag}" >> $GITHUB_OUTPUT
           echo "file=$(echo "${full}" | tr ' ' '-' | sed 's/Beta/beta/g; s/Alpha/alpha/g')" >> $GITHUB_OUTPUT
           echo "title=${full#v}" >> $GITHUB_OUTPUT
+          # 兼容语义化预发布标签：1.1.0b2 / v1.1.0-beta-2 / 1.1.0-rc1 等
           case "$full" in
-            *[Bb]eta*|*[Aa]lpha*) echo "prerelease=true" >> $GITHUB_OUTPUT ;;
-            *)                    echo "prerelease=false" >> $GITHUB_OUTPUT ;;
+            *[Bb]eta*|*[Aa]lpha*|*[Rr][Cc]*|*[Aa][0-9]*|*[Bb][0-9]*)
+              echo "prerelease=true" >> $GITHUB_OUTPUT ;;
+            *)
+              echo "prerelease=false" >> $GITHUB_OUTPUT ;;
           esac
 
       - name: 从 CHANGELOG.md 提取版本信息
@@ -371,7 +359,7 @@ jobs:
           )
           foreach ($f in $names) {
               $hash = (Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant()
-              $lines += '> | `{0}` | `{1}` |' -f $f, $hash
+              $lines += '| `{0}` | `{1}` |' -f $f, $hash
           }
           Add-Content -Path changelog_body.md -Value $lines -Encoding UTF8
           "已附加 {0} 个文件的校验表" -f $names.Count | Write-Host

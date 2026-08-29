@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple
 from PySide6.QtWidgets import QApplication, QWidget
 from PySide6.QtCore import Qt, QTimer, QRectF, QPointF
 from PySide6.QtGui import (
-    QPainter, QColor, QFont, QFontMetrics, QPen, QPolygonF,
+    QPainter, QColor, QFont, QFontDatabase, QFontMetrics, QPen, QPolygonF,
 )
 
 # 音频已封装至 audio_backend.py：QtMultimedia 缺失时 create_audio_backend 返回
@@ -37,13 +37,17 @@ from ustplayer.core.log import logger
 def format_play_time(seconds: float) -> str:
     """秒数 → 时间文本（HH:MM:SS:CC，超过一小时才带小时位）。"""
     try:
-        ms = int((seconds - int(seconds)) * 100)
+        seconds = max(0.0, float(seconds))
+        centis = int(round((seconds - int(seconds)) * 100))
         total = int(seconds)
+        if centis >= 100:
+            total += 1
+            centis -= 100
         h, rem = divmod(total, 3600)
         m, s = divmod(rem, 60)
         if h > 0:
-            return f"{h:02d}:{m:02d}:{s:02d}:{ms:02d}"
-        return f"{m:02d}:{s:02d}:{ms:02d}"
+            return f"{h:02d}:{m:02d}:{s:02d}:{centis:02d}"
+        return f"{m:02d}:{s:02d}:{centis:02d}"
     except Exception:
         return "00:00:00"
 
@@ -101,6 +105,14 @@ class NoteLyricDisplay(QWidget):
         self.show_ust_author = sc.ust_author
         self.show_lyric = sc.lyric
         self.curve_show = sc.curve_show
+        self.show_note_name = sc.note_name
+        self.show_ust_lyric = sc.ust_lyric
+        self.show_copyright = sc.copyright
+        self.font_note = sc.font_note
+        self.font_ust_lyric = sc.font_ust_lyric
+        self.font_lrc = sc.font_lrc
+        self.font_other = sc.font_other
+        self.custom_font_paths = list(sc.custom_font_paths)
 
         pi = params.project
         self.song_name = pi.song_name
@@ -174,6 +186,7 @@ class NoteLyricDisplay(QWidget):
         self._media_duration_s = 0.0
         self._media_finish_real = 0.0
         self._end_shown = False  # 已显示结束文字（之后不再播放音频、隐藏秒表）
+        self._started_once = False  # 首次 showEvent 才建立时间轴锚点，后续恢复显示不重置
         self._audio_ready_checks = 0  # 音频就绪看门狗重试次数（超限防“永远加载中”卡死）
         self._play_issued = False  # 是否已调用过 play()（播完后不再重播）
         # 降级锚点：音频失效瞬间重锚定墙钟零点，避免时间轴跳变（_audio_degraded_real=0 表示未降级）
@@ -184,26 +197,50 @@ class NoteLyricDisplay(QWidget):
         logger.debug("播放器 __init__ 完成")
 
     def _init_fonts(self):
-        """初始化字体和度量缓存（屏幕尺寸变化后可重新调用）。"""
+        """初始化字体和度量缓存（屏幕尺寸变化后可重新调用）。
+
+        字体按用途分槽（与设置项一一对应）：音名 / 歌字 / LRC 歌词 /
+        信息文字（BPM、时间、标题、版权），空值跟随语言默认。
+        """
         is_cjk = self._is_cjk_locale()
-        family = "等线" if is_cjk else "Segoe UI"
+        family_note = self._resolve_font_family(self.font_note, is_cjk)
+        family_ust = self._resolve_font_family(self.font_ust_lyric, is_cjk)
+        family_lrc = self._resolve_font_family(self.font_lrc, is_cjk)
+        family_info = self._resolve_font_family(self.font_other, is_cjk)
 
         note_fs = max(int(self.h * 2 / 3 * 0.4), 50)
         lyric_fs = max(int(self.h * 0.03), 10)
         ust_lyric_fs = max(int(self.h * 2 / 3 * 0.2), 80)
 
-        self.note_font = QFont(family, note_fs, QFont.Weight.Bold)
-        self.lyric_font = QFont(family, lyric_fs)
-        self.ust_lyric_font = QFont(family, ust_lyric_fs, QFont.Weight.Bold)
-        self.small_font = QFont(family, 14)
-        self.copyright_font = QFont(family, 12)
-        self.title_font = QFont(family, 14, QFont.Weight.Bold)
+        self.note_font = QFont(family_note, note_fs, QFont.Weight.Bold)
+        self.lyric_font = QFont(family_lrc, lyric_fs)
+        self.ust_lyric_font = QFont(family_ust, ust_lyric_fs, QFont.Weight.Bold)
+        self.small_font = QFont(family_info, 14)
+        self.copyright_font = QFont(family_info, 12)
+        self.title_font = QFont(family_info, 14, QFont.Weight.Bold)
 
         self._fm_note = QFontMetrics(self.note_font)
         self._fm_lyric = QFontMetrics(self.lyric_font)
         self._fm_ust_lyric = QFontMetrics(self.ust_lyric_font)
         self._fm_small = QFontMetrics(self.small_font)
         self._fm_copyright = QFontMetrics(self.copyright_font)
+
+    def _resolve_font_family(self, family_name: str, is_cjk: bool) -> str:
+        """解析字体族：先恢复注册导入过的字体文件（幂等），再校验家族名可用；
+        空值 / 不可用时跟随语言默认（「等线」/「Segoe UI」）。"""
+        try:
+            for path in (self.custom_font_paths or []):
+                p = str(path).strip()
+                if p and os.path.isfile(p):
+                    QFontDatabase.addApplicationFont(p)
+            family = (family_name or "").strip()
+            if family and QFontDatabase.hasFamily(family):
+                return family
+            if family:
+                logger.warning(f"字体「{family}」不在本机可用，回退默认")
+        except Exception:
+            logger.warning("字体解析失败，回退默认")
+        return "等线" if is_cjk else "Segoe UI"
 
     @staticmethod
     def _is_cjk_locale() -> bool:
@@ -214,11 +251,20 @@ class NoteLyricDisplay(QWidget):
             return True
 
     def showEvent(self, event):
-        """窗口显示后启动定时器。"""
+        """窗口首次显示后建立时间轴锚点并启动定时器。"""
         super().showEvent(event)
         self._update_screen_size()
         logger.info(f"播放器窗口已显示 — 实际尺寸: {self.w}x{self.h}")
-        self.start_real_time = time.time()
+        if not self._started_once:
+            # 只锚定一次：最小化/恢复会再次触发 showEvent，墙钟零点不能重置。
+            # 音频在显示前已降级/结束时，也要把事件时刻重新锚到“真正开始显示”。
+            now = time.time()
+            self.start_real_time = now
+            self._started_once = True
+            if self._audio_degraded_real:
+                self._audio_degraded_real = now
+            if self._media_finished:
+                self._media_finish_real = now
         self._timer.start(16)
         logger.debug("定时器已启动 (16ms)")
 
@@ -246,6 +292,11 @@ class NoteLyricDisplay(QWidget):
         if backend is None:
             logger.info("QtMultimedia 不可用，使用纯可视化计时")
             return
+        # 先建立后端引用与可用状态，再调用 load()：若后端在 load() 内同步发出
+        # media_ready / media_error，信号处理函数需要看到 _audio/_audio_ok，
+        # 否则首次播放被丢弃，错误状态又会在 load() 返回后被覆盖。
+        self._audio = backend
+        self._audio_ok = True
         try:
             backend.media_ready.connect(self._on_media_ready)
             backend.media_ended.connect(self._on_media_ended)
@@ -253,11 +304,12 @@ class NoteLyricDisplay(QWidget):
             backend.load(path)
         except Exception as e:
             logger.warning(f"音频初始化失败，降级为纯可视化: {e}")
+            self._audio = None
+            self._audio_ok = False
             return
-        self._audio = backend
-        self._audio_ok = True
         logger.info(f"伴奏音频已加载: {path}")
-        QTimer.singleShot(3000, self._check_audio_ready)
+        if self._audio_ok:
+            QTimer.singleShot(3000, self._check_audio_ready)
 
     def _on_media_ready(self):
         """媒体加载完成 → 首次 play()；播完（_media_finished）或已进入结束态后不再重播。"""
@@ -273,7 +325,9 @@ class NoteLyricDisplay(QWidget):
             logger.info("伴奏开始播放")
 
     def _on_media_ended(self):
-        """播放到结尾：记录结束锚点（时长优先，未知时退回当前位置）。"""
+        """播放到结尾：只记录第一次结束锚点（时长优先，未知时退回当前位置）。"""
+        if self._media_finished:
+            return  # 重复的 EndOfMedia 会重写结束时刻，导致时间轴回跳
         self._media_finished = True
         dur = self._audio.duration_seconds() if self._audio is not None else 0.0
         pos = self._audio.position_seconds() if self._audio is not None else 0.0
@@ -283,6 +337,11 @@ class NoteLyricDisplay(QWidget):
 
     def _on_audio_error(self, message: str):
         logger.warning(f"音频错误：{message}，降级为纯可视化")
+        try:
+            if self._audio is not None:
+                self._audio.stop()
+        except Exception:
+            logger.warning("停止出错的音频后端失败")
         self._degrade_audio()
 
     def _degrade_audio(self):
@@ -295,7 +354,8 @@ class NoteLyricDisplay(QWidget):
         """看门狗：媒体就绪后未进入播放状态则降级（离屏/无声卡环境）。
 
         仅当媒体确已加载（LoadedMedia/BufferedMedia）但不在播放状态时才降级；
-        仍在加载中时再等 3 秒；媒体无效时立即降级。
+        仍在就绪中（Loading/Stalled/NoMedia/Unbuffered）时再等 3 秒，超限强制降级；
+        媒体无效时立即降级。
         「播完」优先排除（不降级）：`_media_finished` 已置位（EndOfMedia 信号已发，
         Qt FFmpeg 后端播完后 mediaStatus 可能回落为 LoadedMedia）或后端仍停留在
         EndOfMedia（信号未发出的兜底，此时补记播完锚点）。
@@ -320,8 +380,10 @@ class NoteLyricDisplay(QWidget):
             elif self._audio.is_invalid():
                 logger.warning("音频媒体无效，降级为纯可视化")
                 self._degrade_audio()
-            elif self._audio.is_loading():
-                # 仍在加载：再等 3 秒；超过总次数后强制降级，避免“永远加载中”卡死
+            else:
+                # 仍在加载（Loading/Stalled），或后端缺失导致媒体停在 NoMedia/
+                # Unbuffered：统一定为「未就绪」，等待重试；超限后强制降级，
+                # 避免“永远加载中 / 无可用后端”让时间轴永久停在 0:00 卡死
                 self._audio_ready_checks += 1
                 if self._audio_ready_checks >= 3:
                     logger.warning("音频长时间未就绪，降级为纯可视化")
@@ -329,9 +391,10 @@ class NoteLyricDisplay(QWidget):
                 else:
                     logger.debug("音频仍在加载中，3 秒后再次检查")
                     QTimer.singleShot(3000, self._check_audio_ready)
-            # 其他状态（NoMedia / Unbuffered）暂不处理
         except Exception:
-            pass
+            # 后端查询异常时不能静默吞掉：既不重试也不降级会让时间轴永远卡在 0:00
+            logger.exception("音频看门狗查询异常，降级为纯可视化")
+            self._degrade_audio()
 
     # ===================== 预计算音符 Tick 区间 =====================
 
@@ -359,19 +422,31 @@ class NoteLyricDisplay(QWidget):
         if not content:
             return
 
-        pattern = r'\[(\d{1,2}):(\d{1,2})\.(\d{2,3})\]([^\[]*)'
-        fragments = re.findall(pattern, content)
-        for frag in fragments:
-            try:
-                minutes, seconds, ms = int(frag[0]), int(frag[1]), int(frag[2])
-                if len(frag[2]) == 2:
-                    ms *= 10
-                timestamp = minutes * 60 + seconds + ms / 1000
-                lyric = frag[3].strip()
-                if lyric:
-                    self.lrc_lines.append((timestamp, lyric))
-            except Exception:
+        # 支持一行多时间戳（[00:05.00][00:06.00]词）以及无毫秒 / 1 位毫秒写法
+        pattern = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+        for line in content.splitlines():
+            tags = list(pattern.finditer(line))
+            if not tags:
                 continue
+            lyric = line[tags[-1].end():].strip()
+            if not lyric:
+                continue
+            for match in tags:
+                try:
+                    minutes, seconds = int(match.group(1)), int(match.group(2))
+                    ms_text = match.group(3) or ""
+                    if len(ms_text) == 1:
+                        ms = int(ms_text) * 100
+                    elif len(ms_text) == 2:
+                        ms = int(ms_text) * 10
+                    elif len(ms_text) == 3:
+                        ms = int(ms_text)
+                    else:
+                        ms = 0
+                    timestamp = minutes * 60 + seconds + ms / 1000
+                    self.lrc_lines.append((timestamp, lyric))
+                except Exception:
+                    continue
         self.lrc_lines.sort(key=lambda x: x[0])
 
     # ===================== 主循环 =====================
@@ -520,7 +595,7 @@ class NoteLyricDisplay(QWidget):
         cx, cy = ww // 2, wh // 2
 
         # 音名
-        if self._current_note_name:
+        if self.show_note_name and self._current_note_name:
             note_c = QColor(*self.note_color)
             note_c.setAlpha(self.note_alpha)
             painter.setPen(note_c)
@@ -549,7 +624,9 @@ class NoteLyricDisplay(QWidget):
                 )
                 self._last_pb_log_note_idx = note_idx
             if pb_data and len(pb_data) >= 2 and note_length > 0:
-                curve_width = note_length
+                # 音高线宽度按 tick 直接当像素会在超长音符上画出屏幕外，
+                # 限制到屏宽 80% 并居中，保证任何长度的曲线都完整可见。
+                curve_width = max(min(note_length, int(ww * 0.8)), 1)
                 start_x = cx - curve_width // 2
                 base_y = cy
                 pb_count = len(pb_data)
@@ -576,7 +653,7 @@ class NoteLyricDisplay(QWidget):
                     painter.drawPolyline(QPolygonF(points))
 
         # 歌字
-        if self._current_lyric:
+        if self.show_ust_lyric and self._current_lyric:
             lyric_c = QColor(*self.ust_lyric_color)
             painter.setPen(lyric_c)
             painter.setFont(self.ust_lyric_font)
@@ -625,14 +702,15 @@ class NoteLyricDisplay(QWidget):
                 lrc_w = self._fm_lyric.horizontalAdvance(lrc_text)
                 painter.drawText(ww // 2 - lrc_w // 2, lrc_y, lrc_text)
 
-        # 版权（底部居中）
-        copy_c = QColor(195, 195, 195)
-        copy_c.setAlpha(self.copyright_alpha)
-        painter.setPen(copy_c)
-        painter.setFont(self.copyright_font)
-        copy_text = APP_COPYRIGHT
-        copy_w = self._fm_copyright.horizontalAdvance(copy_text)
-        painter.drawText(ww // 2 - copy_w // 2, wh - 20, copy_text)
+        # 版权（底部居中）—— 可独立关闭
+        if self.show_copyright:
+            copy_c = QColor(195, 195, 195)
+            copy_c.setAlpha(self.copyright_alpha)
+            painter.setPen(copy_c)
+            painter.setFont(self.copyright_font)
+            copy_text = APP_COPYRIGHT
+            copy_w = self._fm_copyright.horizontalAdvance(copy_text)
+            painter.drawText(ww // 2 - copy_w // 2, wh - 20, copy_text)
 
     # ===================== 文本生成 =====================
 
@@ -658,8 +736,8 @@ class NoteLyricDisplay(QWidget):
         """MIDI 号 → 音名，应用占位符规则。"""
         try:
             ori = self._midi_to_note(note_num)
-            pure = re.fullmatch(r'^([A-G])(\d+)$', ori)
-            sharp = re.fullmatch(r'^([A-G]#)(\d+)$', ori)
+            pure = re.fullmatch(r'^([A-G])(-?\d+)$', ori)
+            sharp = re.fullmatch(r'^([A-G]#)(-?\d+)$', ori)
 
             if sharp:
                 return ori
@@ -668,6 +746,7 @@ class NoteLyricDisplay(QWidget):
                 if self.pitch_placeholder == "none":
                     return f"{note}{num}"
                 elif self.pitch_placeholder == "dash":
+                    # 负八度保留符号：C-1 → C--1（占位符 + 原八度符号）
                     return f"{note}-{num}"
                 elif self.pitch_placeholder == "custom":
                     suffix = self.pitch_custom_text.strip()

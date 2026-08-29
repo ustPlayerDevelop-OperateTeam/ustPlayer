@@ -16,11 +16,21 @@ jobs:
       - name: 从 commit 消息提取关联 Issue 并关闭
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
           COMMIT_URL: ${{ github.event.head_commit.url }}
         run: |
-          # 匹配 close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved #数字
-          issues=$(echo "$COMMIT_MSG" | grep -oPi '(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#\d+' | grep -oP '#\d+' | sort -u)
+          # 一次 push 可能带多个 commit，只读 head_commit 会漏掉早前的 close #N；
+          # 从事件 payload 中取全部 commit message 一起扫描。
+          msgs=""
+          if [ -n "$GITHUB_EVENT_PATH" ] && command -v jq >/dev/null 2>&1; then
+            msgs=$(jq -r '.commits[]?.message // empty' "$GITHUB_EVENT_PATH" 2>/dev/null)
+          fi
+          if [ -z "$msgs" ]; then
+            msgs="${{ github.event.head_commit.message }}"
+          fi
+
+          # 匹配 close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved #数字；
+          # \b 避免 hotfix #12 之类的单词内部误匹配。
+          issues=$(printf '%s\n' "$msgs" | grep -oPi '\b(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#\d+' | grep -oP '#\d+' | sort -u)
 
           if [ -z "$issues" ]; then
             echo "未在 commit 消息中找到关联的 Issue，跳过。"

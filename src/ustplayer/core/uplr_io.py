@@ -74,7 +74,9 @@ class UplrProjectIO:
         ("file", ("encoding", "ust_path", "curve_show")),
         ("project", ("project_name", "music_path", "song_name", "song_author", "ust_author")),
         ("display", ("show_bpm", "show_play_time", "show_song_name", "show_song_author",
-                     "show_ust_author", "fullscreen", "show_lyric")),
+                     "show_ust_author", "fullscreen", "show_lyric", "show_note_name",
+                     "show_ust_lyric", "show_copyright", "font_note", "font_ust_lyric",
+                     "font_lrc", "font_other", "custom_font_paths")),
         ("color", ("bg_color", "note_color", "lyric_color", "lyric_text_color",
                    "other_text_color", "pitch_curve_color")),
         ("player", ("lyric_pos", "lrc_path", "silent_display", "silent_custom_text",
@@ -185,6 +187,14 @@ class UplrProjectIO:
                 "show_waveform": 0,
                 "fullscreen": int(s.display.fullscreen),
                 "show_lyric": int(s.display.show_lyric),
+                "show_note_name": int(s.display.show_note_name),
+                "show_ust_lyric": int(s.display.show_ust_lyric),
+                "show_copyright": int(s.display.show_copyright),
+                "font_note": s.display.font_note or None,
+                "font_ust_lyric": s.display.font_ust_lyric or None,
+                "font_lrc": s.display.font_lrc or None,
+                "font_other": s.display.font_other or None,
+                "custom_font_paths": list(s.display.custom_font_paths) or None,
             },
             "color": {
                 "bg_color": s.color.bg_color,
@@ -236,6 +246,14 @@ class UplrProjectIO:
                 "fullscreen": int(s.display.fullscreen),
                 "show_lyric": int(s.display.show_lyric),
                 "curve_show": int(s.file.curve_show),
+                "show_note_name": int(s.display.show_note_name),
+                "show_ust_lyric": int(s.display.show_ust_lyric),
+                "show_copyright": int(s.display.show_copyright),
+                "font_note": s.display.font_note or None,
+                "font_ust_lyric": s.display.font_ust_lyric or None,
+                "font_lrc": s.display.font_lrc or None,
+                "font_other": s.display.font_other or None,
+                "custom_font_paths": list(s.display.custom_font_paths) or None,
             },
             "color": {
                 "bg_color": s.color.bg_color,
@@ -290,6 +308,10 @@ class UplrProjectIO:
 
         snapshot = self._snapshot_import_settings()
         try:
+            # 与 ZIP 导入语义一致：先把全部“会被导入触碰”的字段重置为默认值，
+            # 旧文本里没出现的字段不允许残留上一个工程的状态。
+            self._apply_info_json({}, "")
+
             content = ""
             for enc in ("utf-8-sig", "utf-8", "gbk", "gb2312", "shift-jis"):
                 try:
@@ -321,10 +343,21 @@ class UplrProjectIO:
                     setattr(getattr(s, holder), attr, value.lower() in truthy)
 
             s.sanitize()
+
+            # 旧格式的资源路径经常是相对路径：优先按 .uplr 所在目录解析。
+            base_dir = os.path.dirname(os.path.abspath(input_file))
             for attr, holder in (("ust_path", s.file), ("lrc_path", s.player), ("music_path", s.project)):
-                p = getattr(holder, attr, "").strip()
-                if p and not os.path.exists(p):
-                    logger.warning(f"旧版 .uplr 路径在本机不存在: {p}")
+                p = (getattr(holder, attr) or "").strip()
+                if not p:
+                    continue
+                candidate = p
+                if not os.path.isabs(p):
+                    joined = os.path.abspath(os.path.join(base_dir, p))
+                    if os.path.exists(joined):
+                        candidate = joined
+                if not os.path.exists(candidate):
+                    logger.warning(f"旧版 .uplr 资源路径在本机不存在: {p}")
+                setattr(holder, attr, candidate)
         except BaseException:
             # 事务化：任一环节失败即回滚设置，避免部分篡改残留
             self._restore_import_settings(snapshot)
@@ -332,7 +365,8 @@ class UplrProjectIO:
 
     def _import_uplr_zip(self, input_file: str):
         cache_dir = self._uplr_cache_dir(input_file)
-        shutil.rmtree(cache_dir, ignore_errors=True)
+        staging_dir = f"{cache_dir}.staging-{os.getpid()}"
+        shutil.rmtree(staging_dir, ignore_errors=True)
         snapshot = self._snapshot_import_settings()
         try:
             with zipfile.ZipFile(input_file, "r") as zf:
@@ -342,29 +376,49 @@ class UplrProjectIO:
                 if info_entry.file_size > self._MAX_INFO_SIZE:
                     raise ValueError("Info.json 异常过大，已中止导入")
                 info = json.loads(zf.read(info_entry).decode("utf-8"))
+                if not isinstance(info, dict):
+                    raise ValueError("Info.json 顶层结构必须是对象")
                 total = 0
                 for name in zf.namelist():
                     if name == "Info.json":
                         continue
-                    total += self._extract_member_safe(zf, name, cache_dir)
+                    total += self._extract_member_safe(zf, name, staging_dir)
                     if total > self._MAX_TOTAL_SIZE:
                         raise ValueError("工程文件解压总量超限，已中止导入")
-            self._apply_info_json(info, cache_dir)
+
+            # 全部校验与应用成功后才替换旧缓存：失败的 ZIP 不允许破坏
+            # 上一次成功导入留下的工程资源。
+            self._apply_info_json(info, staging_dir)
             self._settings.sanitize()
-        except BaseException:
-            # 事务化：回滚已改设置并清理半成品缓存，导入失败 ≠ 状态被污染
-            self._restore_import_settings(snapshot)
+
             shutil.rmtree(cache_dir, ignore_errors=True)
+            if os.path.isdir(staging_dir):
+                os.replace(staging_dir, cache_dir)
+            self._repoint_resource_paths(staging_dir, cache_dir)
+        except BaseException:
+            # 事务化：回滚已改设置并清理半成品缓存；旧缓存保持原样。
+            self._restore_import_settings(snapshot)
+            shutil.rmtree(staging_dir, ignore_errors=True)
             raise
+
+    @staticmethod
+    def _clean_str(value, default: str = "") -> str:
+        """字符串字段统一清洗：只接受 str，其他 JSON 类型回退默认值。"""
+        return value if isinstance(value, str) else default
 
     def _apply_info_json(self, info: dict, base_dir: str):
         s = self._settings
+
         def resolve(name):
             # Info.json 里的资源名与 ZIP 成员走同一套防护：只接受缓存目录内的
-            # 纯相对路径，含 .. 穿越 / 绝对路径 / 盘符前缀的一律拒绝导入
+            # 纯相对路径，含 .. 穿越 / 绝对路径 / 盘符前缀的一律拒绝导入。
+            # 非空引用必须真的存在于解压结果中，缺失即拒绝整份导入。
             if not isinstance(name, str) or not name.strip():
                 return ""
-            return UplrProjectIO._safe_join(base_dir, name)
+            target = UplrProjectIO._safe_join(base_dir, name)
+            if not os.path.isfile(target):
+                raise ValueError(f"工程文件引用的资源不存在: {name}")
+            return target
 
         migrate = s.player.migrate_value
         basic = info.get("basic", {}) or {}
@@ -372,13 +426,13 @@ class UplrProjectIO:
         color = info.get("color", {}) or {}
         else_ = info.get("else", {}) or {}
 
-        s.file.encoding = info.get("encoding") or "Shift-JIS"
-        s.project.project_name = basic.get("project_name") or ""
+        s.file.encoding = self._clean_str(info.get("encoding"), "Shift-JIS") or "Shift-JIS"
+        s.project.project_name = self._clean_str(basic.get("project_name"))
         s.file.ust_path = resolve(basic.get("ust_path") or "")
         s.project.music_path = resolve(basic.get("music_path") or "")
-        s.project.song_name = basic.get("song_name") or ""
-        s.project.song_author = basic.get("song_author") or ""
-        s.project.ust_author = basic.get("ust_author") or ""
+        s.project.song_name = self._clean_str(basic.get("song_name"))
+        s.project.song_author = self._clean_str(basic.get("song_author"))
+        s.project.ust_author = self._clean_str(basic.get("ust_author"))
 
         s.display.show_bpm = as_bool(display.get("show_bpm"), True)
         s.display.show_play_time = as_bool(display.get("show_play_time"), True)
@@ -387,23 +441,42 @@ class UplrProjectIO:
         s.display.show_ust_author = as_bool(display.get("show_ust_author"), True)
         s.display.fullscreen = as_bool(display.get("fullscreen"), True)
         s.display.show_lyric = as_bool(display.get("show_lyric"), False)
+        s.display.show_note_name = as_bool(display.get("show_note_name"), True)
+        s.display.show_ust_lyric = as_bool(display.get("show_ust_lyric"), True)
+        s.display.show_copyright = as_bool(display.get("show_copyright"), True)
+        for attr in ("font_note", "font_ust_lyric", "font_lrc", "font_other"):
+            setattr(s.display, attr, self._clean_str(display.get(attr)))
+        raw_paths = display.get("custom_font_paths") or []
+        s.display.custom_font_paths = (
+            [p for p in raw_paths if isinstance(p, str)] if isinstance(raw_paths, list) else []
+        )
         s.file.curve_show = as_bool(display.get("curve_show", else_.get("curve_show")), False)
 
-        s.color.bg_color = color.get("bg_color") or "#000000"
-        s.color.note_color = color.get("note_color") or "#6c6c6c"
-        s.color.lyric_color = color.get("lyric_color") or "#FFFFFF"
-        s.color.lyric_text_color = color.get("lyric_text_color") or "#FFFFFF"
-        s.color.other_text_color = color.get("other_text_color") or "#FFFFFF"
-        s.color.pitch_curve_color = color.get("pitch_curve_color") or "#FFFFFF"
+        s.color.bg_color = self._clean_str(color.get("bg_color"), "#000000") or "#000000"
+        s.color.note_color = self._clean_str(color.get("note_color"), "#6c6c6c") or "#6c6c6c"
+        s.color.lyric_color = self._clean_str(color.get("lyric_color"), "#FFFFFF") or "#FFFFFF"
+        s.color.lyric_text_color = self._clean_str(color.get("lyric_text_color"), "#FFFFFF") or "#FFFFFF"
+        s.color.other_text_color = self._clean_str(color.get("other_text_color"), "#FFFFFF") or "#FFFFFF"
+        s.color.pitch_curve_color = self._clean_str(color.get("pitch_curve_color"), "#FFFFFF") or "#FFFFFF"
 
         s.player.lyric_pos = migrate("lyric_pos", else_.get("lyric_pos") or "top")
         s.player.lrc_path = resolve(else_.get("lrc_path") or "")
         s.player.silent_display = migrate("silent_display", else_.get("silent_display") or "r")
-        s.player.silent_custom_text = else_.get("silent_custom_text") or ""
+        s.player.silent_custom_text = self._clean_str(else_.get("silent_custom_text"))
         s.player.end_display = migrate("end_display", else_.get("end_display") or "end")
-        s.player.end_custom_text = else_.get("end_custom_text") or ""
+        s.player.end_custom_text = self._clean_str(else_.get("end_custom_text"))
         s.player.pitch_placeholder = migrate("pitch_placeholder", else_.get("pitch_placeholder") or "none")
-        s.player.pitch_custom_text = else_.get("pitch_custom_text") or ""
+        s.player.pitch_custom_text = self._clean_str(else_.get("pitch_custom_text"))
+
+    def _repoint_resource_paths(self, staging_dir: str, cache_dir: str):
+        """暂存目录原子切换后，把已应用到设置里的资源路径改指正式缓存目录。"""
+        s = self._settings
+        staging_prefix = os.path.abspath(staging_dir)
+        final_prefix = os.path.abspath(cache_dir)
+        for holder, attr in (("file", "ust_path"), ("player", "lrc_path"), ("project", "music_path")):
+            path = getattr(getattr(s, holder), attr)
+            if path and os.path.abspath(path).startswith(staging_prefix):
+                setattr(getattr(s, holder), attr, final_prefix + os.path.abspath(path)[len(staging_prefix):])
 
     # ===================== 工程缓存目录（程序目录下 cache/） =====================
 
@@ -413,6 +486,9 @@ class UplrProjectIO:
         可写性用真实写探针判断（Windows 的 os.access 不检查 ACL，会误报可写）。"""
         root = getattr(self._settings, "program_root", None) or os.getcwd()
         preferred = os.path.join(root, "cache")
+        if os.path.exists(preferred) and not os.path.isdir(preferred):
+            # 同名普通文件占位：不可能作为缓存目录使用，直接回退
+            return self._fallback_cache_base()
         if os.path.isdir(preferred):
             # 目录已存在：确认它本身仍可写（ACL 可能事后收紧）
             return preferred if ensure_writable_dir(preferred) else self._fallback_cache_base()

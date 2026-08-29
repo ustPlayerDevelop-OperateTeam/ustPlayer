@@ -7,7 +7,7 @@
 import os
 from typing import Optional
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout
 
 from qfluentwidgets import (
@@ -34,6 +34,7 @@ class VideoExportWorker(QObject):
     progress = Signal(int)        # 千分比 0..1000
     finished = Signal(str)        # .uprd 工程文件路径
     failed = Signal(str)          # 错误消息
+    cancelled = Signal()          # 用户主动取消（不是失败）
 
     def __init__(self, ctx: AppContext, output_path: str, width: int, height: int,
                  fps: int, mux_audio: bool):
@@ -67,6 +68,12 @@ class VideoExportWorker(QObject):
                 progress_cb=self._on_progress,
                 cancel_check=self._cancel_check,
             )
+        except RuntimeError as e:
+            if self._cancel and "导出已取消" in str(e):
+                self.cancelled.emit()
+            else:
+                self.failed.emit(str(e))
+            return
         except Exception as e:  # noqa: BLE001 —— 面向用户逐层展示错误，不中断 UI
             self.failed.emit(str(e))
             return
@@ -88,6 +95,7 @@ class VideoExportDialog(MessageBoxBase):
 
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self._ctx = ctx
         self._settings = ctx.settings
         self._thread: Optional[QThread] = None
@@ -233,7 +241,9 @@ class VideoExportDialog(MessageBoxBase):
 
     def _reset_controls(self, exporting: bool):
         self.yesButton.setEnabled(not exporting)
-        self.cancelButton.setEnabled(not exporting)
+        # 导出期间“取消”必须保持可用，否则用户没有任何取消途径；
+        # close_btn / Esc / 关闭按钮仍保持拦截，等线程结束后才能关窗。
+        self.cancelButton.setEnabled(True)
         self.close_btn.setEnabled(not exporting)
         self.edit_output.setEnabled(not exporting)
         self.combo_res.setEnabled(not exporting)
@@ -277,6 +287,7 @@ class VideoExportDialog(MessageBoxBase):
         worker.progress.connect(self._on_progress)
         worker.finished.connect(self._on_finished)
         worker.failed.connect(self._on_failed)
+        worker.cancelled.connect(self._on_cancelled)
         self._thread = thread
         self._worker = worker
         thread.start()
@@ -319,11 +330,24 @@ class VideoExportDialog(MessageBoxBase):
             duration=7000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
         )
 
+    def _on_cancelled(self):
+        self._cleanup_thread()
+        self._reset_controls(exporting=False)
+        self.progress_bar.setValue(0)
+        self.status_label.setText(tr("已取消"))
+        InfoBar.info(
+            tr("提示"), tr("视频导出已取消"),
+            duration=3000, parent=self.window(), position=InfoBarPosition.TOP_RIGHT,
+        )
+
     def _cleanup_thread(self):
         if self._thread is not None:
             self._thread.quit()
             self._thread.wait()
+            self._thread.deleteLater()
             self._thread = None
+            if self._worker is not None:
+                self._worker.deleteLater()
             self._worker = None
 
     # 导出期间禁止通过 Esc / 关闭按钮关窗，避免线程残留

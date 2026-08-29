@@ -279,6 +279,7 @@ class MainWindow(FluentWindow):
                 tr("提示"),
                 tr("按下确认后将启动播放器，鼠标单击后按ESC键退出全屏"), self,
             )
+            msg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
             if msg.exec():
                 self._launch_player(params)
 

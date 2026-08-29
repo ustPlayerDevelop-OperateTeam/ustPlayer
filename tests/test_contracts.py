@@ -81,6 +81,11 @@ class TestHexToRgb:
         assert hex_to_rgb(None) == (255, 255, 255)  # pyright: ignore[reportArgumentType]  # 故意传非 str 触发 except
         assert hex_to_rgb("") == (255, 255, 255)
 
+    def test_invalid_length_returns_white(self):
+        # 短/长十六进制不能静默截断解析
+        assert hex_to_rgb("#12345") == (255, 255, 255)
+        assert hex_to_rgb("#1234567") == (255, 255, 255)
+
 
 # ===================== as_bool =====================
 
@@ -129,6 +134,14 @@ class TestResolveProgramRoot:
         monkeypatch.setattr(sys, "frozen", True, raising=False)
         expected = os.path.dirname(os.path.abspath(sys.executable))
         assert resolve_program_root() == expected
+
+    def test_console_script_uses_cwd_when_main_py_present(self, tmp_path, monkeypatch):
+        """`uv run ustplayer` 的 argv[0] 是 venv 里的 ustplayer.exe，
+        应优先取包含 main.py 的工作目录，而不是 .venv/Scripts。"""
+        (tmp_path / "main.py").write_text("", encoding="utf-8")
+        monkeypatch.setattr(sys, "argv", [str(tmp_path / "Scripts" / "ustplayer.exe")])
+        monkeypatch.chdir(tmp_path)
+        assert resolve_program_root() == str(tmp_path)
 
 
 # ===================== ensure_writable_dir =====================

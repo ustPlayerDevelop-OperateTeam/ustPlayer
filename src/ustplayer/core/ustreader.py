@@ -8,7 +8,7 @@
 import math
 from typing import Optional
 
-from ustplayer.core.contracts import NoteInfo, UstInfo, UstParser
+from ustplayer.core.contracts import NoteInfo, UstInfo
 from ustplayer.core.log import logger
 
 
@@ -23,6 +23,46 @@ def _parse_pitch_bend(value: str) -> list:
         except (ValueError, TypeError):
             pass
     return result
+
+
+def _parse_pitch_values(value: str) -> list:
+    """把 PBS/PBY 这类可含小数的音分值拆成整数列表（四舍五入）。"""
+    result: list = []
+    if not value.strip():
+        return result
+    for num_str in value.split(","):
+        try:
+            result.append(round(float(num_str.strip())))
+        except (ValueError, TypeError):
+            pass
+    return result
+
+
+def _finalize_pitch_bend(note: NoteInfo) -> NoteInfo:
+    """兼容 OpenUtau 风格音高曲线。
+
+    传统 UST 直接给 PitchBend=数值列表；OpenUtau 等工具输出 PBS/PBW/PBY/PBM。
+    此处把 PBS（起点音分）+ PBY（后续点音分）合并成播放器/渲染器使用的
+    pitch_bend 点序列；PBW/PBM 只影响插值曲线形状，当前按均匀点近似，
+    因此仅解析不参与合成。
+    """
+    if note.pitch_bend:
+        _discard_pitch_parts(note)
+        return note
+    pby = _parse_pitch_values(getattr(note, "_pby", ""))
+    if not pby:
+        _discard_pitch_parts(note)
+        return note
+    start = _parse_pitch_values(getattr(note, "_pbs", ""))
+    note.pitch_bend = ([start[0]] if start else [0]) + pby
+    _discard_pitch_parts(note)
+    return note
+
+
+def _discard_pitch_parts(note: NoteInfo) -> None:
+    for attr in ("_pbs", "_pbw", "_pby", "_pbm"):
+        if hasattr(note, attr):
+            delattr(note, attr)
 
 
 class UstFileReader:
@@ -67,7 +107,7 @@ class UstFileReader:
                     in_setting = False
                     expect_version = True
                     if current_note is not None:
-                        note_list.append(current_note)
+                        note_list.append(_finalize_pitch_bend(current_note))
                         current_note = None
                     continue
 
@@ -75,7 +115,7 @@ class UstFileReader:
                     in_setting = True
                     expect_version = False
                     if current_note is not None:
-                        note_list.append(current_note)
+                        note_list.append(_finalize_pitch_bend(current_note))
                         current_note = None
                     continue
 
@@ -84,7 +124,7 @@ class UstFileReader:
                     in_setting = False
                     expect_version = False
                     if current_note is not None:
-                        note_list.append(current_note)
+                        note_list.append(_finalize_pitch_bend(current_note))
                     current_note = NoteInfo(index=line[2:-1])
                     continue
 
@@ -130,9 +170,12 @@ class UstFileReader:
                         current_note.phoneme = value
                     elif key == "PitchBend":
                         current_note.pitch_bend = _parse_pitch_bend(value)
+                    elif key in ("PBS", "PBW", "PBY", "PBM"):
+                        # OpenUtau 风格音高曲线原始字段：先暂存，音符结束时合成
+                        setattr(current_note, f"_{key.lower()}", value)
 
         if current_note is not None:
-            note_list.append(current_note)
+            note_list.append(_finalize_pitch_bend(current_note))
 
         # 速度值边界校验：0 / 负数 / NaN / Inf 都会让下游时间轴失效
         # （0 → 时间轴永远停在第 0 tick；NaN/Inf → 比较行为怪异），统一回退默认。

@@ -60,8 +60,10 @@ class FileSettings(QObject):
         if "FileSettings" not in config:
             return
         cs = config["FileSettings"]
-        self._ust_path = cs.get("ust_path", self._ust_path)
-        self._encoding = cs.get("encoding", self._encoding)
+        raw_path = cs.get("ust_path", self._ust_path)
+        self._ust_path = raw_path if isinstance(raw_path, str) else self._ust_path
+        raw_enc = cs.get("encoding", self._encoding)
+        self._encoding = raw_enc if isinstance(raw_enc, str) else self._encoding
         self._curve_show = as_bool(cs.get("curve_show"), self._curve_show)
 
     def write_to(self, config):

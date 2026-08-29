@@ -205,7 +205,8 @@ class RendererLoader:
                 logger.info(f"已加载渲染器 DLL: {path}")
                 self._lib = lib
                 return lib
-            except OSError as e:
+            except (OSError, AttributeError) as e:
+                # AttributeError：DLL 存在但缺少 up_* 导出符号（版本不匹配）
                 last_err = f"{path}: {e}"
                 continue
         raise RuntimeError(

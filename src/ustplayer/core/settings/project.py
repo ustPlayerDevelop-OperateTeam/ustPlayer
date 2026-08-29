@@ -75,16 +75,21 @@ class ProjectSettings(QObject):
 
     # ===================== 分组读写 =====================
 
+    @staticmethod
+    def _clean_str(value, default: str = "") -> str:
+        """字符串属性只接受 str；配置文件里的 list/int 等异常类型回退默认。"""
+        return value if isinstance(value, str) else default
+
     def read_from(self, config):
         """从 [ProjectSettings] 分组读取。"""
         if "ProjectSettings" not in config:
             return
         cs = config["ProjectSettings"]
-        self._project_name = cs.get("project_name", self._project_name)
-        self._song_name = cs.get("song_name", self._song_name)
-        self._song_author = cs.get("song_author", self._song_author)
-        self._ust_author = cs.get("ust_author", self._ust_author)
-        self._music_path = cs.get("music_path", self._music_path)
+        self._project_name = self._clean_str(cs.get("project_name"), self._project_name)
+        self._song_name = self._clean_str(cs.get("song_name"), self._song_name)
+        self._song_author = self._clean_str(cs.get("song_author"), self._song_author)
+        self._ust_author = self._clean_str(cs.get("ust_author"), self._ust_author)
+        self._music_path = self._clean_str(cs.get("music_path"), self._music_path)
 
     def write_to(self, config):
         """写入 [ProjectSettings] 分组。"""

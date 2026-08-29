@@ -5,7 +5,7 @@ import os
 from typing import Callable, Optional
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
+    QWidget, QHBoxLayout, QFileDialog,
 )
 from qfluentwidgets import (
     LineEdit, PushButton, PrimaryPushButton, SwitchButton,
@@ -28,6 +28,9 @@ class BasicPage(ScrollPage):
     sw_show_song_name: SwitchButton
     sw_show_song_author: SwitchButton
     sw_show_ust_author: SwitchButton
+    sw_show_note_name: SwitchButton
+    sw_show_ust_lyric: SwitchButton
+    sw_show_copyright: SwitchButton
 
     card_project: SectionCard
     card_display: SectionCard
@@ -90,7 +93,8 @@ class BasicPage(ScrollPage):
         switches = [
             ("show_bpm", tr("显示BPM")), ("show_play_time", tr("显示播放时间")),
             ("show_song_name", tr("显示曲目信息")), ("show_song_author", tr("显示MIDI作者")),
-            ("show_ust_author", tr("显示调音师")),
+            ("show_ust_author", tr("显示调音师")), ("show_note_name", tr("显示音名")),
+            ("show_ust_lyric", tr("显示歌字")), ("show_copyright", tr("显示版权")),
         ]
         cols = 2
         for i in range(0, len(switches), cols):
@@ -153,7 +157,8 @@ class BasicPage(ScrollPage):
         for attr, text in (
             ("show_bpm", tr("显示BPM")), ("show_play_time", tr("显示播放时间")),
             ("show_song_name", tr("显示曲目信息")), ("show_song_author", tr("显示MIDI作者")),
-            ("show_ust_author", tr("显示调音师")),
+            ("show_ust_author", tr("显示调音师")), ("show_note_name", tr("显示音名")),
+            ("show_ust_lyric", tr("显示歌字")), ("show_copyright", tr("显示版权")),
         ):
             self._switch_labels[attr].setText(text)
         self.play_btn.setText(tr("播放 Play"))
@@ -170,6 +175,9 @@ class BasicPage(ScrollPage):
         self.sw_show_song_name.setChecked(s.display.show_song_name)
         self.sw_show_song_author.setChecked(s.display.show_song_author)
         self.sw_show_ust_author.setChecked(s.display.show_ust_author)
+        self.sw_show_note_name.setChecked(s.display.show_note_name)
+        self.sw_show_ust_lyric.setChecked(s.display.show_ust_lyric)
+        self.sw_show_copyright.setChecked(s.display.show_copyright)
 
         self.edit_project_name.textChanged.connect(lambda v: setattr(s.project, "project_name", v))
         self.edit_song_name.textChanged.connect(lambda v: setattr(s.project, "song_name", v))
@@ -181,6 +189,9 @@ class BasicPage(ScrollPage):
         self.sw_show_song_name.checkedChanged.connect(lambda v: setattr(s.display, "show_song_name", v))
         self.sw_show_song_author.checkedChanged.connect(lambda v: setattr(s.display, "show_song_author", v))
         self.sw_show_ust_author.checkedChanged.connect(lambda v: setattr(s.display, "show_ust_author", v))
+        self.sw_show_note_name.checkedChanged.connect(lambda v: setattr(s.display, "show_note_name", v))
+        self.sw_show_ust_lyric.checkedChanged.connect(lambda v: setattr(s.display, "show_ust_lyric", v))
+        self.sw_show_copyright.checkedChanged.connect(lambda v: setattr(s.display, "show_copyright", v))
 
         s.project.project_name_changed.connect(lambda v: self.edit_project_name.setText(v))
         s.project.song_name_changed.connect(lambda v: self.edit_song_name.setText(v))
@@ -192,6 +203,9 @@ class BasicPage(ScrollPage):
         s.display.show_song_name_changed.connect(lambda v: self.sw_show_song_name.setChecked(v))
         s.display.show_song_author_changed.connect(lambda v: self.sw_show_song_author.setChecked(v))
         s.display.show_ust_author_changed.connect(lambda v: self.sw_show_ust_author.setChecked(v))
+        s.display.show_note_name_changed.connect(lambda v: self.sw_show_note_name.setChecked(v))
+        s.display.show_ust_lyric_changed.connect(lambda v: self.sw_show_ust_lyric.setChecked(v))
+        s.display.show_copyright_changed.connect(lambda v: self.sw_show_copyright.setChecked(v))
 
         self.import_btn.clicked.connect(self._on_import)
         self.export_btn.clicked.connect(self._on_export)
@@ -265,6 +279,9 @@ class BasicPage(ScrollPage):
         self.sw_show_song_name.setChecked(s.display.show_song_name)
         self.sw_show_song_author.setChecked(s.display.show_song_author)
         self.sw_show_ust_author.setChecked(s.display.show_ust_author)
+        self.sw_show_note_name.setChecked(s.display.show_note_name)
+        self.sw_show_ust_lyric.setChecked(s.display.show_ust_lyric)
+        self.sw_show_copyright.setChecked(s.display.show_copyright)
 
     def sync_all_from_settings(self):
         self._sync_ui_from_settings()

@@ -224,3 +224,27 @@ def test_render_smoke_creates_files(qapp, make_manager, tmp_path):
         assert os.path.exists(uprd) and uprd.endswith(".uprd")
     finally:
         monkeypatch.undo()
+
+
+# ===================== 回归：参数校验 / 内置 ffmpeg PATH =====================
+
+def test_render_rejects_invalid_video_params(make_manager, tmp_path):
+    m = make_manager()
+    ust = tmp_path / "song.ust"
+    ust.write_text("[#SETTING]\nTempo=120\n[#0000]\nLength=480\nLyric=a\nNoteNum=60\n", encoding="utf-8")
+    m.file.ust_path = str(ust)
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+    with pytest.raises(ValueError, match="必须为正数"):
+        exporter.render(str(tmp_path / "out.mp4"), 320, 240, 0, False)
+
+
+def test_bundled_ffmpeg_on_path_adds_and_restores(make_manager, tmp_path, monkeypatch):
+    m = make_manager()
+    ffmpeg_dir = os.path.join(m.program_root, "ffmpeg")
+    os.makedirs(ffmpeg_dir, exist_ok=True)
+    open(os.path.join(ffmpeg_dir, "ffmpeg.exe"), "wb").write(b"MZ")
+    exporter = VideoExporter(m, UstFileReader(), UplrProjectIO(m))
+    old_path = os.environ.get("PATH", "")
+    with exporter._bundled_ffmpeg_on_path():
+        assert os.environ["PATH"].split(os.pathsep)[0] == ffmpeg_dir
+    assert os.environ.get("PATH") == old_path
