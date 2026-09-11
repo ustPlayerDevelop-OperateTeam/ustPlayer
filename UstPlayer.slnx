@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ustPlayer.Desktop/ustPlayer.Desktop.csproj" />
+  <Project Path="ustPlayer.Tests/ustPlayer.Tests.csproj" />
+  <Project Path="ustPlayer/ustPlayer.csproj" />
+</Solution>

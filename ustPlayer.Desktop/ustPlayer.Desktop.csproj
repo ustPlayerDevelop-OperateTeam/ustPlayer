@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    桌面平台头：Windows / macOS / Linux。
+    只负责启动共享工程，不含业务逻辑。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>UstPlayer.Desktop</RootNamespace>
+    <AssemblyName>ustPlayer</AssemblyName>
+    <StartupObject>UstPlayer.Desktop.Program</StartupObject>
+
+    <!-- 发布的运行时标识由命令行指定（-r win-x64 / osx-arm64 / linux-x64 ...） -->
+    <RuntimeIdentifiers>win-x64;win-arm64;osx-x64;osx-arm64;linux-x64;linux-arm64</RuntimeIdentifiers>
+
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ustPlayer\ustPlayer.csproj" />
+  </ItemGroup>
+
+  <!--
+    原生运行资源：随程序目录分发，运行时从 renderer\ 与 ffmpeg\ 子目录加载
+    （沿用 1.1.x 的查找约定）。实体文件不入库（见根 .gitignore）。
+    缺少时程序降级运行：视频导出不可用，播放器走纯可视化计时。
+  -->
+  <ItemGroup>
+    <None Include="renderer\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="ffmpeg\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

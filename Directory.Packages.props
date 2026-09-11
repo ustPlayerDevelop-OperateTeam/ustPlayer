@@ -1,0 +1,47 @@
+<Project>
+
+  <!--
+    =====================================================================
+    中央包版本管理（CPM）
+    各工程只写 <PackageReference Include="..." />，版本在此统一锁定。
+
+    关键约束：FluentAvaloniaUI 2.5.1 的 nuspec 依赖 Avalonia 11.3.12，
+    因此全部 Avalonia 包必须与之严格对齐；不要升级到 Avalonia 12 或
+    FluentAvaloniaUI 3.x（后者要求 Avalonia 12.1.0）。
+    =====================================================================
+  -->
+
+  <PropertyGroup>
+    <!-- UI 框架：与 FluentAvaloniaUI 2.5.1 对齐 -->
+    <AvaloniaVersion>11.3.12</AvaloniaVersion>
+    <!-- Fluent v2 主题与 WinUI 风格控件（NavigationView / InfoBar / ContentDialog ...） -->
+    <FluentAvaloniaVersion>2.5.1</FluentAvaloniaVersion>
+  </PropertyGroup>
+
+  <ItemGroup Label="Avalonia">
+    <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Headless" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Android" Version="$(AvaloniaVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="FluentAvalonia（MIT）">
+    <PackageVersion Include="FluentAvaloniaUI" Version="$(FluentAvaloniaVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Label="通用库">
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="测试">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
+  </ItemGroup>
+
+</Project>

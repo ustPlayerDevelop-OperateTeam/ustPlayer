@@ -1,4 +1,4 @@
-{
+﻿{
     "version": "2.0.0",
     "tasks": [
         {
@@ -7,7 +7,7 @@
             "command": "dotnet",
             "args": [
                 "build",
-                "${workspaceFolder}\\ustPlayer.sln",
+                "${workspaceFolder}\\UstPlayer.slnx",
                 "-c",
                 "Debug"
             ],
@@ -30,7 +30,7 @@
             "command": "dotnet",
             "args": [
                 "test",
-                "${workspaceFolder}\\ustPlayer.sln",
+                "${workspaceFolder}\\UstPlayer.slnx",
                 "--nologo"
             ],
             "group": {

@@ -1,0 +1,43 @@
+<Project>
+
+  <!--
+    =====================================================================
+    全局构建属性（作用于本目录下所有工程）
+    中文优先的项目约定见根 README 与 docs/；此处只管构建行为。
+    =====================================================================
+  -->
+
+  <PropertyGroup>
+    <!-- 目标框架：.NET 10（SDK 由 global.json 锁定 10.0.400） -->
+    <TargetFramework>net10.0</TargetFramework>
+
+    <!-- 语言与运行时行为 -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      不启用 InvariantGlobalization：本程序需要 Shift-JIS / GBK 代码页解码
+      （System.Text.Encoding.CodePages）与中文排序，裁剪掉 ICU 会出错。
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- 程序集元数据 -->
+    <Product>ustPlayer</Product>
+    <Company>ustPlayerDevelop-OperateTeam</Company>
+    <NeutralLanguage>zh-Hans</NeutralLanguage>
+    <Version>2.0.0</Version>
+    <Copyright>GPL-3.0</Copyright>
+
+    <!-- 默认不生成附属文档，避免缺少 XML 注释告警 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- 中央包版本管理：版本只在 Directory.Packages.props 里写 -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <!-- 确定性构建，便于 CI 复现 -->
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+</Project>

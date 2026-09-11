@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    共享工程：全部业务逻辑 + 全部 UI（Views / ViewModels）。
+    平台头（ustPlayer.Desktop / ustPlayer.Android）只负责启动，
+    这样新增平台时无需改动本工程。
+
+    Shift-JIS / GBK 代码页说明：.NET 10 已内置 CodePagesEncodingProvider，
+    无需显式引用 System.Text.Encoding.CodePages（显式引用会触发 NU1510）。
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>UstPlayer</RootNamespace>
+    <!--
+      程序集名取 ustPlayer.Core：与桌面头的 ustPlayer.exe 区分开。
+      NuGet/MSBuild 要求同一解决方案内程序集名唯一，重名会报
+      "Ambiguous project name"。
+    -->
+    <AssemblyName>ustPlayer.Core</AssemblyName>
+
+    <!-- Avalonia 需要知道本工程含 XAML 资源 -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 共享工程要引用 Avalonia.Desktop（各平台头都复用同一套 UI） -->
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+
+    <!-- Fluent v2 主题 + WinUI 控件（不要再叠加 FluentTheme/SimpleTheme） -->
+    <PackageReference Include="FluentAvaloniaUI" />
+
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+</Project>

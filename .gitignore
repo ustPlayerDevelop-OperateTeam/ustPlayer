@@ -42,13 +42,13 @@ BenchmarkDotNet.Artifacts/
 # ===================== 原生运行资源（实体不入库，仅保留占位说明） =====================
 # 视频渲染器（uPlRender 构建产物）：renderer/ustplayer_renderer.{dll,dylib,so}
 # 由 CI 或本地脚本放入，运行时从 renderer/ 子目录加载
-renderer/*
-!renderer/.gitkeep
-!renderer/README.md
+**/renderer/*
+!**/renderer/README.md
+!**/renderer/.gitkeep
 # 内置 FFmpeg：ffmpeg/ffmpeg(.exe)、ffmpeg/ffprobe(.exe)
-ffmpeg/*
-!ffmpeg/.gitkeep
-!ffmpeg/README.md
+**/ffmpeg/*
+!**/ffmpeg/README.md
+!**/ffmpeg/.gitkeep
 
 # ===================== 用户本地数据（沿用 1.1.x 约定，不提交） =====================
 Settings.ini

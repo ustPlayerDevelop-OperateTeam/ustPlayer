@@ -1,8 +1,25 @@
 # AGENTS.md
 
-中文优先、仅支持 Windows 的 PySide6 + PySide6-Fluent-Widgets 桌面应用，用于可视化 UTAU/UST 工程文件。注释、文档字符串、日志消息与 UI 字符串一律使用中文（完整贡献规则见 CONTRIBUTING.md）。开源协议 GPL-3.0（见 LICENSE）。
+中文优先的 UTAU/UST 工程文件可视化工具。注释、文档字符串、日志消息与 UI 字符串一律使用中文（完整贡献规则见 CONTRIBUTING.md）。开源协议 GPL-3.0（见 LICENSE）。
 
-## 命令
+---
+
+## ⚠️ 仓库结构（2.0 迁移中，务必先读）
+
+本仓库现在是**双产品线**：
+
+| 位置 | 内容 | 状态 |
+|---|---|---|
+| **仓库根目录** | **ustPlayer 2.0：C# / .NET 10 + Avalonia 11 + FluentAvalonia，跨平台（Windows / macOS / Linux；Android 架构就绪）** | **主线开发** |
+| `pysourcecode/` | ustPlayer 1.1.x：Python / PySide6 实现 | **已冻结**，只修致命 bug；作为 2.0 的行为与格式比对基准 |
+
+- 2.0 的目录布局、版本锁定与分层约束见根目录的工程文件、`docs/`。
+- 1.1.x 的命令（`uv sync` / `uv run main.py` / `uv run pytest`）**一律以 `pysourcecode/` 为工作目录**；依赖事实源是 `pysourcecode/pyproject.toml`。
+- **下文「命令 / 注意事项 / 架构 / 约定」各节描述的是 1.1.x**，读其中路径时请自行加上 `pysourcecode/` 前缀；2.0 的对应章节在迁移过程中逐步补齐。
+- `README.md` / `CHANGELOG.md` / `LICENSE` / `ERcode.txt` / `Terms.txt` / 图标由两条产品线共用。
+- 旧 CI 已归档为 `pysourcecode/.github/workflows/build.yml`（**GitHub 不执行子目录中的 workflow**，仅作存档；如需继续为 1.1.x 出包，须移回根 `.github/workflows/`）。
+
+## 命令（1.1.x，工作目录 = `pysourcecode/`）
 
 - 环境搭建：`uv sync`（uv；`.python-version` 固定 Python 3.13.12，要求 >=3.11）。`pyproject.toml` 是依赖的唯一事实源——不要另建 `requirements.txt`。
 - 运行：`uv run main.py` —— 唯一真实入口（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts] ustplayer` → `ustplayer.app:main`）；两条入口路径共用 `AppContext`。

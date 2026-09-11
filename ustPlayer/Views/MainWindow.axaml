@@ -1,0 +1,22 @@
+<views:ShellWindow xmlns="https://github.com/avaloniaui"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:views="using:UstPlayer.Views"
+                   x:Class="UstPlayer.Views.MainWindow"
+                   Title="ustPlayer"
+                   Width="900" Height="620"
+                   WindowStartupLocation="CenterScreen">
+
+  <!--
+    窗口镶边：由 ShellWindow 基类设置（扩展客户区 + 保留系统窗口按钮），
+    见 docs/adr-0002-window-chrome.md。内容可延伸进标题栏区域，
+    因此顶部留出标题栏高度（-1 表示由平台自动计算）。
+
+    Phase 1 为占位内容：仅用于验证工程骨架、FluentAvalonia 主题与三平台构建。
+    真正的 NavigationView 外壳与 5 个设置页在 Phase 5 落地。
+  -->
+  <StackPanel Margin="24,48,24,24" Spacing="8">
+    <TextBlock Text="ustPlayer" FontSize="28" FontWeight="SemiBold" />
+    <TextBlock Text="C# / Avalonia 2.0 工程骨架（Phase 1）" Opacity="0.7" />
+  </StackPanel>
+
+</views:ShellWindow>

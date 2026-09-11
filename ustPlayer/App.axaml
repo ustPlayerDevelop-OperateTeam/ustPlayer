@@ -1,0 +1,16 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sty="using:FluentAvalonia.Styling"
+             x:Class="UstPlayer.App"
+             RequestedThemeVariant="Default">
+
+  <!--
+    主题：FluentAvaloniaTheme（Fluent v2）。
+    注意：不要再叠加 Avalonia 自带的 FluentTheme / SimpleTheme，官方明确说明会产生视觉瑕疵。
+    强调色默认跟随系统（Avalonia 的 Accent 在未覆盖时即取系统强调色）。
+  -->
+  <Application.Styles>
+    <sty:FluentAvaloniaTheme />
+  </Application.Styles>
+
+</Application>
