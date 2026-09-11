@@ -55,13 +55,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/uv-cache
-          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          key: uv-${{ runner.os }}-${{ hashFiles('pysourcecode/uv.lock') }}
           restore-keys: |
             uv-${{ runner.os }}-
 
       - name: 安装依赖（按 uv.lock 锁定解析）
         env:
           UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        working-directory: pysourcecode
         run: |
           python -m pip install --upgrade pip
           python -m pip install uv
@@ -73,6 +74,7 @@ jobs:
       - name: 运行测试
         env:
           UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        working-directory: pysourcecode
         run: |
           # pytest 在 dev 依赖组，CI 用 uv pip install（不解析 group），故单独安装
           uv pip install --system pytest
@@ -108,6 +110,7 @@ jobs:
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main
         with:
+          working-directory: pysourcecode
           script-name: main.py
           nuitka-version: main
           mode: standalone
@@ -207,7 +210,7 @@ jobs:
 
       - name: 构建转换器
         run: |
-          cmake -S tools/uplr_converter -B build/converter
+          cmake -S pysourcecode/tools/uplr_converter -B build/converter
           cmake --build build/converter --config Release
 
       - name: 上传转换器
@@ -300,8 +303,8 @@ jobs:
           # 防「提交信息/tag 版本写错」（如 v1.0.0 vs v1.1.0）：发版号必须与代码内
           # APP_VERSION 一致（忽略 v 前缀、空格/连字符与大小写差异后比较）
           $ErrorActionPreference = 'Stop'
-          $m = Select-String -Path src/ustplayer/core/contracts.py -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
-          if (-not $m) { throw "未能从 src/ustplayer/core/contracts.py 读取 APP_VERSION" }
+          $m = Select-String -Path pysourcecode/src/ustplayer/core/contracts.py -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
+          if (-not $m) { throw "未能从 pysourcecode/src/ustplayer/core/contracts.py 读取 APP_VERSION" }
           $appVer = $m.Matches[0].Groups[1].Value.Trim()
           $rel = '${{ steps.changelog.outputs.title }}'.Trim()
           $norm = { param($s) (($s -replace '^[Vv]', '') -replace '[\s\-]+', '').ToLowerInvariant() }
