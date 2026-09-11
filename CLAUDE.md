@@ -2,7 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **`AGENTS.md` 是更详细的权威指南**（完整架构、Gotchas、约定）。本文件只提炼每次会话必须立刻知道的核心；深度内容与边界情况请读 `AGENTS.md` 与 `CONTRIBUTING.md`。两者冲突时以 `AGENTS.md` 为准。
+> **`AGENTS.md` 是更详细的权威指南**（完整架构、Gotchas、约定）。本文件只提炼每次会话必须立刻知道的核心；深度内容与边界情况请读 `AGENTS.md`。两者冲突时以 `AGENTS.md` 为准。
+>
+> `CONTRIBUTING.md` 目前只是占位文件，**不要**把它当规则来源引用；规则以 `AGENTS.md` 为准。
 
 ## 项目概览
 
@@ -13,8 +15,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 环境搭建：`uv sync`（uv 管理依赖与虚拟环境；`.python-version` 固定 Python 3.13.12，最低 >=3.11）。`pyproject.toml` 是依赖的**唯一事实源**——不要另建 `requirements.txt`。
 - 运行：`uv run main.py`（薄壳 → `ustplayer.app.main`）。`uv run ustplayer` 等价（`[project.scripts]`）；两条入口共用 `AppContext`。
 - 类型检查：`npx --yes pyright main.py src`（Standard 模式，目标 **0 error**；仓库未提交 `pyrightconfig.json`，需要时本地创建）。PySide6 存根缺口优先改用限定枚举名（如 `Qt.AlignmentFlag.AlignCenter`）而非 `# type: ignore`。
-- 测试：`uv run pytest`（249 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`，约定见 `tests/conftest.py`。
-- 翻译：改 UI 字符串后必须 `pyside6-lupdate -extensions py src/ustplayer -ts i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts i18n/ustplayer_zh_classic.ts`，再 `pyside6-lrelease i18n/*.ts`，并提交 `.qm`（运行时只读 `.qm`）。
+- 测试：`uv run pytest`（249 个用例，覆盖 `contracts` / `ustreader` / `settings` 七个子域 / `settings_store` / `settings_manager` / `i18n` / `player` / `player_utils`（`player.py` 模块级纯函数）/ `uplr_io` / `video_exporter` / `audio_backend`）。跑单个用例：`uv run pytest tests/test_uplr_io.py::test_export_import_round_trip`。`QT_QPA_PLATFORM=offscreen` 在 `tests/conftest.py` 顶层设置，无显示器 / CI 也能跑 Qt 测试；新增测试放 `tests/`（按子域一个文件），夹具约定见 `tests/conftest.py`。
+- 翻译：改 UI 字符串后必须 `pyside6-lupdate -extensions py src/ustplayer -ts i18n/ustplayer_zh_CN.ts i18n/ustplayer_en_US.ts i18n/ustplayer_zh_classic.ts`（需要时可加 `-no-obsolete`），再 `pyside6-lrelease i18n/*.ts`，并提交 `.qm`（运行时只读 `.qm`）。
 
 ## 架构（依赖方向）
 
@@ -28,21 +30,24 @@ UI 页面 ──构造注入──> AppContext（唯一组合根 / 门面）─�
 ```
 
 - UI 层**只**依赖 `AppContext` 与 `contracts` 里的接口，**不得**直接 import core 具体实现。组合根在 `src/ustplayer/context.py`。
-- `core/contracts.py`：数据契约（`UstInfo` / `NoteInfo` / `PlayerLaunchParams`）+ 服务 Protocol（`UstParser` / `PlayerLauncher` / `ProjectIO` / `VideoExporter`）+ 颜色 / 布尔工具 + `APP_VERSION`。
-- `core/settings/`：每个分组一个信号驱动子域（`project` / `file` / `display` / `color` / `player` 含 `LyricSettings` / `language` / `theme`），各持属性 + `Signal` + `read_from` / `write_to` / `validate`；`SettingsManager` 只做组装与编排。
-- `core/settings_store.py`：`Settings.json` 文件 I/O（分组→键值字典），首次运行自动迁移旧版 `Settings.ini`。
-- `core/uplr_io.py`：`.uplr` 导入 / 导出（另负责 `.uprd` 视频工程导出）。**新版 = ZIP 容器**（`Info.json` + 资源，导入解压到程序目录 `cache/<工程名>-<hash8>\`，不可写时回退 `%LOCALAPPDATA%\ustPlayer\cache`）；**旧文本格式仅可导入**（按 ZIP 魔数自动识别）。导入经 setter 写设置 → 触发信号 → UI 自动同步。
-- `core/ustreader.py`：只解析 `.ust` 文本（**不支持** `.ustx`），默认 Shift-JIS，编码错误抛 `UnicodeDecodeError`。
+- `core/contracts.py`：数据契约（`UstInfo` / `NoteInfo` / `ShowConfig`（显示开关 + 版权开关 + 四路字体族 + `custom_font_paths`）/ `ProjectInfo` / `PlayerStyle` / `PlayerLaunchParams`）+ 服务 Protocol（`UstParser` / `PlayerLauncher` / `ProjectIO` / `VideoExporter`）+ 颜色 / 布尔工具 + `APP_VERSION`。
+- `core/settings/`：每个分组一个信号驱动子域（`project` / `file` / `display`（全部显示开关含 `show_copyright`，以及 `font_note`/`font_ust_lyric`/`font_lrc`/`font_other` + `custom_font_paths`）/ `color` / `player`（`[LyricSettings]` 段的 `lrc_path` 也由 `PlayerSettings` 读写，**没有独立的 `LyricSettings` 类**）/ `language` / `theme`），各持属性 + `Signal` + `read_from` / `write_to` / `validate`；`SettingsManager` 只做组装与编排。
+- `core/settings_store.py`：`Settings.json` 文件 I/O（分组→键值字典，临时文件 + 原子替换），首次运行自动迁移旧版 `Settings.ini`。
+- `core/uplr_io.py`：`.uplr` 导入 / 导出（另负责 `.uprd` 视频工程导出）。**新版 = ZIP 容器**（`Info.json` + 资源，导入解压到程序目录 `cache/<工程名>-<hash8>\`，不可写时回退 `%LOCALAPPDATA%\ustPlayer\cache`）；**旧文本格式仅可导入**（按 ZIP 魔数自动识别）。导入事务化（暂存解压 → 校验 → 原子切换，失败回滚设置并清理缓存），经 setter 写设置 → 触发信号 → UI 自动同步。
+- `core/ustreader.py`：只解析 `.ust` 文本（**不支持** `.ustx`），默认 Shift-JIS（UTF-8 家族用 `utf-8-sig` 吞 BOM），编码错误抛 `UnicodeDecodeError`，非法 Tempo 回退 120 BPM。
 - `core/audio_backend.py`：伴奏音频后端封装——QtMultimedia 的降级导入与加载/播放/状态机收敛在此，`create_audio_backend` 返回 `AudioBackend` 或 None；`core/player.py` 只依赖该窄接口（无音频 / 失败时回退墙钟计时，降级瞬间重锚定不跳变）。QtMultimedia 相关改动改这里，播放器内不要直接 import。
-- `core/video_exporter.py` + `core/renderer_ffi.py`：视频导出 —— ctypes 封装 uPlRender DLL（`ustplayer_renderer.dll`，从主程序 `renderer/` 子目录加载），渲染 MP4 并写 `.uprd` 工程文件。时序以「音频播完」为结束边界；`ffmpeg`/`ffprobe` 优先用程序目录内置（打包在 `ffmpeg/` 子目录），缺失回退 PATH。
+- `core/video_exporter.py` + `core/renderer_ffi.py`：视频导出 —— ctypes 封装 uPlRender DLL（`ustplayer_renderer.dll`，从主程序 `renderer/` 子目录加载），渲染 MP4 并写 `.uprd` 工程文件。时序以「音频播完」为结束边界；`ffmpeg`/`ffprobe` 优先用程序目录内置（打包在 `ffmpeg/` 子目录），缺失回退 PATH，渲染前把内置目录临时加入 PATH。
+- `ui/video_export_dialog.py`：视频导出 Fluent 弹窗（`VideoExportDialog` + 后台 `VideoExportWorker`，支持取消）。
+- `API_Docs.md`（仓库根）：uPlRender 对接文档 —— 渲染器 C ABI、`RenderConfig` JSON 结构、时序 / 帧约定、「已写入但渲染器暂未消费的字段」清单。改渲染配置组装前先读它。
 
 ## 关键约定（违反会静默出 bug）
 
 - **新增 / 重命名设置项要同步改四处**：① 子域类（属性 + 信号 + `read_from`/`write_to`）→ ② `SettingsManager`（若参与播放参数）→ ③ `uplr_io.py`（`_settings_to_info_json` 导出 / `_apply_info_json` 导入）→ ④ UI 接线。漏一处会导致设置不生效 / 重启丢失 / `.uplr` 往返不完整。
 - **存储层只存稳定英文 key**：枚举值（`lyric_pos` / `silent_display` / `end_display` / `pitch_placeholder`）在 `Settings.json` 与 `.uplr` 中始终是英文 key（`top` / `r` / `custom` / `none` 等），显示文案由 UI `tr()` 翻译；旧中文值由 `core/settings/player.py` 的 `migrate_value()` 兼容迁移。**不要把显示文案写回存储层**。
 - **日志**：`from ustplayer.core.log import logger`（loguru），绝不 `print`；异常用 `logger.exception(...)`。日志不翻译。
-- **错误码**：用户可见错误用 `InfoBar.error("ERcodeXXX", "提示文案", ...)`，新错误码登记到 `ERcode.txt`（001–012、999 已占用）。
+- **错误码**：用户可见错误用 `InfoBar.error("ERcodeXXX", "提示文案", ...)`，新错误码登记到 `ERcode.txt`（001–012、999 已占用）。**`duration` / `orient` 必须关键字传参**——`InfoBar.error(title, content, duration_or_orient, ...)` 第 3 个位置参数是 `orient`，按位置传毫秒数会导致提示竖排且 1 秒消失。
 - **i18n**：UI 字符串必须 `tr("中文原文")`（`from ustplayer.core.i18n import tr`，自由函数名必须叫 `tr`——lupdate 只认这个名字）。语言偏好存 `Settings.json` 的 `[LanguageSettings]`（默认 `system` 跟随系统），**不写入 .uplr**。
+- **自定义字体**：字体族 / `custom_font_paths` 属于 `display` 子域并随 `.uplr`/`.uprd` 往返；导入字体必须用 `QFileDialog.Option.DontUseNativeDialog`（原生对话框在 Windows 上会列出空目录）；家族名不可用时回退语言默认字体并记日志。
 
 ## 提交与发版陷阱
 
@@ -54,8 +59,8 @@ UI 页面 ──构造注入──> AppContext（唯一组合根 / 门面）─�
 
 ## 平台
 
-仅 Windows：`ustplayer/ui/main_window.py` 使用 `winreg` 读取系统强调色，WSL / Linux 上无法运行。构建 / 发版只通过 GitHub Actions（windows-latest 上的 Nuitka standalone；另有 C++ `uplr_converter` 任务、CI 内 `cargo build` 编译 uPlRender 产出 `ustplayer_renderer.dll` 打进产物 `renderer/` 子目录，与发版打包）。
+仅 Windows：`ustplayer/ui/main_window.py` 使用 `winreg` 读取系统强调色，WSL / Linux 上无法运行。构建 / 发版只通过 GitHub Actions（windows-latest 上的 Nuitka standalone；另有 C++ `uplr_converter` 任务、CI 内 `cargo build` 编译 uPlRender 产出 `ustplayer_renderer.dll` 打进产物 `renderer/` 子目录，并下载 ffmpeg/ffprobe 进 `ffmpeg/` 子目录，与发版打包）。
 
 ## 已 gitignore 的本地目录（不要依赖、不要提交）
 
-`Settings.ini` / `Settings.json`（用户本地配置）；`test/` 与 `ustPlayer uplr sample/`（仅本地示例数据）。
+`Settings.ini` / `Settings.json`（用户本地配置）；`renderer/`（渲染器 DLL，由 CI 产出）；`cache/`（.uplr / .uprd 解压缓存）；`build/`；`test/` 与 `ustPlayer uplr sample/`（仅本地示例数据）；`uplr_converter.exe` / `*.obj`（转换器编译产物）。
