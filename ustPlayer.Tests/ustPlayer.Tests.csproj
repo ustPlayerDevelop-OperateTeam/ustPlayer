@@ -31,4 +31,23 @@
     <ProjectReference Include="..\ustPlayer\ustPlayer.csproj" />
   </ItemGroup>
 
+  <!--
+    原生运行资源（渲染器）：由 build/sync-native-assets.ps1 同步进本目录，
+    随构建输出到 renderer/ 供集成测试加载。实体不入库（见根 .gitignore）。
+
+    同步动作挂在构建前：原生件是集成测试的**显式依赖**，不采用「缺失即静默跳过」，
+    否则 CI 上渲染器一旦没就位，测试会一路绿灯而实际什么都没验证。
+    脚本在找不到渲染器时会输出警告并以 0 退出（不阻断纯逻辑测试）。
+  -->
+  <ItemGroup>
+    <None Include="renderer\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="SyncNativeAssets" BeforeTargets="BeforeBuild" Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\build\sync-native-assets.ps1&quot;"
+          ContinueOnError="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="high" />
+  </Target>
+
 </Project>

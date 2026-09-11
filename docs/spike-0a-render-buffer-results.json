@@ -1,0 +1,48 @@
+{
+  "说明": "Spike 0a 实测结果存档，由 pysourcecode/tools/probe_render_buffer.py --json 生成。结论见 docs/adr-0001-renderer-strategy.md",
+  "测量时间": "Phase 2 / Spike 0a",
+  "主机": "Windows x64（本地开发机）",
+  "dll": "E:\\code\\uPlRender\\target\\release\\ustplayer_renderer.dll",
+  "dll_sha256": "2A4F38A4F59EC5DD6890FEB861402EA10A26440EE21EBBDE8B24E6F9D314D88B",
+  "工程": {
+    "音符数": 500,
+    "每音符音高曲线点数": 5,
+    "休止符比例": "每 8 个音符 1 个",
+    "lrc_lines": 3,
+    "解析度档位": ["1920x1080", "3840x2160"],
+    "每档采样帧数": 600,
+    "预热帧数": 30
+  },
+  "宿主开销_ms": 0.000465015,
+  "判定线_ms": 8.0,
+  "结果": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "cold_start_ms": 7.5608,
+      "mean_ms": 4.8808375,
+      "median_ms": 4.87045,
+      "p95_ms": 5.9617,
+      "p99_ms": 6.6751,
+      "max_ms": 7.7527,
+      "min_ms": 3.0061,
+      "sustained_fps": 204.88,
+      "budget_60fps_ms": 16.67,
+      "判定": "通过（用掉约 36% 预算）"
+    },
+    {
+      "width": 3840,
+      "height": 2160,
+      "cold_start_ms": 21.4199,
+      "mean_ms": 18.687576,
+      "median_ms": 18.8038,
+      "p95_ms": 22.3027,
+      "p99_ms": 23.3928,
+      "max_ms": 24.0265,
+      "min_ms": 12.3794,
+      "sustained_fps": 53.51,
+      "budget_60fps_ms": 16.67,
+      "判定": "不足 60fps（纯 CPU 渲染，帧面积为 1080p 的 4 倍）"
+    }
+  ]
+}

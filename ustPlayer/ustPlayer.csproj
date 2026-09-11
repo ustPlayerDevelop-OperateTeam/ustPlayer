@@ -20,6 +20,12 @@
 
     <!-- Avalonia 需要知道本工程含 XAML 资源 -->
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+
+    <!--
+      [LibraryImport] 源生成器与 up_render_to_buffer 的指针封送需要不安全代码
+      （ClassIsland 同样开启该开关）。
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +39,11 @@
     <PackageReference Include="FluentAvaloniaUI" />
 
     <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 测试工程需要访问内部类型（Interop / 时序等实现细节） -->
+    <InternalsVisibleTo Include="ustPlayer.Tests" />
   </ItemGroup>
 
 </Project>
