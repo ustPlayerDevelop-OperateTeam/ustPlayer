@@ -1,14 +1,23 @@
-﻿# sync-native-assets.ps1 — 把原生运行件同步到构建输出目录
+﻿# sync-native-assets.ps1 — 把渲染器原生库同步到各工程目录
 #
-# 背景：以下两类原生文件不入库（见根 .gitignore），但运行时需要放在程序目录下：
-#   · renderer/ustplayer_renderer.{dll,dylib,so} —— uPlRender 视频渲染器
-#   · ffmpeg/ffmpeg(.exe)、ffprobe(.exe)         —— 混流与媒体时长探测
-# 本脚本从本机已知位置查找渲染器并复制到各工程，避免每次手工拷贝。
+# 背景：ustplayer_renderer.{dll,dylib,so} 不入库（见根 .gitignore），但运行时需要放在
+# 程序目录下（或其 renderer/ 子目录）。本脚本把已构建好的渲染器复制到：
+#   · ustPlayer.Desktop/renderer/   —— 随构建输出，供程序加载
+#   · ustPlayer.Tests/renderer/     —— 供集成测试加载
+#
+# 渲染器来源（按优先级）：
+#   1) -RendererPath 参数（文件或所在目录）
+#   2) 环境变量 USTPLAYER_RENDERER_PATH
+#   3) 仓库内已同步过的位置（pysourcecode/renderer/、ustPlayer.Desktop/renderer/）
+#   4) 环境变量 UPLRENDER_RELEASE_DIR 指向的目录（本机开发常用）
+#
+# 说明：**不处理 ffmpeg**——内置 FFmpeg 由 CI 在打包阶段放入产物，本地开发按需手工放置
+# （见 ustPlayer.Desktop/ffmpeg/README.md）。
 #
 # 用法：
-#   pwsh -File build/sync-native-assets.ps1              # 自动查找并复制
-#   pwsh -File build/sync-native-assets.ps1 -RendererPath <路径>
-#   pwsh -File build/sync-native-assets.ps1 -WhatIfOnly  # 只报告，不复制
+#   powershell -File build/sync-native-assets.ps1
+#   powershell -File build/sync-native-assets.ps1 -RendererPath <路径>
+#   $env:UPLRENDER_RELEASE_DIR='<uPlRender>/target/release'; powershell -File build/sync-native-assets.ps1
 #
 # 注意：本文件必须保存为 UTF-8 with BOM（Windows PowerShell 5.1 会按 GBK 读无 BOM 脚本）。
 
@@ -22,45 +31,58 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
-# 各平台渲染器文件名（与 RendererLoader / ADR 0001 一致）
-$platformFileNames = @{
-    Windows = 'ustplayer_renderer.dll'
-    MacOS   = 'libustplayer_renderer.dylib'
-    Linux   = 'libustplayer_renderer.so'
-}
-
-if ($IsWindows -or $env:OS -eq 'Windows_NT') {
-    $fileName = $platformFileNames.Windows
+# 各平台的渲染器文件名（与 UplRenderLoader 一致）
+if ($env:OS -eq 'Windows_NT' -or $IsWindows) {
+    $fileName = 'ustplayer_renderer.dll'
 }
 elseif ($IsMacOS) {
-    $fileName = $platformFileNames.MacOS
+    $fileName = 'libustplayer_renderer.dylib'
 }
 else {
-    $fileName = $platformFileNames.Linux
+    $fileName = 'libustplayer_renderer.so'
 }
 
-# 本机已知的候选位置（开发机常见布局）
-$candidates = @(
-    $RendererPath
-    (Join-Path $env:USERPROFILE "Downloads\uPlRender\target\release\$fileName")
-    'E:\code\uPlRender\target\release\ustplayer_renderer.dll'
-    'D:\Code\ustPlayer\renderer\ustplayer_renderer.dll'
-    (Join-Path $repoRoot "pysourcecode\renderer\$fileName")
-    (Join-Path $repoRoot "ustPlayer.Desktop\renderer\$fileName")
-) | Where-Object { $_ -and (Test-Path $_) }
+$candidates = @()
 
-if (-not $candidates) {
-    Write-Warning "未找到渲染器（$fileName）。视频导出将不可用，播放器仍可跑纯可视化计时。"
-    Write-Warning "请用 -RendererPath 指定路径，或从 GitHub Release 的 Windows 包中取 renderer/ 目录。"
+if ($RendererPath) {
+    if (Test-Path $RendererPath -PathType Container) {
+        $candidates += Join-Path $RendererPath $fileName
+    }
+    else {
+        $candidates += $RendererPath
+    }
+}
+
+if ($env:USTPLAYER_RENDERER_PATH) { $candidates += $env:USTPLAYER_RENDERER_PATH }
+
+# 仓库内已同步过的位置
+$candidates += Join-Path $repoRoot "pysourcecode\renderer\$fileName"
+$candidates += Join-Path $repoRoot "ustPlayer.Desktop\renderer\$fileName"
+
+# 本机 uPlRender 构建目录（经环境变量指定，不写死个人路径）
+if ($env:UPLRENDER_RELEASE_DIR) {
+    $candidates += Join-Path $env:UPLRENDER_RELEASE_DIR $fileName
+}
+
+$source = $candidates | Where-Object { $_ -and (Test-Path $_ -PathType Leaf) } | Select-Object -First 1
+
+if (-not $source) {
+    Write-Host "未找到渲染器（$fileName）。"
+    Write-Host '视频导出将不可用；播放器仍可跑纯可视化计时。'
+    Write-Host ''
+    Write-Host '可用的指定方式（任选其一）：'
+    Write-Host '  -RendererPath <渲染器文件或所在目录>'
+    Write-Host '  $env:USTPLAYER_RENDERER_PATH = <渲染器文件路径>'
+    Write-Host '  $env:UPLRENDER_RELEASE_DIR   = <uPlRender 的 target/release 目录>'
+    Write-Host '也可从 GitHub Release 的 Windows 包中取出 renderer/ 目录手工放置。'
+    # 刻意不作为构建失败：纯逻辑测试不应因缺少原生件而红
     exit 0
 }
 
-$source = $candidates[0]
 $hash = (Get-FileHash $source -Algorithm SHA256).Hash
 Write-Host "渲染器来源：$source"
 Write-Host "SHA256    ：$hash"
 
-# 目标：桌面头的 renderer/（随构建输出复制）+ 测试工程的 renderer/（集成测试用）
 $targets = @(
     (Join-Path $repoRoot "ustPlayer.Desktop\renderer\$fileName")
     (Join-Path $repoRoot "ustPlayer.Tests\renderer\$fileName")
@@ -69,7 +91,12 @@ $targets = @(
 foreach ($target in $targets) {
     $dir = Split-Path -Parent $target
     if (-not (Test-Path $dir)) {
-        if ($WhatIfOnly) { Write-Host "[WhatIf] 将创建目录 $dir" } else { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+        if ($WhatIfOnly) {
+            Write-Host "[WhatIf] 将创建目录 $dir"
+        }
+        else {
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        }
     }
 
     $needsCopy = $true

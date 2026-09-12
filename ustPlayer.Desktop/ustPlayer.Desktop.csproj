@@ -10,9 +10,21 @@
     <AssemblyName>ustPlayer</AssemblyName>
     <StartupObject>UstPlayer.Desktop.Program</StartupObject>
 
-    <!-- 发布的运行时标识由命令行指定（-r win-x64 / osx-arm64 / linux-x64 ...） -->
-    <RuntimeIdentifiers>win-x64;win-arm64;osx-x64;osx-arm64;linux-x64;linux-arm64</RuntimeIdentifiers>
+    <!--
+      发布目标：只列真正会发布且原生件齐备的目标。
+      渲染器（uPlRender）与内置 FFmpeg 目前都没有 Windows/Linux arm64 产物，
+      列出来只会让 restore 去解析用不上的 runtime pack。
+      实际发布时仍由命令行 -r 指定。
+    -->
+    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
+  </PropertyGroup>
 
+  <!--
+    Windows 专属清单（DPI、supportedOS、UAC）。必须按平台条件化：
+    无条件设置会把 Windows 清单塞进 macOS/Linux 产物，轻则告警重则构建失败。
+    对照 ClassIsland 的做法（其 ApplicationManifest 只在 Platforms_Windows 为真时设置）。
+  -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 

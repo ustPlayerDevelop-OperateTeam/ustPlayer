@@ -43,11 +43,23 @@
     <None Include="renderer\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <Target Name="SyncNativeAssets" BeforeTargets="BeforeBuild" Condition="'$(OS)' == 'Windows_NT'">
+  <!--
+    增量：Inputs/Outputs 让本目标在已同步过之后直接跳过，避免每次增量构建都启动一个
+    PowerShell 进程并对 2.8MB 的渲染器算两遍 SHA256。
+    删除 renderer/<程序集名>.synced 即可强制重新同步。
+  -->
+  <Target Name="SyncNativeAssets"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(OS)' == 'Windows_NT'"
+          Inputs="$(MSBuildThisFileDirectory)..\build\sync-native-assets.ps1"
+          Outputs="$(MSBuildThisFileDirectory)renderer\$(AssemblyName).synced">
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\build\sync-native-assets.ps1&quot;"
           ContinueOnError="true"
           StandardOutputImportance="low"
           StandardErrorImportance="high" />
+    <Touch Files="$(MSBuildThisFileDirectory)renderer\$(AssemblyName).synced"
+           AlwaysCreate="true"
+           Condition="Exists('$(MSBuildThisFileDirectory)renderer')" />
   </Target>
 
 </Project>

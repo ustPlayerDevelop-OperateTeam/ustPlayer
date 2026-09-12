@@ -159,24 +159,36 @@ internal sealed class UplRenderContext : IDisposable
     /// <summary>
     /// 设置编码进度回调（千分比 0..1000）。
     /// </summary>
-    /// <param name="onProgress">进度回调；传 <see langword="null"/> 清空。</param>
+    /// <param name="onProgress">进度回调；传 <see langword="null"/> 时改用空实现（即「不再上报」）。</param>
     /// <remarks>
-    /// 回调由渲染器在编码过程中从**渲染线程**触发，实现方需自行保证线程安全。
-    /// 本方法会持有委托引用以防被 GC 回收。
+    /// <para>
+    /// 回调由渲染器在编码过程中从**渲染线程**触发，实现方需自行保证线程安全；
+    /// 且回调执行期间同一上下文的原生调用锁仍被持有，因此**回调内不得回头调用本上下文**。
+    /// </para>
+    /// <para>
+    /// <b>不向原生侧传 null</b>：C ABI 的 <c>ProgressFn</c> 是不可空函数指针
+    /// （<c>extern "C" fn(i32)</c>），Rust 侧以 <c>Some(cb)</c> 存入配置；
+    /// 传 null 会被包成 <c>Some(null)</c>，编码时调用即崩溃。因此「清空回调」用空实现表达。
+    /// </para>
+    /// <para>本方法会持有委托引用以防被 GC 回收。</para>
     /// </remarks>
     internal void SetProgressCallback(Action<int>? onProgress)
     {
-        NativeMethods.ProgressCallback? callback = null;
-        if (onProgress is not null)
-        {
-            callback = new NativeMethods.ProgressCallback(progress => onProgress(progress));
-        }
+        // 空实现而非 null：见上方说明
+        _progressCallback = onProgress is null
+            ? NoOpProgress
+            : new NativeMethods.ProgressCallback(onProgress.Invoke);
 
         lock (_syncRoot)
         {
-            _progressCallback = callback;
-            NativeMethods.UpSetProgressCallback(RawHandle, callback!);
+            NativeMethods.UpSetProgressCallback(RawHandle, _progressCallback);
         }
+    }
+
+    private static void NoOpProgress(int progress)
+    {
+        // 刻意不做任何事：代表「不上报进度」
+        _ = progress;
     }
 
     /// <summary>
@@ -216,6 +228,7 @@ internal sealed class UplRenderContext : IDisposable
         int outWidth;
         int outHeight;
         int code;
+        string errorDetail;
 
         fixed (byte* pointer = buffer)
         {
@@ -223,10 +236,15 @@ internal sealed class UplRenderContext : IDisposable
             {
                 code = NativeMethods.UpRenderToBuffer(
                     RawHandle, elapsedSeconds, pointer, buffer.Length, &outWidth, &outHeight);
+
+                // 错误消息必须在**同一把锁内**读取：up_last_error 是「最近一次错误」的
+                // 同上下文共享状态，且 C ABI 要求同一 ctx 的所有调用串行。
+                // 放到锁外读会与其它线程的调用交错，取到被覆盖后的消息。
+                errorDetail = code == NativeMethods.UpOk ? string.Empty : ReadLastError(RawHandle);
             }
         }
 
-        ThrowIfError(code, "up_render_to_buffer");
+        ThrowIfError(code, errorDetail, "up_render_to_buffer");
         return (outWidth, outHeight);
     }
 
@@ -288,14 +306,32 @@ internal sealed class UplRenderContext : IDisposable
         }
     }
 
-    private void ThrowIfError(int code, string stage)
+    /// <summary>
+    /// 在错误码非 0 时抛出 <see cref="RendererException"/>。
+    /// </summary>
+    /// <param name="code">原生返回码。</param>
+    /// <param name="stage">阶段名（用于消息）。</param>
+    /// <param name="errorDetail">
+    /// 已读取的错误消息。为 <see langword="null"/> 时本方法会**在锁内**自行读取；
+    /// 调用方若已在锁内取过（如 <c>RenderToBuffer</c>，为满足「同 ctx 串行」而必须锁内读），
+    /// 应直接传入以避免重复调用原生。
+    /// </param>
+    private void ThrowIfError(int code, string stage, string? errorDetail = null)
     {
         if (code == NativeMethods.UpOk)
         {
             return;
         }
 
-        var detail = ReadLastError(RawHandle);
+        var detail = errorDetail;
+        if (detail is null)
+        {
+            lock (_syncRoot)
+            {
+                detail = ReadLastError(RawHandle);
+            }
+        }
+
         var description = RendererException.DescribeCode(code);
         var message = string.IsNullOrEmpty(detail)
             ? $"{stage} 失败：{description}"

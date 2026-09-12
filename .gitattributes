@@ -9,6 +9,7 @@
 *.props     text
 *.targets   text
 *.sln       text eol=crlf
+*.slnx      text eol=crlf
 *.py        text diff=python
 *.cpp       text diff=cpp
 *.h         text

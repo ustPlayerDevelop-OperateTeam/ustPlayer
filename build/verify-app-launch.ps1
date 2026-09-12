@@ -21,7 +21,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $repoRoot "ustPlayer.Desktop\bin\$Configuration\net10.0\ustPlayer.exe"
 
 if (-not (Test-Path $exe)) {
-    Write-Error "未找到可执行文件：$exe。请先运行 dotnet build UstPlayer.slnx -c $Configuration"
+    Write-Host "未找到可执行文件：$exe。请先运行 dotnet build UstPlayer.slnx -c $Configuration"
+    exit 1
 }
 
 $stdout = Join-Path $env:TEMP 'ustplayer-launch-stdout.txt'
@@ -42,7 +43,10 @@ if ($proc.HasExited) {
         $errText | Select-Object -First 40 | ForEach-Object { Write-Host $_ }
     }
 
-    Write-Error "应用启动失败：进程在 $ObserveSeconds 秒内退出"
+    Write-Host "应用启动失败：进程在 $ObserveSeconds 秒内退出"
+    # 必须显式 exit 1：Write-Error 只写错误流，不会中断脚本（且 $ErrorActionPreference
+    # 在这里不足以让 CI 正确判定），否则脚本会落到末尾的 exit 0 → CI 静默通过。
+    exit 1
 }
 
 Write-Host "启动成功且稳定运行（PID $($proc.Id)）"

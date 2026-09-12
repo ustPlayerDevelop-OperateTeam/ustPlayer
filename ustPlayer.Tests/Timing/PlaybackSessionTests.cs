@@ -138,7 +138,11 @@ public class PlaybackSessionTests
         audio.IsLoaded = true;
         audio.IsPlayingOverride = false;
 
-        session.CheckAudioReady(_ => Assert.Fail("降级分支不应再调度重试"));
+        var scheduled = new List<TimeSpan>();
+        session.CheckAudioReady(scheduled.Add);
+
+        // 降级分支不应再调度重试
+        Assert.Empty(scheduled);
 
         Assert.False(session.IsAudioHealthy);
     }
@@ -151,7 +155,11 @@ public class PlaybackSessionTests
 
         audio.IsInvalid = true;
 
-        session.CheckAudioReady(_ => Assert.Fail("降级分支不应再调度重试"));
+        var scheduled = new List<TimeSpan>();
+        session.CheckAudioReady(scheduled.Add);
+
+        // 降级分支不应再调度重试
+        Assert.Empty(scheduled);
 
         Assert.False(session.IsAudioHealthy);
     }
@@ -196,7 +204,11 @@ public class PlaybackSessionTests
         audio.IsPlayingOverride = false;
         audio.DurationSeconds = 1.0;
 
-        session.CheckAudioReady(_ => Assert.Fail("补记锚点分支不应调度重试"));
+        var scheduled = new List<TimeSpan>();
+        session.CheckAudioReady(scheduled.Add);
+
+        // 补记锚点分支不应再调度重试
+        Assert.Empty(scheduled);
 
         Assert.True(session.IsAudioHealthy);
 
@@ -223,7 +235,11 @@ public class PlaybackSessionTests
         audio.IsLoaded = true;
         audio.IsPlayingOverride = false;
 
-        session.CheckAudioReady(_ => Assert.Fail("已播完不应调度重试"));
+        var scheduled = new List<TimeSpan>();
+        session.CheckAudioReady(scheduled.Add);
+
+        // 已播完不应调度重试
+        Assert.Empty(scheduled);
 
         Assert.True(session.IsAudioHealthy);
         session.Advance();

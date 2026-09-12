@@ -58,9 +58,6 @@ internal sealed class FakeAudioBackend : IAudioBackend
     /// <summary>已调用 <see cref="Stop"/> 的次数。</summary>
     public int StopCount { get; private set; }
 
-    /// <summary>加载时传入的路径。</summary>
-    public string? LoadedPath { get; private set; }
-
     /// <summary>媒体时长（秒）。</summary>
     public double DurationSeconds { get; set; }
 
@@ -121,7 +118,9 @@ internal sealed class FakeAudioBackend : IAudioBackend
     /// <inheritdoc />
     public void Load(string musicPath)
     {
-        LoadedPath = musicPath;
+        // 只标记为「加载中」：真实后端此时尚不可播放，位置与时长都未知。
+        // 路径本身不被状态机消费，故不保存。
+        _ = musicPath;
         IsLoading = true;
     }
 

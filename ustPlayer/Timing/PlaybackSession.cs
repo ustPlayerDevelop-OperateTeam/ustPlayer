@@ -35,8 +35,7 @@ internal sealed record PlaybackSessionOptions(
     IReadOnlyList<NoteInfo> Notes,
     PlaybackTextOptions Text,
     int AudioReadyTimeoutChecks = 3,
-    double WatchdogIntervalMs = 3000,
-    double EndGraceMs = 1000);
+    double WatchdogIntervalMs = 3000);
 
 /// <summary>本次推进得到的时序结果。</summary>
 /// <param name="ElapsedSeconds">当前播放位置（秒）。</param>
@@ -93,24 +92,25 @@ internal enum PlaybackEndStep
 /// 线程安全：所有公开操作在同一把锁内进行，因为音频后端的回调可能来自其他线程。
 /// </para>
 /// </remarks>
-internal sealed class PlaybackSession
+internal sealed class PlaybackSession : IDisposable
 {
     /// <summary>一拍（四分音符）的 tick 数（与播放器、渲染器、导出三方的约定一致）。</summary>
     public const int TicksPerQuarterNote = 480;
 
-    private readonly object _syncRoot = new();
+    private readonly Lock _syncRoot = new();
     private readonly IClock _clock;
     private readonly IAudioBackend? _audio;
     private readonly PlaybackSessionOptions _options;
     private readonly List<NoteTickRange> _ranges = [];
 
-    private int _tickErrorCount;
     private int _noteIndexHint;
+    private bool _disposed;
 
     // ---------- 时间轴 ----------
     private double _startRealSeconds;
     private bool _startedOnce;
     private double _elapsedSeconds;
+    private bool _completed;
 
     // ---------- 音频状态 ----------
     private bool _audioHealthy;
@@ -190,7 +190,39 @@ internal sealed class PlaybackSession
         }
     }
 
-    private bool _completed;
+    /// <summary>
+    /// 释放会话：退订音频事件并标记为已释放。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>必须调用</b>。事件订阅是强引用，音频后端会一直持有本会话；
+    /// 1.1.x 靠 Qt 的父子对象关系自动回收，这个机制在 .NET 里不存在，
+    /// 直接移植会漏掉退订而形成泄漏。
+    /// </para>
+    /// <para>
+    /// <b>不释放音频后端</b>：其所有权归宿主（宿主可能与其他组件共享同一后端）。
+    /// 本方法只做退订。
+    /// </para>
+    /// </remarks>
+    public void Dispose()
+    {
+        lock (_syncRoot)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+
+            if (_audio is not null)
+            {
+                _audio.Ready -= OnAudioReady;
+                _audio.Ended -= OnAudioEnded;
+                _audio.Failed -= OnAudioFailed;
+            }
+        }
+    }
 
     /// <summary>
     /// 建立时间轴锚点。只锚定一次。
@@ -228,20 +260,16 @@ internal sealed class PlaybackSession
     /// 推进一帧，返回当前时序状态。
     /// </summary>
     /// <returns>本帧的时序结果。</returns>
+    /// <remarks>
+    /// 本方法不吞异常：帧内异常由宿主的帧循环决定如何处理（记日志、跳过本帧等）。
+    /// 1.1.x 在此处用 <c>try/except</c> 吞掉异常并每 60 帧记一次日志；
+    /// 2.0 把日志职责交回宿主，避免时序层依赖日志设施。
+    /// </remarks>
     internal PlaybackState Advance()
     {
         lock (_syncRoot)
         {
-            try
-            {
-                return AdvanceCore();
-            }
-            catch (Exception)
-            {
-                // 与 1.1.x 一致：单帧异常不终止播放，按 60 帧一次记录（宿主负责日志）。
-                _tickErrorCount++;
-                throw;
-            }
+            return AdvanceCore();
         }
     }
 

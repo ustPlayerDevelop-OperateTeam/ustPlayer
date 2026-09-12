@@ -4,6 +4,8 @@ using Avalonia.Controls;
 
 using FluentAvalonia.UI.Windowing;
 
+using UstPlayer.Models;
+
 namespace UstPlayer.Views;
 
 /// <summary>
@@ -36,7 +38,7 @@ public class ShellWindow : AppWindow
     }
 
     /// <summary>应用版本号（语义化，如 <c>2.0.0</c>）。</summary>
-    public static string AppVersion { get; } = AppInfo.Version;
+    internal static string AppVersion { get; } = AppInfo.Version;
 
     /// <summary>
     /// 平台相关的客户区扩展设置：仅在 macOS 上显式扩展。

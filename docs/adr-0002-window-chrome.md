@@ -42,8 +42,14 @@
   （`Win32WindowManagerConstructorPatcher`、`AppWindowInitializeAppWindowPatcher`）只在
   Windows 平台工程注册，用于在特定策略下关掉 Win32 标题栏管理器。
 
-**结论**：`AppWindow` 并非编译期 Windows 限定，FluentAvalonia 内部按运行时平台降级，
-因此可以安全地作为跨平台窗口基类。
+**结论**：`AppWindow` 并非编译期 Windows 限定。FluentAvalonia 内部存在运行时平台判定
+（`IsWindows`、`FluentAvalonia.Interop.Win32.HWND` 等），Windows 专属逻辑集中在
+`Win32WindowManager` 与 `Win32AppWindowFeatures`，由 ClassIsland 的 Harmony 补丁按需接管。
+
+> **证据强度说明**：以上结论来自「ClassIsland 源码 + 本机 Windows 实测」，
+> **尚未在 macOS / Linux 上验证**。ADR 0001 的 Spike 0c 会在真实平台复核客户区扩展与
+> 标题栏表现；若届时发现问题，回退到方案二（裸 `Window` + `ExtendClientArea*`）的改动
+> 被限制在 `ShellWindow` 内部，各窗口 XAML 无需改动。
 
 ## 补充实证：headless 下会崩，但那只影响测试
 
