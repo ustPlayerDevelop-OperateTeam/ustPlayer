@@ -24,7 +24,7 @@
 ### 命令
 
 - 构建：`dotnet build UstPlayer.slnx -c Debug`（`TreatWarningsAsErrors=true`，**0 警告是硬要求**）。
-- 测试：`dotnet test UstPlayer.slnx -c Debug`（450 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
+- 测试：`dotnet test UstPlayer.slnx -c Debug`（550 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
 - 跨平台过滤：依赖**渲染器原生库或 ffmpeg** 的四个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。新增这类测试类时记得同步该清单：漏了会让非 Windows 作业**明确失败**（刻意如此，不静默跳过）。
 - 真实进程验证（窗口无法在 headless 下构造，见 `docs/adr-0002-window-chrome.md`，**改动窗口/播放链路后必须跑**）：
   - `pwsh -File build/verify-app-launch.ps1` —— 主窗口能启动并稳定运行。
@@ -65,6 +65,12 @@
   **冲掉用户正在输入的内容**（输入 `#12` 时立刻被重置）。
 - 页面文案在 code-behind 用 `Translator.Tr(...)` 赋值，并在 `Retranslate()` 里集中重设，
   由主窗口在语言变更时调用。
+- **绝不要在测试里构造 `AppWindow` 派生窗口**（`MainWindow` / `PlayerWindow` / `ShellWindow`）。
+  见 `docs/adr-0002-window-chrome.md`：`AppWindow` 构造时会无条件创建 Win32 窗口管理器。
+  实测在 headless 下它**不会抛异常，而是直接把整个测试进程挂死**（`dotnet test` 不再返回，
+  也没有任何失败信息）——曾因此让一套测试从 5 秒变成永远跑不完，排查成本很高。
+  窗口行为一律用 `build/verify-app-launch.ps1` / `verify-player-launch.ps1` 以**真实进程**验证；
+  能在无头下测的是与之解耦的纯逻辑（例如拖放路由 `FileDropRouting`）。
 - **下拉框要「显示译文、存稳定 key」**时用 `ViewModels/ChoiceGroup.cs` 做绑定投影
   （候选是稳定实例，切语言只原地换文案，选中项对象不变）。字体候选等列表
   **必须原地增删、绝不整体替换**：替换会让 `SelectedItem` 变 null，

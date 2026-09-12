@@ -145,6 +145,29 @@ internal sealed partial class BasicPage : UserControl
             return;
         }
 
+        ImportProject(path);
+    }
+
+    /// <summary>
+    /// 导入指定路径的工程（「导入项目」按钮与文件拖放共用）。
+    /// </summary>
+    /// <param name="path">工程文件路径。</param>
+    /// <returns>导入成功时为 <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 抽出来是为了让拖放走**同一条路径**：写 <see cref="BasicPageViewModel.LastOpenDirectory"/>、
+    /// 经提示条报告成功或失败，都由这里统一负责。否则拖放很容易漏掉其中一环
+    /// （例如「拖进来的工程不会被下次打开对话框记住」）。
+    /// </para>
+    /// <para>
+    /// 失败不抛出：拖放由平台事件驱动，异常逃到那里只会被吞掉或变成崩溃，
+    /// 因此这里自己把错误变成提示条。
+    /// </para>
+    /// </remarks>
+    internal bool ImportProject(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
         try
         {
             _viewModel.ImportProject(path);
@@ -152,6 +175,8 @@ internal sealed partial class BasicPage : UserControl
                 NotificationSeverity.Success,
                 Translator.Tr("成功"),
                 string.Format(Translator.Tr("已加载工程：{0}"), path));
+
+            return true;
         }
         catch (ProjectFormatException exception)
         {
@@ -160,6 +185,8 @@ internal sealed partial class BasicPage : UserControl
                 NotificationSeverity.Error,
                 "ERcode006",
                 string.Format(Translator.Tr("加载工程文件失败：{0}"), exception.Message));
+
+            return false;
         }
         catch (Exception exception)
         {
@@ -168,6 +195,8 @@ internal sealed partial class BasicPage : UserControl
                 NotificationSeverity.Error,
                 "ERcode006",
                 string.Format(Translator.Tr("加载工程文件失败：{0}"), exception.Message));
+
+            return false;
         }
     }
 

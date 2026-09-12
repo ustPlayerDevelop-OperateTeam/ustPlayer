@@ -2,12 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
 using FluentAvalonia.UI.Controls;
@@ -35,6 +39,21 @@ namespace UstPlayer.Views;
 /// </remarks>
 internal sealed partial class MainWindow : ShellWindow, INotificationHost
 {
+    /// <summary>导航键：基础页（拖放时接受工程文件）。</summary>
+    internal const string BasicNavKey = "basic";
+
+    /// <summary>导航键：文件页（拖放时接受 <c>.ust</c>）。</summary>
+    internal const string FileNavKey = "file";
+
+    /// <summary>导航键：播放器页（不接受拖放）。</summary>
+    internal const string PlayerStyleNavKey = "player_style";
+
+    /// <summary>导航键：歌词页（拖放时接受 <c>.lrc</c>）。</summary>
+    internal const string LyricNavKey = "lyric";
+
+    /// <summary>导航键：设置页（不接受拖放）。</summary>
+    internal const string SettingsNavKey = "settings";
+
     private readonly AppServices _services;
     private readonly MainWindowViewModel _viewModel;
 
@@ -46,6 +65,9 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
     /// <summary>导航键 → 页面实例（尚未迁移的页面不在其中）。</summary>
     private readonly Dictionary<string, Control> _pages = [];
+
+    /// <summary>当前显示的页面键；文件拖放按它路由（对应 1.1.x 的 <c>_current_interface</c>）。</summary>
+    private string _currentNavKey = BasicNavKey;
 
     private BasicPage? _basicPage;
     private FilePage? _filePage;
@@ -78,11 +100,12 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         BuildPages();
         BuildNavigation();
+        SetupDragDrop();
 
         // 语言偏好变更后立即重译整个外壳（1.1.x 走 language_changed 信号）
         _services.Settings.Language.PropertyChanged += OnLanguageSettingsChanged;
 
-        NavView.SelectedItem = _navItems["basic"];
+        NavView.SelectedItem = _navItems[BasicNavKey];
 
         AppLogger.Info($"主窗口就绪（设置文件：{_services.Settings.SettingsPath}）");
     }
@@ -179,19 +202,19 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     {
         _basicPage = new BasicPage(new BasicPageViewModel(_services), this);
         _basicPage.SetPlayHandler(PlayAsync);
-        _pages["basic"] = _basicPage;
+        _pages[BasicNavKey] = _basicPage;
 
         _filePage = new FilePage(new FilePageViewModel(_services), this);
-        _pages["file"] = _filePage;
+        _pages[FileNavKey] = _filePage;
 
         _playerStylePage = new PlayerStylePage(new PlayerStylePageViewModel(_services), this);
-        _pages["player_style"] = _playerStylePage;
+        _pages[PlayerStyleNavKey] = _playerStylePage;
 
         _lyricPage = new LyricPage(new LyricPageViewModel(_services), this);
-        _pages["lyric"] = _lyricPage;
+        _pages[LyricNavKey] = _lyricPage;
 
         _settingsPage = new SettingsPage(new SettingsPageViewModel(_services), this);
-        _pages["settings"] = _settingsPage;
+        _pages[SettingsNavKey] = _settingsPage;
     }
 
     /// <summary>
@@ -205,11 +228,11 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     /// </remarks>
     private void BuildNavigation()
     {
-        AddNavItem("basic", "基础", Symbol.Home, footer: false);
-        AddNavItem("file", "文件", Symbol.Document, footer: false);
-        AddNavItem("player_style", "播放器", Symbol.ColorFill, footer: false);
-        AddNavItem("lyric", "歌词", Symbol.Audio, footer: false);
-        AddNavItem("settings", "设置", Symbol.Setting, footer: true);
+        AddNavItem(BasicNavKey, "基础", Symbol.Home, footer: false);
+        AddNavItem(FileNavKey, "文件", Symbol.Document, footer: false);
+        AddNavItem(PlayerStyleNavKey, "播放器", Symbol.ColorFill, footer: false);
+        AddNavItem(LyricNavKey, "歌词", Symbol.Audio, footer: false);
+        AddNavItem(SettingsNavKey, "设置", Symbol.Setting, footer: true);
 
         NavView.SelectionChanged += OnNavigationSelectionChanged;
     }
@@ -257,9 +280,13 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     /// <param name="key">导航键。</param>
     /// <remarks>
     /// 尚未迁移的页面给一个占位提示，避免点进去是空白让人以为坏了。
+    /// 顺带记住当前页面键：文件拖放要按它决定接受哪些扩展名（对应 1.1.x 的
+    /// <c>switchTo</c> 里记下 <c>_current_interface</c>）。
     /// </remarks>
     private void ShowPage(string key)
     {
+        _currentNavKey = key;
+
         if (_pages.TryGetValue(key, out var page))
         {
             NavView.Content = page;
@@ -272,6 +299,129 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
             Margin = new Thickness(24),
             Opacity = 0.6,
         };
+    }
+
+    // ===================== 文件拖放 =====================
+
+    /// <summary>
+    /// 打开窗口级文件拖放（对应 1.1.x 主窗口的 <c>setAcceptDrops(True)</c>）。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="DragDrop.AllowDropProperty"/> 是**继承**的附加属性
+    /// （<c>RegisterAttached(..., inherits: true)</c>），所以只在窗口上设一次即可：
+    /// 页面里所有子控件（输入框、滚动视图、按钮…）都继承到 <see langword="true"/>，
+    /// 指针落在哪个子控件上都算「允许放置」。1.1.x 需要逐个
+    /// <c>widget.setAcceptDrops(False)</c> 才能防止子控件吞掉事件，**Avalonia 不需要**。
+    /// </para>
+    /// <para>
+    /// 拖放四个事件只有**冒泡**阶段（对 11.3.12 实测 <c>RoutingStrategies</c> 均为
+    /// <c>Bubble</c>），子控件不订阅就会一路冒到窗口；这里注册在窗口上并带
+    /// <c>handledEventsToo: true</c>，即使将来某个子控件把事件标记为已处理，外壳仍能收到。
+    /// </para>
+    /// <para>
+    /// 用 <c>AddHandler</c> 而不是 XAML 的 <c>DragDrop.Drop="…"</c>：需要
+    /// <c>handledEventsToo</c>，XAML 的附加事件写法给不了这个开关。
+    /// </para>
+    /// </remarks>
+    private void SetupDragDrop()
+    {
+        DragDrop.SetAllowDrop(this, true);
+
+        AddHandler(DragDrop.DragOverEvent, OnFileDragOver, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(DragDrop.DropEvent, OnFileDrop, RoutingStrategies.Bubble, handledEventsToo: true);
+    }
+
+    /// <summary>
+    /// 拖动经过窗口：只按扩展名判断当前页面是否接受（与 1.1.x 的 <c>dragEnterEvent</c> 一致）。
+    /// </summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    /// <remarks>
+    /// 这里只看扩展名、不看文件是否存在：拖动过程中文件还没被「交」过来，
+    /// 存在性检查留给真正的放下动作。
+    /// </remarks>
+    private void OnFileDragOver(object? sender, DragEventArgs e)
+    {
+        if (FileDropRouting.AcceptsAny(_currentNavKey, DroppedPaths(e)))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+
+            // 只有真的接受才算「处理掉」，让系统显示可放置的光标
+            e.Handled = true;
+            return;
+        }
+
+        // 不接受：把效果设成 None 让系统显示「禁止」，但不置 Handled——
+        // 事件继续冒泡，别的控件（若有）仍有机会接受
+        e.DragEffects = DragDropEffects.None;
+    }
+
+    /// <summary>
+    /// 放下文件：按当前页面执行（与 1.1.x 的 <c>dropEvent</c> 一致）。
+    /// </summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    /// <remarks>
+    /// 载荷为空、不是文件、扩展名不匹配、文件已被删除时一律**静默忽略**且不抛异常。
+    /// </remarks>
+    private void OnFileDrop(object? sender, DragEventArgs e)
+    {
+        var path = FileDropRouting.Select(_currentNavKey, DroppedPaths(e));
+
+        if (path is null || !ApplyDroppedFile(_currentNavKey, path))
+        {
+            return;
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>把拖放载荷里的文件取成本地路径。</summary>
+    /// <param name="e">事件参数。</param>
+    /// <returns>本地路径序列（非文件载荷为空序列；非本地项为 <see langword="null"/>）。</returns>
+    /// <remarks>
+    /// 用 11.3 的 <c>DataTransfer</c> 接口：旧的 <c>e.Data</c>（<c>IDataObject</c>）在本版本
+    /// 已标记 <c>[Obsolete]</c>，在 <c>TreatWarningsAsErrors</c> 下会直接编译失败。
+    /// </remarks>
+    private static IEnumerable<string?> DroppedPaths(DragEventArgs e)
+    {
+        var files = e.DataTransfer?.TryGetFiles();
+
+        return files is null ? [] : files.Select(StorageProviderExtensions.TryGetLocalPath);
+    }
+
+    /// <summary>执行放置动作：按页面把文件写进对应设置，或走工程导入。</summary>
+    /// <param name="navKey">当前页面键。</param>
+    /// <param name="path">已确认存在且扩展名匹配的本地路径。</param>
+    /// <returns>真的处理了这个文件时为 <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 写设置就够了——控件直接绑定设置子域，界面会自己刷新；
+    /// 基础页则复用「导入项目」按钮的同一条路径。
+    /// </remarks>
+    private bool ApplyDroppedFile(string navKey, string path)
+    {
+        switch (navKey)
+        {
+            case BasicNavKey when _basicPage is not null:
+                AppLogger.Info($"拖放导入工程：{path}");
+                _basicPage.ImportProject(path);
+                return true;
+
+            case FileNavKey:
+                _services.Settings.File.UstPath = path;
+                AppLogger.Info($"拖放设置 UST 路径：{path}");
+                return true;
+
+            case LyricNavKey:
+                _services.Settings.Player.LrcPath = path;
+                AppLogger.Info($"拖放设置 LRC 路径：{path}");
+                return true;
+
+            default:
+                // 兜底：FileDropRouting 已经按页面过滤过扩展名，正常到不了这里
+                return false;
+        }
     }
 
     // ===================== 语言 =====================
@@ -388,5 +538,117 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         _services.Settings.Language.PropertyChanged -= OnLanguageSettingsChanged;
 
         base.OnClosed(e);
+    }
+}
+
+/// <summary>
+/// 文件拖放路由：把「当前页面 + 拖入的文件」映射为「接受还是忽略」。
+/// </summary>
+/// <remarks>
+/// <para>
+/// 与 1.1.x <c>main_window.py</c> 的 <c>_accepts_drag</c> / <c>dropEvent</c> 一一对应：
+/// 每个页面**只**接受自己那一类扩展名——往基础页拖 <c>.ust</c> 什么也不会发生。
+/// </para>
+/// <list type="bullet">
+///   <item>基础页：<c>.uplr</c> / <c>.uprd</c> —— 走工程导入；</item>
+///   <item>文件页：<c>.ust</c> —— 写入 <c>FileSettings.UstPath</c>；</item>
+///   <item>歌词页：<c>.lrc</c> —— 写入 <c>PlayerSettings.LrcPath</c>；</item>
+///   <item>其余页面：一概忽略。</item>
+/// </list>
+/// <para>
+/// 抽成不依赖 Avalonia 的纯函数是为了能单测：真实拖放由 OLE 驱动，
+/// 脚本里造不出来，能自动验证的只有这层判断。
+/// </para>
+/// </remarks>
+internal static class FileDropRouting
+{
+    /// <summary>基础页接受的扩展名：1.1.x 的工程文件。</summary>
+    private static readonly string[] ProjectExtensions = [".uplr", ".uprd"];
+
+    /// <summary>文件页接受的扩展名。</summary>
+    private static readonly string[] UstExtensions = [".ust"];
+
+    /// <summary>歌词页接受的扩展名。</summary>
+    private static readonly string[] LrcExtensions = [".lrc"];
+
+    /// <summary>该页面接受的扩展名（含点号；空数组表示不接受任何文件）。</summary>
+    /// <param name="navKey">导航键。</param>
+    /// <returns>扩展名列表（内部共享实例，调用方不得修改）。</returns>
+    private static string[] AcceptedExtensions(string? navKey) => navKey switch
+    {
+        MainWindow.BasicNavKey => ProjectExtensions,
+        MainWindow.FileNavKey => UstExtensions,
+        MainWindow.LyricNavKey => LrcExtensions,
+        _ => [],
+    };
+
+    /// <summary>当前页面是否接受这个文件（只看扩展名，与 1.1.x 的拖入判断一致）。</summary>
+    /// <param name="navKey">导航键。</param>
+    /// <param name="path">文件名或完整路径；可为 <see langword="null"/>。</param>
+    /// <returns>扩展名匹配时为 <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 用「后缀比较」而不是 <c>Path.GetExtension</c>：与 1.1.x 的
+    /// <c>path.lower().endswith(...)</c> 逐字等价，也不受非法路径字符影响。
+    /// </remarks>
+    internal static bool AcceptsExtension(string? navKey, string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        foreach (var extension in AcceptedExtensions(navKey))
+        {
+            if (path.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>文件列表里有没有当前页面接受的扩展名（拖动经过时的判断）。</summary>
+    /// <param name="navKey">导航键。</param>
+    /// <param name="paths">拖入的文件路径。</param>
+    /// <returns>至少有一个匹配时为 <see langword="true"/>。</returns>
+    internal static bool AcceptsAny(string? navKey, IEnumerable<string?> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        foreach (var path in paths)
+        {
+            if (AcceptsExtension(navKey, path))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>在拖入的文件里挑出第一个可处理的（扩展名匹配**且文件真实存在**）。</summary>
+    /// <param name="navKey">导航键。</param>
+    /// <param name="paths">拖入的文件路径（可能含 <see langword="null"/>、不存在或不匹配的项）。</param>
+    /// <returns>可处理的本地路径；一个都没有时返回 <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 只认**真实存在的本地文件**：非本地 URI 与拖放中途被删掉的文件都会被跳过，
+    /// 且整个过程不抛异常。目录即使名字以 <c>.uplr</c> 结尾也会被跳过
+    /// （<see cref="File.Exists(string?)"/> 对目录返回 <see langword="false"/>），
+    /// 这一点比 1.1.x 的 <c>os.path.exists</c> 更严格——那里会把目录交给导入逻辑再报错。
+    /// </remarks>
+    internal static string? Select(string? navKey, IEnumerable<string?> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        foreach (var path in paths)
+        {
+            if (AcceptsExtension(navKey, path) && File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        return null;
     }
 }
