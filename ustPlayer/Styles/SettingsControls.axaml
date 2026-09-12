@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls">
 
   <!--
     跨控件的样式（ControlTheme 放不下的部分：目标不是本仓库定义的控件）。
@@ -27,13 +28,20 @@
 
   <!--
     分组标题（卡片之外的那行字）：比正文略重一点，与下方卡片拉开距离。
-    用在设置页 —— 那里的每一行是 FluentAvalonia 自带的 SettingsExpander，
-    分组只能靠这个标题来划分。
   -->
   <Style Selector="TextBlock.settingsSectionHeader">
     <Setter Property="FontSize" Value="14" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Margin" Value="2,18,0,8" />
+  </Style>
+
+  <!--
+    设置页的行用的是 FluentAvalonia 自带的 SettingsExpander，其他四页用的是本仓库的
+    SettingsRow，两者默认外边距不同——设置页的卡片因此比别页贴得更紧，看起来像另一套版式。
+    这里把 SettingsExpander 的间距对齐 SettingsRow 的 `0,0,0,4`，五个页面的卡片间距就一致了。
+  -->
+  <Style Selector="fa|SettingsExpander">
+    <Setter Property="Margin" Value="0,0,0,4" />
   </Style>
 
 </Styles>

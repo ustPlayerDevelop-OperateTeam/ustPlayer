@@ -110,6 +110,20 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         AppLogger.Info($"主窗口就绪（设置文件：{_services.Settings.SettingsPath}）");
     }
 
+    /// <summary>
+    /// 挂到可视树后补设一次导航文案。
+    /// </summary>
+    /// <param name="e">事件参数。</param>
+    /// <remarks>
+    /// <see cref="NavigationView.SettingsItem"/> 由控件模板创建，构造阶段可能还取不到，
+    /// 因此模板套用后再设一次标题，避免它停在英文默认值 "Settings"。
+    /// </remarks>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        ApplySettingsItemText();
+    }
+
     // ===================== 提示条 =====================
 
     /// <summary>通知停留时长（毫秒）：成功短、错误长（与 1.1.x 的 3000 / 5000 一致）。</summary>
@@ -221,28 +235,51 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     /// 创建导航项并接线切换。
     /// </summary>
     /// <remarks>
-    /// 顺序与 1.1.x 一致：「其他」固定在底部（<see cref="NavigationView.FooterMenuItems"/>）。
-    /// 图标只能用 FluentAvalonia <c>Symbol</c> 枚举里真实存在的成员——
-    /// 该枚举没有 <c>Palette</c> / <c>Music</c> / <c>Info</c>（已实测转储确认），
-    /// 用不存在的名字会直接编译失败。
+    /// <para>
+    /// 四个内容页是普通菜单项；「设置」用 <see cref="NavigationView.IsSettingsVisible"/>
+    /// 打开的内建设置项（<see cref="NavigationView.SettingsItem"/>），
+    /// 它按 WinUI 设计**钉在导航栏底部**并自带齿轮图标。
+    /// </para>
+    /// <para>
+    /// 起初把它做成自定义 <see cref="NavigationView.FooterMenuItems"/> 项，
+    /// 但那在这套模板里没有被底部固定——「设置」会跟在上面的菜单项后面而不是贴底。
+    /// </para>
+    /// <para>
+    /// 图标只能用 FluentAvalonia <c>Symbol</c> 枚举里真实存在的成员：该枚举没有
+    /// <c>Palette</c> / <c>Music</c> / <c>Info</c>（已实测转储确认），用不存在的名字会编译失败。
+    /// </para>
     /// </remarks>
     private void BuildNavigation()
     {
-        AddNavItem(BasicNavKey, "基础", Symbol.Home, footer: false);
-        AddNavItem(FileNavKey, "文件", Symbol.Document, footer: false);
-        AddNavItem(PlayerStyleNavKey, "播放器", Symbol.ColorFill, footer: false);
-        AddNavItem(LyricNavKey, "歌词", Symbol.Audio, footer: false);
-        AddNavItem(SettingsNavKey, "设置", Symbol.Setting, footer: true);
+        AddNavItem(BasicNavKey, "基础", Symbol.Home);
+        AddNavItem(FileNavKey, "文件", Symbol.Document);
+        AddNavItem(PlayerStyleNavKey, "播放器", Symbol.ColorFill);
+        AddNavItem(LyricNavKey, "歌词", Symbol.Audio);
+
+        // 内建设置项的标题默认是英文 "Settings"，按当前语言改写
+        ApplySettingsItemText();
 
         NavView.SelectionChanged += OnNavigationSelectionChanged;
+    }
+
+    /// <summary>把内建设置项的标题设为当前语言的「设置」。</summary>
+    /// <remarks>
+    /// <see cref="NavigationView.SettingsItem"/> 由模板创建，取不到时直接跳过；
+    /// 模板套用后会再调用一次（见 <c>OnAttachedToVisualTree</c>）。
+    /// </remarks>
+    private void ApplySettingsItemText()
+    {
+        if (NavView.SettingsItem is NavigationViewItem item)
+        {
+            item.Content = Translator.Tr("设置");
+        }
     }
 
     /// <summary>添加一个导航项。</summary>
     /// <param name="key">稳定键。</param>
     /// <param name="titleSource">标题的中文原文。</param>
     /// <param name="symbol">图标。</param>
-    /// <param name="footer">是否放在底部。</param>
-    private void AddNavItem(string key, string titleSource, Symbol symbol, bool footer)
+    private void AddNavItem(string key, string titleSource, Symbol symbol)
     {
         var item = new NavigationViewItem
         {
@@ -255,21 +292,24 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         _navItems[key] = item;
         _navTitleSources[key] = titleSource;
 
-        if (footer)
-        {
-            NavView.FooterMenuItems.Add(item);
-        }
-        else
-        {
-            NavView.MenuItems.Add(item);
-        }
+        NavView.MenuItems.Add(item);
     }
 
     /// <summary>导航选中变化 → 切换页面。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>
+    /// <remarks>
+    /// 设置项不在 <c>MenuItems</c> 里，因此它的选中不走 <c>Tag</c> 这条路，
+    /// 需要单独看 <see cref="NavigationViewSelectionChangedEventArgs.IsSettingsSelected"/>。
+    /// </remarks>
     private void OnNavigationSelectionChanged(object? sender, NavigationViewSelectionChangedEventArgs e)
     {
+        if (e.IsSettingsSelected)
+        {
+            ShowPage(SettingsNavKey);
+            return;
+        }
+
         if (e.SelectedItem is NavigationViewItem { Tag: string key })
         {
             ShowPage(key);
@@ -447,6 +487,8 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         {
             item.Content = Translator.Tr(_navTitleSources[key]);
         }
+
+        ApplySettingsItemText();
 
         _basicPage?.Retranslate();
         _filePage?.Retranslate();

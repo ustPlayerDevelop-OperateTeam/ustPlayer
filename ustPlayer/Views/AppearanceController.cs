@@ -77,7 +77,12 @@ internal static class AppearanceController
 
         if (theme.AccentColorMode != "custom")
         {
+            // 两步缺一不可：CustomAccentColor 为 null 只是「不再覆盖」，
+            // 还要把 PreferUserAccentColor 打开，系统强调色才会真的被采用
+            //（该属性即「是否用当前用户的强调色作为 SystemAccentColor」）。
+            fluentTheme.PreferUserAccentColor = true;
             fluentTheme.CustomAccentColor = null;
+
             AppLogger.Info("强调色跟随系统");
             return;
         }

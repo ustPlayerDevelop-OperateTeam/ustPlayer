@@ -44,9 +44,15 @@
                  IsHitTestVisible="False" />
     </StackPanel>
 
+    <!--
+      设置入口用 NavigationView **内建的设置项**（IsSettingsVisible）：
+      它按 WinUI 设计钉在导航栏底部、自带齿轮图标，位置有保证。
+      起初用的是自定义 FooterMenuItems 项，但那在这套模板里没有被底部固定，
+      于是「设置」会跟在上面的菜单项后面，而不是贴底。
+    -->
     <fa:NavigationView x:Name="NavView" Grid.Row="1"
                        Margin="0,8,0,0"
-                       IsSettingsVisible="False"
+                       IsSettingsVisible="True"
                        IsBackButtonVisible="False"
                        PaneDisplayMode="Left"
                        OpenPaneLength="200" />
