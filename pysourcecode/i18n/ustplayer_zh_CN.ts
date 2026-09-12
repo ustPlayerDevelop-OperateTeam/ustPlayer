@@ -926,5 +926,9 @@
         <source>视频导出已取消</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>字体</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 </TS>

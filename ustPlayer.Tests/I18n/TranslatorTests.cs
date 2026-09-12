@@ -17,8 +17,8 @@ namespace UstPlayer.Tests.I18n;
 /// </remarks>
 public class TranslatorTests : IDisposable
 {
-    /// <summary>1.1.x 的 .ts 条目数（源语言与两种目标语言应当一致）。</summary>
-    private const int ExpectedMessageCount = 161;
+    /// <summary>源语言文件（条目数以它为准）。</summary>
+    private const string SourceLocale = "zh_CN";
 
     private readonly string _i18nDirectory;
 
@@ -49,8 +49,15 @@ public class TranslatorTests : IDisposable
         Assert.Contains("en_US", locales);
     }
 
-    /// <summary>英文与文言各有 161 条**非空**译文（zh_CN 是源语言，条目为空）。</summary>
+    /// <summary>
+    /// 英文与文言必须**逐条**都有非空译文（zh_CN 是源语言，条目为空）。
+    /// </summary>
     /// <param name="locale">语言代码。</param>
+    /// <remarks>
+    /// 条目数不写死：以源语言文件的 <c>&lt;message&gt;</c> 条数为准。
+    /// 写死数字会变成维护陷阱——每新增一条界面文案都要改这个常量，
+    /// 而真正要守住的性质是「源语言里有的，两个目标语言都不能缺」。
+    /// </remarks>
     [Theory]
     [InlineData("en_US")]
     [InlineData("zh_classic")]
@@ -58,7 +65,17 @@ public class TranslatorTests : IDisposable
     {
         var catalog = Load(locale);
 
-        Assert.Equal(ExpectedMessageCount, catalog.Count);
+        Assert.Equal(CountSourceMessages(), catalog.Count);
+    }
+
+    /// <summary>统计源语言文件里的条目数。</summary>
+    /// <returns>条目数。</returns>
+    private int CountSourceMessages()
+    {
+        var path = Path.Combine(_i18nDirectory, $"ustplayer_{SourceLocale}.ts");
+        var document = System.Xml.Linq.XDocument.Load(path);
+
+        return document.Descendants("message").Count();
     }
 
     /// <summary>

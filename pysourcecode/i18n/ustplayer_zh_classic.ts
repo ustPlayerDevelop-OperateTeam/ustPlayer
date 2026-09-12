@@ -928,5 +928,9 @@
         <source>视频导出已取消</source>
         <translation>視頻導出已止</translation>
     </message>
+    <message>
+        <source>字体</source>
+        <translation>字體</translation>
+    </message>
 </context>
 </TS>

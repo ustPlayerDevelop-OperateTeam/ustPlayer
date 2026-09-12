@@ -928,5 +928,9 @@ Project saved: {1}</translation>
         <source>视频导出已取消</source>
         <translation>Video export cancelled</translation>
     </message>
+    <message>
+        <source>字体</source>
+        <translation>Fonts</translation>
+    </message>
 </context>
 </TS>

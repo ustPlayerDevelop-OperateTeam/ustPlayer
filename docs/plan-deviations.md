@@ -100,4 +100,27 @@
   这类 bug 在 2.0 的绑定模式下**结构上不可能出现**。
 - **附带收益**：工程导入后界面自动刷新，无需任何显式同步调用。
 
+## D9：自定义字体只记录族名与路径，无法在 Avalonia 侧真正注册
+
+- **计划要求**：移植 1.1.x 的「四路字体下拉 + 导入自定义字体（`.ttf`/`.otf`）」。
+- **实际**：导入字体时**解析字体文件的 sfnt `name` 表**取出真实族名写进设置
+  （优先排版族名 nameID 16，其次家族名 nameID 1，解析不出来时回退文件名），
+  并把路径记入 `DisplaySettings.CustomFontPaths`。**但下拉里的字体名不会用该字体渲染预览**。
+- **理由**：Avalonia 没有公开的运行时字体注册 API（`FontManager.AddFontCollection` 存在，
+  但其 `IFontCollection` 无法从外部初始化）。1.1.x 能预览是因为 Qt 提供
+  `QFontDatabase.addApplicationFont`；C# 侧没有对应能力，因此不假装做到。
+- **为什么仍然值得解析族名**：`font_*` 字段的语义就是「字体族名」，
+  写文件名进去是**错的数据**（渲染器一旦开始消费该字段就会匹配失败）。
+  `API_Docs.md` §5.2 把 `font_*` 与 `custom_font_paths` 都列为
+  「已写入但渲染器**暂未消费**」并注明了计划（注册后可经 fontdb/cosmic-text 使用），
+  因此这是一个**有既定消费者的字段**，不是凭空的抽象。
+- **手写 sfnt 解析的代价与防护**：约 250 行二进制解析（只读 `name` 表），
+  风险集中在长度/偏移越界。已用「空文件 / 越界偏移 / 结构不可识别 / 截断文件」
+  以及一条**确定性伪随机字节扫描**（`FontFileInspectorFuzzTests`）锁定
+  「任意输入只返回 null 或文件名，绝不抛异常」。
+- **解除条件**：渲染器开始消费 `custom_font_paths` / `font_*` 时，或 Avalonia 开放
+  运行时字体注册时，把族名解析换成字体引擎（SkiaSharp `SKTypeface.FromFile` 已在依赖图中）
+  并补上真实预览。
+
+
 

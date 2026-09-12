@@ -47,4 +47,19 @@
     <None Include="ffmpeg\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    翻译资产：2.0 直接复用 1.1.x 的 .ts（见 I18n/Translator.cs 的说明），
+    它们位于冻结产品线 pysourcecode/i18n/ 下。
+
+    必须复制到程序目录的 i18n/ 子目录——Translator.LoadForLocale 只按
+    程序目录查找（i18n/ → 程序根 → 用户数据目录），找不到任何目录时
+    **语言设置会完全失效**（所有语言都显示中文），且不会有任何报错。
+    Phase 6 打包时同样要把这些文件放进产物。
+  -->
+  <ItemGroup>
+    <None Include="..\pysourcecode\i18n\ustplayer_*.ts"
+          Link="i18n\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

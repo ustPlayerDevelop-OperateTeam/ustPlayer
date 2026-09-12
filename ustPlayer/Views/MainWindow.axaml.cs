@@ -46,6 +46,8 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
     private BasicPage? _basicPage;
     private FilePage? _filePage;
+    private PlayerStylePage? _playerStylePage;
+    private LyricPage? _lyricPage;
 
     /// <summary>当前打开的播放窗口；用于避免同时打开多个全屏播放器。</summary>
     private PlayerWindow? _playerWindow;
@@ -104,6 +106,12 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         _filePage = new FilePage(new FilePageViewModel(_services), this);
         _pages["file"] = _filePage;
+
+        _playerStylePage = new PlayerStylePage(new PlayerStylePageViewModel(_services), this);
+        _pages["player_style"] = _playerStylePage;
+
+        _lyricPage = new LyricPage(new LyricPageViewModel(_services), this);
+        _pages["lyric"] = _lyricPage;
     }
 
     /// <summary>
@@ -212,6 +220,8 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         _basicPage?.Retranslate();
         _filePage?.Retranslate();
+        _playerStylePage?.Retranslate();
+        _lyricPage?.Retranslate();
 
         if (NavView.Content is TextBlock placeholder)
         {

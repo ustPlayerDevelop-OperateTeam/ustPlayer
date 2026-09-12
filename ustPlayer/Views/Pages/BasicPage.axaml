@@ -46,6 +46,16 @@
                      Text="{Binding Project.MusicPath, Mode=TwoWay}" />
             <Button x:Name="MusicButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectMusicClick" />
           </Grid>
+
+          <!--
+            工程文件的导入 / 保存与 1.1.x 一样放在「项目」卡内（1.1.x 就是同一个卡片）。
+            刻意不另起一张卡：那需要一个新中文标题，而它不在既有 161 条译文里，
+            英文 / 文言界面下会退回显示中文。
+          -->
+          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+            <Button x:Name="ImportButton" Click="OnImportClick" />
+            <Button x:Name="ExportButton" Click="OnExportClick" />
+          </StackPanel>
         </StackPanel>
       </controls:SectionCard>
 
@@ -90,18 +100,10 @@
         </Grid>
       </controls:SectionCard>
 
-      <!-- ===================== 工程与播放 ===================== -->
-      <controls:SectionCard x:Name="ActionsCard">
-        <StackPanel Spacing="12">
-          <StackPanel Orientation="Horizontal" Spacing="12">
-            <Button x:Name="ImportButton" Click="OnImportClick" />
-            <Button x:Name="ExportButton" Click="OnExportClick" />
-          </StackPanel>
-          <Button x:Name="PlayButton" HorizontalAlignment="Stretch"
-                  MinHeight="40" Click="OnPlayClick"
-                  Classes="accent" />
-        </StackPanel>
-      </controls:SectionCard>
+      <!-- ===================== 播放（1.1.x 同样把播放按钮放在卡片之外） ===================== -->
+      <Button x:Name="PlayButton" HorizontalAlignment="Stretch"
+              MinHeight="40" Click="OnPlayClick"
+              Classes="accent" />
 
     </StackPanel>
   </ScrollViewer>

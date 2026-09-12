@@ -48,6 +48,16 @@
   </ItemGroup>
 
   <!--
+    翻译资产同样复制到测试输出目录：让「运行时能真的加载到语言目录」这件事
+    可被测试覆盖（TranslationAssetsTests），而不是靠人工点击界面才发现语言设置失效。
+  -->
+  <ItemGroup>
+    <None Include="..\pysourcecode\i18n\ustplayer_*.ts"
+          Link="i18n\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
     增量：Inputs/Outputs 让本目标在已同步过之后直接跳过，避免每次增量构建都启动一个
     PowerShell 进程并对 2.8MB 的渲染器算两遍 SHA256。
     删除 renderer/<程序集名>.synced 即可强制重新同步。

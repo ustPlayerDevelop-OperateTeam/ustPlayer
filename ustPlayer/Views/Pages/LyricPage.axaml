@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:UstPlayer.ViewModels"
+             xmlns:controls="using:UstPlayer.Views.Controls"
+             x:Class="UstPlayer.Views.Pages.LyricPage"
+             x:DataType="vm:LyricPageViewModel">
+
+  <!--
+    歌词页（对应 1.1.x lyric_page.py）：展示歌词开关 + LRC 文件选择。
+    两个设置项直接双向绑定子域，无需手工同步。
+  -->
+  <ScrollViewer>
+    <StackPanel Margin="24,20,24,24" Spacing="14">
+
+      <controls:SectionCard x:Name="LyricCard">
+        <StackPanel Spacing="10">
+          <CheckBox x:Name="ShowLyricBox"
+                    IsChecked="{Binding Display.ShowLyric, Mode=TwoWay}" />
+
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock x:Name="LrcLabel" Grid.Column="0" MinWidth="110" VerticalAlignment="Center" />
+            <TextBox x:Name="LrcPathBox" Grid.Column="1"
+                     Text="{Binding Player.LrcPath, Mode=TwoWay}" />
+            <Button x:Name="SelectLrcButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectLrcClick" />
+          </Grid>
+        </StackPanel>
+      </controls:SectionCard>
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

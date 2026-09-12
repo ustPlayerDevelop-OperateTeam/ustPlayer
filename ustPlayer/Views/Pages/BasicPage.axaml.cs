@@ -85,7 +85,6 @@ internal sealed partial class BasicPage : UserControl
         ShowUstLyricLabel.Text = Translator.Tr("显示歌字");
         ShowCopyrightLabel.Text = Translator.Tr("显示版权");
 
-        ActionsCard.Title = Translator.Tr("工程");
         ImportButton.Content = Translator.Tr("导入项目");
         ExportButton.Content = Translator.Tr("保存项目");
         PlayButton.Content = Translator.Tr("播放 Play");

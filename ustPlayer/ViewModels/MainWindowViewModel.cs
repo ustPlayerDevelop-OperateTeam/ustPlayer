@@ -70,14 +70,26 @@ internal sealed class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 按设置安装翻译（切换语言后调用）。
+    /// 按设置安装翻译（切换语言后也会调用）。
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 未安装对应目录时 <see cref="Translator.Install"/> 内部回退，
     /// 因此这里不需要额外的错误处理。
+    /// </para>
+    /// <para>
+    /// 记录「生效语言 + 一条采样翻译」：翻译目录找不到时**不会报错**，
+    /// 界面只是安静地全是中文。有一条日志就能立刻判断是「目录没部署」还是「译文缺失」。
+    /// </para>
     /// </remarks>
-    internal void ApplyLanguage() =>
+    internal void ApplyLanguage()
+    {
         Translator.Install(Settings.Language.EffectiveLanguage, Settings.ProgramRoot);
+
+        AppLogger.Info(
+            $"界面语言：设置={Settings.Language.EffectiveLanguage} 生效={Translator.CurrentLanguage}"
+            + $"（采样「基础」→「{Translator.Tr("基础")}」）");
+    }
 }
 
 /// <summary>一个导航项。</summary>

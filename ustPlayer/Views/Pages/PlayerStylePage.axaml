@@ -1,0 +1,208 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:UstPlayer.ViewModels"
+             xmlns:controls="using:UstPlayer.Views.Controls"
+             xmlns:conv="using:UstPlayer.Views.Converters"
+             x:Class="UstPlayer.Views.Pages.PlayerStylePage"
+             x:DataType="vm:PlayerStylePageViewModel">
+
+  <!--
+    播放器样式页（对应 1.1.x player_style_page.py）：颜色、歌词位置、字体与其他显示设置。
+
+    · 颜色与自定义文字**直接双向绑定设置子域**（{Binding Color.BackgroundColor, Mode=TwoWay}）：
+      设置子域自身会通知变更，导入工程后界面自动刷新，不需要 1.1.x 的 sync_all_from_settings()。
+    · 颜色输入框用 UpdateSourceTrigger=LostFocus：中途输入（如「#12」）本身非法，
+      若每敲一个键就写回设置，设置层会判定非法并回退默认值，把用户正在输入的内容冲掉。
+    · 下拉框的候选项是「稳定 key + 译文」的对象（vm:ChoiceOption），key 才是写回存储层的值。
+    · 文本一律在 code-behind 用 Translator.Tr(...) 赋值（见 AGENTS.md 的 i18n 约定）。
+  -->
+  <UserControl.Resources>
+    <conv:HexToColorConverter x:Key="HexColorConverter" />
+    <conv:HexToBrushConverter x:Key="HexBrushConverter" />
+
+    <!-- 下拉项模板：显示译文，选中后把 key 写回设置（由 ChoiceGroup 完成） -->
+    <DataTemplate x:Key="ChoiceTemplate" x:DataType="vm:ChoiceOption">
+      <TextBlock Text="{Binding Text}" />
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <ScrollViewer>
+    <StackPanel Margin="24,20,24,24" Spacing="14">
+
+      <!-- ===================== 播放器样式 ===================== -->
+      <controls:SectionCard x:Name="StyleCard">
+        <StackPanel Spacing="10">
+
+          <Grid ColumnDefinitions="Auto,120,Auto,Auto">
+            <TextBlock x:Name="BackgroundColorLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="BackgroundColorBox" Grid.Column="1"
+                     Text="{Binding Color.BackgroundColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Grid.Column="2" Width="20" Height="20" Margin="10,0,0,0" CornerRadius="3"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding Color.BackgroundColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="BackgroundColorPicker" Grid.Column="3" Margin="10,0,0,0"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding Color.BackgroundColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,120,Auto,Auto">
+            <TextBlock x:Name="NoteColorLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="NoteColorBox" Grid.Column="1"
+                     Text="{Binding Color.NoteColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Grid.Column="2" Width="20" Height="20" Margin="10,0,0,0" CornerRadius="3"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding Color.NoteColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="NoteColorPicker" Grid.Column="3" Margin="10,0,0,0"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding Color.NoteColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,120,Auto,Auto">
+            <TextBlock x:Name="LyricColorLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="LyricColorBox" Grid.Column="1"
+                     Text="{Binding Color.LyricColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Grid.Column="2" Width="20" Height="20" Margin="10,0,0,0" CornerRadius="3"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding Color.LyricColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="LyricColorPicker" Grid.Column="3" Margin="10,0,0,0"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding Color.LyricColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,120,Auto,Auto">
+            <TextBlock x:Name="LyricTextColorLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="LyricTextColorBox" Grid.Column="1"
+                     Text="{Binding Color.LyricTextColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Grid.Column="2" Width="20" Height="20" Margin="10,0,0,0" CornerRadius="3"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding Color.LyricTextColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="LyricTextColorPicker" Grid.Column="3" Margin="10,0,0,0"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding Color.LyricTextColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,120,Auto,Auto">
+            <TextBlock x:Name="PitchCurveColorLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="PitchCurveColorBox" Grid.Column="1"
+                     Text="{Binding Color.PitchCurveColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Grid.Column="2" Width="20" Height="20" Margin="10,0,0,0" CornerRadius="3"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding Color.PitchCurveColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="PitchCurveColorPicker" Grid.Column="3" Margin="10,0,0,0"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding Color.PitchCurveColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,120,Auto,Auto">
+            <TextBlock x:Name="OtherTextColorLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="OtherTextColorBox" Grid.Column="1"
+                     Text="{Binding Color.OtherTextColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Grid.Column="2" Width="20" Height="20" Margin="10,0,0,0" CornerRadius="3"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding Color.OtherTextColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="OtherTextColorPicker" Grid.Column="3" Margin="10,0,0,0"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding Color.OtherTextColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,150,*">
+            <TextBlock x:Name="LyricPositionLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <ComboBox x:Name="LyricPositionCombo" Grid.Column="1" HorizontalAlignment="Left"
+                      ItemsSource="{Binding LyricPositionChoice.Options}"
+                      SelectedItem="{Binding LyricPositionChoice.Selected, Mode=TwoWay}"
+                      ItemTemplate="{StaticResource ChoiceTemplate}" />
+          </Grid>
+
+        </StackPanel>
+      </controls:SectionCard>
+
+      <!-- ===================== 字体 ===================== -->
+      <controls:SectionCard x:Name="FontCard">
+        <StackPanel Spacing="10">
+
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock x:Name="FontNoteLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <ComboBox x:Name="FontNoteCombo" Grid.Column="1"
+                      HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding FontFamilies}"
+                      SelectedItem="{Binding FontNote, Mode=TwoWay}"
+                      SelectionChanged="OnFontSelectionChanged" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock x:Name="FontUstLyricLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <ComboBox x:Name="FontUstLyricCombo" Grid.Column="1"
+                      HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding FontFamilies}"
+                      SelectedItem="{Binding FontUstLyric, Mode=TwoWay}"
+                      SelectionChanged="OnFontSelectionChanged" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock x:Name="FontLrcLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <ComboBox x:Name="FontLrcCombo" Grid.Column="1"
+                      HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding FontFamilies}"
+                      SelectedItem="{Binding FontLrc, Mode=TwoWay}"
+                      SelectionChanged="OnFontSelectionChanged" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock x:Name="FontOtherLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <ComboBox x:Name="FontOtherCombo" Grid.Column="1"
+                      HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding FontFamilies}"
+                      SelectedItem="{Binding FontOther, Mode=TwoWay}"
+                      SelectionChanged="OnFontSelectionChanged" />
+          </Grid>
+
+        </StackPanel>
+      </controls:SectionCard>
+
+      <!-- ===================== 其他显示设置 ===================== -->
+      <controls:SectionCard x:Name="OtherCard">
+        <StackPanel Spacing="10">
+
+          <Grid ColumnDefinitions="Auto,150,*">
+            <TextBlock x:Name="PitchPlaceholderLabel" Grid.Column="0" MinWidth="110" VerticalAlignment="Center" />
+            <ComboBox x:Name="PitchPlaceholderCombo" Grid.Column="1" HorizontalAlignment="Left"
+                      ItemsSource="{Binding PitchPlaceholderChoice.Options}"
+                      SelectedItem="{Binding PitchPlaceholderChoice.Selected, Mode=TwoWay}"
+                      ItemTemplate="{StaticResource ChoiceTemplate}" />
+            <TextBox x:Name="PitchCustomBox" Grid.Column="2" Margin="10,0,0,0" MaxWidth="150"
+                     HorizontalAlignment="Left" MinWidth="150"
+                     IsVisible="{Binding PitchPlaceholderChoice.IsCustom}"
+                     Text="{Binding Player.PitchCustomText, Mode=TwoWay}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,150,*">
+            <TextBlock x:Name="SilentDisplayLabel" Grid.Column="0" MinWidth="110" VerticalAlignment="Center" />
+            <ComboBox x:Name="SilentDisplayCombo" Grid.Column="1" HorizontalAlignment="Left"
+                      ItemsSource="{Binding SilentDisplayChoice.Options}"
+                      SelectedItem="{Binding SilentDisplayChoice.Selected, Mode=TwoWay}"
+                      ItemTemplate="{StaticResource ChoiceTemplate}" />
+            <TextBox x:Name="SilentCustomBox" Grid.Column="2" Margin="10,0,0,0" MaxWidth="150"
+                     HorizontalAlignment="Left" MinWidth="150"
+                     IsVisible="{Binding SilentDisplayChoice.IsCustom}"
+                     Text="{Binding Player.SilentCustomText, Mode=TwoWay}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,150,*">
+            <TextBlock x:Name="EndDisplayLabel" Grid.Column="0" MinWidth="110" VerticalAlignment="Center" />
+            <ComboBox x:Name="EndDisplayCombo" Grid.Column="1" HorizontalAlignment="Left"
+                      ItemsSource="{Binding EndDisplayChoice.Options}"
+                      SelectedItem="{Binding EndDisplayChoice.Selected, Mode=TwoWay}"
+                      ItemTemplate="{StaticResource ChoiceTemplate}" />
+            <TextBox x:Name="EndCustomBox" Grid.Column="2" Margin="10,0,0,0" MaxWidth="150"
+                     HorizontalAlignment="Left" MinWidth="150"
+                     IsVisible="{Binding EndDisplayChoice.IsCustom}"
+                     Text="{Binding Player.EndCustomText, Mode=TwoWay}" />
+          </Grid>
+
+        </StackPanel>
+      </controls:SectionCard>
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

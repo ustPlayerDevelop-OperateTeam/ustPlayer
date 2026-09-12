@@ -24,7 +24,7 @@
 ### 命令
 
 - 构建：`dotnet build UstPlayer.slnx -c Debug`（`TreatWarningsAsErrors=true`，**0 警告是硬要求**）。
-- 测试：`dotnet test UstPlayer.slnx -c Debug`（346 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
+- 测试：`dotnet test UstPlayer.slnx -c Debug`（450 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
 - 跨平台过滤：依赖**渲染器原生库或 ffmpeg** 的四个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。新增这类测试类时记得同步该清单：漏了会让非 Windows 作业**明确失败**（刻意如此，不静默跳过）。
 - 真实进程验证（窗口无法在 headless 下构造，见 `docs/adr-0002-window-chrome.md`，**改动窗口/播放链路后必须跑**）：
   - `pwsh -File build/verify-app-launch.ps1` —— 主窗口能启动并稳定运行。
@@ -56,8 +56,32 @@
   挑图标前先确认成员存在，不要照 WinUI 的名字猜。
 - **FluentAvalonia 的 `InfoBar` 是控件、没有静态弹出入口**：主窗口持有唯一一个，
   页面经 `INotificationHost`（`Views/INotificationHost.cs`）使用它。
+- **FluentAvalonia 2.5.1 里没有 ColorPicker**：可用的是 Avalonia 自己的
+  `Avalonia.Controls.ColorPicker`（`: ColorView`），它随 FluentAvaloniaUI **传递引用**，
+  不需要改 csproj。`Avalonia.Controls.Converters.ColorToHexConverter` 方向是 Color→hex，
+  反方向（hex→Color）要自己写。
+- 颜色等「用户正在输入的字符串」绑 `TextBox` 时必须用
+  `UpdateSourceTrigger=LostFocus`：按 PropertyChanged 即时回写会让设置层的非法值回退
+  **冲掉用户正在输入的内容**（输入 `#12` 时立刻被重置）。
 - 页面文案在 code-behind 用 `Translator.Tr(...)` 赋值，并在 `Retranslate()` 里集中重设，
   由主窗口在语言变更时调用。
+- **下拉框要「显示译文、存稳定 key」**时用 `ViewModels/ChoiceGroup.cs` 做绑定投影
+  （候选是稳定实例，切语言只原地换文案，选中项对象不变）。字体候选等列表
+  **必须原地增删、绝不整体替换**：替换会让 `SelectedItem` 变 null，
+  双向绑定随即把 null 写回设置，把用户的选择静默清掉。
+
+### i18n 的部署要求（容易整条失效）
+
+- 翻译资产是 1.1.x 的 `pysourcecode/i18n/ustplayer_*.ts`，由 `ustPlayer.Desktop` 与
+  `ustPlayer.Tests` 的 csproj 复制到输出目录的 **`i18n/` 子目录**。
+  `TranslationCatalogLoader.LoadForLocale` 只按「程序目录 → i18n/ → 用户数据目录」查找，
+  **漏了复制不会报任何错**：语言设置静默失效，所有语言都显示中文。
+  `TranslationAssetsTests` 守住这一环，`MainWindowViewModel.ApplyLanguage` 也会打一条
+  「生效语言 + 采样翻译」日志便于定位。
+- **新增界面文案要三份 `.ts` 一起补**（`zh_CN` 源语言留空 `type="unfinished"`）。
+  只补 `en_US` 会让文言界面静默退回中文；`TranslationAssetsTests.三份目录条目数一致` 守住这条。
+  若某个标题在既有 161 条里已经存在，优先复用它而不是新增（例如基础页的导入/保存按钮
+  放在「项目」卡内，而不是新起一张「工程」卡）。
 
 ### 架构（依赖方向）
 
