@@ -107,7 +107,65 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         NavView.SelectedItem = _navItems[BasicNavKey];
 
+        // 布局完成后再对齐设置项：模板在 footer 下方留了一段内边距，
+        // 靠测量把它抵消掉（而不是写死一个魔数，见方法说明）。
+        Dispatcher.UIThread.Post(AlignSettingsItemToBottom, DispatcherPriority.Loaded);
+
         AppLogger.Info($"主窗口就绪（设置文件：{_services.Settings.SettingsPath}）");
+    }
+
+    /// <summary>是否已校正过设置项距底部的残留下沉（只做一次，避免反复触发布局）。</summary>
+    private bool _settingsItemFlushCorrected;
+
+    /// <summary>
+    /// 把设置导航项对齐到导航栏最底部。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 实测（本机 620 高窗口）：设置项已经在 footer 里贴底定位，但**下方仍留 11px**——
+    /// 这段来自 FluentAvalonia 模板内部，`NavigationView.Padding.Bottom` 为 0，
+    /// 且该模板不暴露可命中的部件名（DLL 里只有 <c>PART_InnerDockPanel</c> /
+    /// <c>PART_SpinnerPanel</c>），因此没法用样式精确改它。
+    /// </para>
+    /// <para>
+    /// 于是改为**按测量值自校正**：量出残留下沉，把设置项按这个差值下拉。
+    /// 不写死 11 这个数字——模板内边距若随版本变化，这里依然算得对。
+    /// 只校正一次，改完再量一次并记日志，避免布局反复触发。
+    /// </para>
+    /// </remarks>
+    private void AlignSettingsItemToBottom()
+    {
+        if (!_navItems.TryGetValue(SettingsNavKey, out var item))
+        {
+            return;
+        }
+
+        var origin = item.TranslatePoint(new Point(0, 0), NavView);
+
+        if (origin is not { } top)
+        {
+            AppLogger.Warning("设置导航项尚未进入可视树，无法测量位置");
+            return;
+        }
+
+        var gap = NavView.Bounds.Height - (top.Y + item.Bounds.Height);
+
+        if (!_settingsItemFlushCorrected && gap > 0.5)
+        {
+            _settingsItemFlushCorrected = true;
+            item.Margin = new Thickness(0, 0, 0, -gap);
+
+            AppLogger.Info($"设置导航项下方残留 {gap:F1}px，已按此下拉使其贴底");
+
+            // 改完再量一次，确认结果并留下数字
+            Dispatcher.UIThread.Post(AlignSettingsItemToBottom, DispatcherPriority.Loaded);
+            return;
+        }
+
+        // 校正完成后只记 Debug：这是每次启动都会走的正常路径，不必占 Info
+        AppLogger.Debug(
+            $"设置导航项位置：项高 {item.Bounds.Height:F1}，距导航栏底部 {gap:F1}px"
+            + $"（导航栏高 {NavView.Bounds.Height:F1}）");
     }
 
     // ===================== 提示条 =====================
