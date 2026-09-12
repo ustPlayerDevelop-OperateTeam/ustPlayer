@@ -22,6 +22,13 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   # CI 上不因 NuGet 警告中断（真正需要拦截的编译警告由 TreatWarningsAsErrors 管）
   DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
+  # 依赖渲染器原生库的测试类。渲染器目前只有 Windows 产物（Spike 0c 待补 macOS/Linux 目标），
+  # 因此非 Windows 平台必须排除它们——这些用例在缺库时会**明确失败**（而不是静默跳过），
+  # 这是刻意的：宁可 loudly fail 也不要让「渲染器没就位」被掩盖。
+  # 新增依赖原生库的测试类时，请一并加到这里：filter 只认 FullyQualifiedName
+  # （本 runner 上 [Trait]/TestCategory 过滤无效，已实测）。
+  # 必须写成单行：折叠标量（>-）会把换行变成**空格**，而 --filter 表达式里不能有空格。
+  NATIVE_ONLY_TESTS_FILTER: "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests&FullyQualifiedName!~PlayerFrameCompositorTests"
 
 jobs:
   # ============================================================
@@ -48,7 +55,7 @@ jobs:
       - name: 测试（跳过依赖渲染器原生库的用例）
         run: >
           dotnet test UstPlayer.slnx -c Release --no-build --nologo
-          --filter "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests"
+          --filter "$NATIVE_ONLY_TESTS_FILTER"
 
   # ============================================================
   # Windows：完整验证 —— 含原生渲染器集成测试与真实窗口启动
@@ -88,6 +95,12 @@ jobs:
         # 因此窗口的创建与显示只能以真实进程启动验证。
         run: ./build/verify-app-launch.ps1 -Configuration Release
 
+      - name: 真实播放链路验证
+        shell: pwsh
+        # 同上：播放窗口也是 AppWindow，无法在 headless 下构造。
+        # 本步骤用 --play 真跑一遍：UST 解析 → 渲染器出帧 → 显示 → 首帧已渲染 → 播放进行中。
+        run: ./build/verify-player-launch.ps1 -Configuration Release
+
   # ============================================================
   # macOS / Linux：验证跨平台可构建性 + 纯托管测试
   # 渲染器原生库目前只有 Windows 产物（Spike 0c 待补目标），故过滤 RequiresNative
@@ -117,4 +130,4 @@ jobs:
       - name: 测试（跳过依赖原生渲染器的用例）
         run: >
           dotnet test UstPlayer.slnx -c Release --no-build --nologo
-          --filter "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests"
+          --filter "$NATIVE_ONLY_TESTS_FILTER"

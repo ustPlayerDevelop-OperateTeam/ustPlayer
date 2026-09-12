@@ -49,6 +49,16 @@ BenchmarkDotNet.Artifacts/
 **/ffmpeg/*
 !**/ffmpeg/README.md
 !**/ffmpeg/.gitkeep
+# ⚠️ 上面的规则按**目录名**忽略，而源码目录可能恰好同名：
+#    ustPlayer.Tests/renderer/ 放的是渲染器集成测试**源码**（二进制由
+#    build/sync-native-assets.ps1 也同步到同一目录）。曾经因此让 4 个测试文件
+#    长期未入库——`git status` 里完全看不到，CI 也少跑一整套原生集成测试。
+#    因此这里显式把源码扩展名重新纳入版本控制。新增源码目录名与构建产物目录同名时，
+#    请同样在这里加一条否定规则。
+!**/renderer/*.cs
+!**/renderer/*.axaml
+!**/ffmpeg/*.cs
+!**/ffmpeg/*.axaml
 
 # ===================== 用户本地数据（沿用 1.1.x 约定，不提交） =====================
 Settings.ini

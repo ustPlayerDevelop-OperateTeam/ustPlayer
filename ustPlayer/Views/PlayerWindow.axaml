@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="UstPlayer.Views.PlayerWindow"
+        Title="ustPlayer"
+        Background="Black"
+        WindowState="FullScreen"
+        SystemDecorations="None"
+        Topmost="True">
+
+  <!--
+    全屏播放器：画面完全来自渲染器出帧（见 docs/adr-0001-renderer-strategy.md），
+    因此这里只有一个 Image —— 文字、音高曲线、歌词都由渲染器画好。
+    Stretch=Fill：渲染尺寸已按窗口尺寸 clamp，直接铺满即可。
+  -->
+  <Image Name="FrameImage"
+         Stretch="Fill"
+         RenderOptions.BitmapInterpolationMode="HighQuality" />
+
+</Window>

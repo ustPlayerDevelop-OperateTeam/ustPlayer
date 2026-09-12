@@ -235,24 +235,36 @@ internal sealed class PlaybackSession : IDisposable
     {
         lock (_syncRoot)
         {
-            if (_startedOnce)
-            {
-                return;
-            }
+            StartOrResumeCore();
+        }
+    }
 
-            var now = _clock.NowSeconds;
-            _startRealSeconds = now;
-            _startedOnce = true;
+    /// <summary>
+    /// <see cref="StartOrResume"/> 的实现（调用方须已持有锁）。
+    /// </summary>
+    /// <remarks>
+    /// 锚定只生效一次。1.1.x 的教训：最小化 / 恢复会再次触发窗口显示事件，墙钟零点不能重置，
+    /// 否则时间轴会跳变；音频在显示前已降级 / 结束时也要把相应锚点重新锚到真正开始显示的时刻。
+    /// </remarks>
+    private void StartOrResumeCore()
+    {
+        if (_startedOnce)
+        {
+            return;
+        }
 
-            if (_degradedRealSeconds > 0)
-            {
-                _degradedRealSeconds = now;
-            }
+        var now = _clock.NowSeconds;
+        _startRealSeconds = now;
+        _startedOnce = true;
 
-            if (_mediaFinished)
-            {
-                _mediaFinishRealSeconds = now;
-            }
+        if (_degradedRealSeconds > 0)
+        {
+            _degradedRealSeconds = now;
+        }
+
+        if (_mediaFinished)
+        {
+            _mediaFinishRealSeconds = now;
         }
     }
 
@@ -269,6 +281,12 @@ internal sealed class PlaybackSession : IDisposable
     {
         lock (_syncRoot)
         {
+            // 兜底锚定：调用方忘记 StartOrResume 时，绝不能把「开机以来的秒数」当成播放位置
+            // （见 SystemClock：它以系统启动为零点）。否则第一帧就会判定内容已播完、
+            // 立刻显示结束文字。这个 bug 单元测试**看不出来**——假时钟从 0 开始，
+            // 恰好等于「已锚定」，只有真实时钟（非零起点）才会暴露。
+            StartOrResumeCore();
+
             return AdvanceCore();
         }
     }

@@ -15,9 +15,47 @@
 
 - 2.0 的目录布局、版本锁定与分层约束见根目录的工程文件、`docs/`。
 - 1.1.x 的命令（`uv sync` / `uv run main.py` / `uv run pytest`）**一律以 `pysourcecode/` 为工作目录**；依赖事实源是 `pysourcecode/pyproject.toml`。
-- **下文「命令 / 注意事项 / 架构 / 约定」各节描述的是 1.1.x**，读其中路径时请自行加上 `pysourcecode/` 前缀；2.0 的对应章节在迁移过程中逐步补齐。
-- `README.md` / `CHANGELOG.md` / `LICENSE` / `ERcode.txt` / `Terms.txt` / 图标由两条产品线共用。
+- **下文「命令 / 注意事项 / 架构 / 约定」各节描述的是 1.1.x**，读其中路径时请自行加上 `pysourcecode/` 前缀。**2.0 的对应章节见下面「2.0（C# / Avalonia）」。**
+- `README.md` / `CHANGELOG.md` / `LICENSE` / `ERcode.txt` / `Terms.txt` / 图标由两条产品线共用。`CHANGELOG.md` 目前的 `## Unreleased` 一节仍是 1.1.x 的内容；2.0 的发布说明与双产品线拆分属 Phase 6，**不要**把 2.0 迁移条目混入该节。
 - 旧 CI 已归档为 `pysourcecode/.github/workflows/build.yml`（**GitHub 不执行子目录中的 workflow**，仅作存档；如需继续为 1.1.x 出包，须移回根 `.github/workflows/`）。
+
+## 2.0（C# / Avalonia，工作目录 = 仓库根目录）
+
+### 命令
+
+- 构建：`dotnet build UstPlayer.slnx -c Debug`（`TreatWarningsAsErrors=true`，**0 警告是硬要求**）。
+- 测试：`dotnet test UstPlayer.slnx -c Debug`（334 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
+- 跨平台过滤：依赖渲染器原生库的三个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。
+- 真实进程验证（窗口无法在 headless 下构造，见 `docs/adr-0002-window-chrome.md`，**改动窗口/播放链路后必须跑**）：
+  - `pwsh -File build/verify-app-launch.ps1` —— 主窗口能启动并稳定运行。
+  - `pwsh -File build/verify-player-launch.ps1` —— 用 `--play` 真跑一遍：UST 解析 → 渲染器出帧 → 窗口显示 → 首帧已渲染 → **播放进行中**（并拒绝任何 ERROR 级日志）。
+- 直接播放：`ustPlayer.exe --play <某个 .ust 路径>`（跳过主窗口，全屏播放）。
+- 原生渲染器：`pwsh -File build/sync-native-assets.ps1`（可用环境变量 `UPLRENDER_RELEASE_DIR` 指定 uPlRender 的 `target/release`）。缺库时相关测试**明确失败**而非跳过。
+
+### ⚠️ 两个容易踩的坑
+
+- **`build/*.ps1` 必须带 UTF-8 BOM**。Windows PowerShell 5.1 没有 BOM 就按 GBK 解码，中文会引发
+  `The string is missing the terminator` / `Unexpected token` 之类的语法错误，报错位置指向看起来正常的行。
+  **用编辑器改写脚本后 BOM 会被静默丢掉**——`BuildScriptsTests.构建脚本必须带_UTF8_BOM` 已守住这一点。
+- **`PlayerFrameCompositor` 的渲染尺寸上限是 1920×1080**（4K 实时渲染达不到 60fps，见 `docs/adr-0001-renderer-strategy.md`）；
+  渲染尺寸必须按**窗口实际尺寸**传，因为渲染器的字号按画布尺寸计算。
+
+### 架构（依赖方向）
+
+```
+AppContext 组合根 → AppServices（唯一组装具体实现的地方，不得在别处 new 服务）
+   ├─ Settings     SettingsManager（七个设置子域 + BuildLaunchParams）
+   ├─ Ust          UstFileReader（只处理 .ust 文本，不支持 USTX）
+   ├─ ProjectIo    UplrProjectIO（.uplr 导入导出 / .uprd 导出）
+   └─ VideoExporter
+MainWindow ──注入──> AppServices ──> PlayerLauncher ──> PlayerWindow ──> PlayerFrameCompositor
+                                                             └─> PlaybackSession（时序 / 文字）
+```
+
+- 分层红线由 `ustPlayer.Tests/Architecture/LayeringTests.cs` 强制：`Models`/`Ust`/`Settings`/`Projects`/`Video`/`Timing`/`I18n`/`Diagnostics`/`Interop` **不得引用 Avalonia 或 FluentAvalonia**，也不得反向依赖 `Views` 等 UI 命名空间；共享工程**不得出现平台条件编译**（平台差异走运行时判断）。
+- `AppServices` 位于根命名空间 `UstPlayer`，是**刻意**的分层例外（组合根按定义要跨层）。它叫 `AppServices` 而非 1.1.x 的 `AppContext`，是为避免遮蔽 `System.AppContext`。
+- **假时钟陷阱**：`SystemClock` 以系统启动为零点（非零），`FakeClock` 默认从 0 开始——从 0 开始恰好等价于「时间轴已正确锚定」。因此**涉及时间轴锚定的测试必须传非零起点**（`new FakeClock(3600.0)`），否则真实 bug 会被全绿掩盖。
+
 
 ## 命令（1.1.x，工作目录 = `pysourcecode/`）
 

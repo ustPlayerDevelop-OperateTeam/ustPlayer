@@ -11,12 +11,16 @@
     见 docs/adr-0002-window-chrome.md。内容可延伸进标题栏区域，
     因此顶部留出标题栏高度（-1 表示由平台自动计算）。
 
-    Phase 1 为占位内容：仅用于验证工程骨架、FluentAvalonia 主题与三平台构建。
-    真正的 NavigationView 外壳与 5 个设置页在 Phase 5 落地。
+    ⚠️ 本页仍是**临时**内容：Phase 4 用它打通「选 UST → 全屏播放」这条端到端链路，
+    Phase 5 会整体替换为 FluentAvalonia 的 NavigationView 外壳 + 5 个设置页。
+    文案一律在 code-behind 里用 Translator.Tr(...) 设置（见 AGENTS.md 的 i18n 约定）。
   -->
-  <StackPanel Margin="24,48,24,24" Spacing="8">
-    <TextBlock Text="ustPlayer" FontSize="28" FontWeight="SemiBold" />
-    <TextBlock Text="C# / Avalonia 2.0 工程骨架（Phase 1）" Opacity="0.7" />
+  <StackPanel Margin="24,48,24,24" Spacing="12">
+    <TextBlock Name="TitleText" FontSize="28" FontWeight="SemiBold" />
+    <TextBlock Name="SubtitleText" Opacity="0.7" TextWrapping="Wrap" />
+    <Button Name="OpenUstButton" Click="OnOpenUstClick" HorizontalAlignment="Left" />
+    <TextBlock Name="StatusText" Opacity="0.7" TextWrapping="Wrap" />
+    <TextBlock Name="ErrorText" Foreground="#C42B1C" TextWrapping="Wrap" IsVisible="False" />
   </StackPanel>
 
 </views:ShellWindow>

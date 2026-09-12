@@ -5,8 +5,20 @@ using UstPlayer.Platform;
 namespace UstPlayer.Tests.Timing;
 
 /// <summary>可编程时钟：测试中显式推进时间，替代 1.1.x 里不可控的 <c>time.time()</c>。</summary>
+/// <remarks>
+/// <b>起点可以为非零</b>，这一点很重要：真实时钟 <see cref="UstPlayer.Platform.SystemClock"/>
+/// 从系统启动算起（非零），而从 0 开始的假时钟恰好等同于「已正确锚定」，
+/// 会把「忘了锚定时间轴」这类 bug 掩盖掉。涉及锚定的测试应传入非零起点。
+/// </remarks>
 internal sealed class FakeClock : IClock
 {
+    /// <summary>创建时钟。</summary>
+    /// <param name="startSeconds">起始时间（秒）；模拟真实时钟时应传非零值。</param>
+    public FakeClock(double startSeconds = 0.0)
+    {
+        NowSeconds = startSeconds;
+    }
+
     /// <summary>当前时间（秒）。</summary>
     public double NowSeconds { get; private set; }
 

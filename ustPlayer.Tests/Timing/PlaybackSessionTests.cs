@@ -81,6 +81,34 @@ public class PlaybackSessionTests
         Assert.Equal(1, audio.PlayCount);
     }
 
+    // ===================== 时间轴锚定 =====================
+
+    /// <summary>
+    /// 调用方忘记 <see cref="PlaybackSession.StartOrResume"/> 时，绝不能把「开机以来的秒数」
+    /// 当成播放位置——真实时钟以系统启动为零点，那样第一帧就会被判定为已播完。
+    /// </summary>
+    /// <remarks>
+    /// <b>回归测试</b>：这个 bug 曾被假时钟掩盖——<see cref="FakeClock"/> 默认从 0 开始，
+    /// 恰好等价于「已正确锚定」，于是所有用默认假时钟的测试都是绿的，
+    /// 而真实程序里播放会瞬间结束。因此这里显式用非零起点。
+    /// </remarks>
+    [Fact]
+    public void 未显式锚定时也不把开机时间当播放位置()
+    {
+        var clock = new FakeClock(3600.0);
+        var options = CreateOptions(noteCount: 4);
+        var session = new PlaybackSession(options, clock, audio: null);
+
+        // 刻意不调用 StartOrResume
+
+        clock.Advance(1.0 / 60.0);
+        var state = session.Advance();
+
+        Assert.Equal(PlaybackEndStep.Continue, state.Step);
+        Assert.False(state.IsPlayerFinished);
+        Assert.True(state.ElapsedSeconds < 1.0, $"播放位置不该是 {state.ElapsedSeconds} 秒");
+    }
+
     // ===================== 播完锚点 =====================
 
     /// <summary>重复的「播放到结尾」不得改写结束时刻（否则时间轴回跳）。</summary>
