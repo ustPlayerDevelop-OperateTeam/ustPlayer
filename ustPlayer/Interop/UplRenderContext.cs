@@ -67,6 +67,16 @@ internal sealed class UplRenderContext : IDisposable
     private readonly UplRenderHandle _handle;
     private bool _disposed;
 
+    /// <summary>
+    /// 进度回调的托管委托引用。
+    /// </summary>
+    /// <remarks>
+    /// 必须保持存活：原生侧只保存函数指针，若托管委托被回收，
+    /// 回调触发时会跳到已释放的跳板（对应 1.1.x `renderer_ffi.py` 中
+    /// 「保持回调存活，避免被 GC」的同一考量）。
+    /// </remarks>
+    private NativeMethods.ProgressCallback? _progressCallback;
+
     /// <summary>创建一个渲染上下文。</summary>
     /// <exception cref="RendererException">原生创建失败。</exception>
     private UplRenderContext(UplRenderHandle handle)
@@ -143,6 +153,29 @@ internal sealed class UplRenderContext : IDisposable
         lock (_syncRoot)
         {
             ThrowIfError(NativeMethods.UpEndExport(RawHandle), "up_end_export");
+        }
+    }
+
+    /// <summary>
+    /// 设置编码进度回调（千分比 0..1000）。
+    /// </summary>
+    /// <param name="onProgress">进度回调；传 <see langword="null"/> 清空。</param>
+    /// <remarks>
+    /// 回调由渲染器在编码过程中从**渲染线程**触发，实现方需自行保证线程安全。
+    /// 本方法会持有委托引用以防被 GC 回收。
+    /// </remarks>
+    internal void SetProgressCallback(Action<int>? onProgress)
+    {
+        NativeMethods.ProgressCallback? callback = null;
+        if (onProgress is not null)
+        {
+            callback = new NativeMethods.ProgressCallback(progress => onProgress(progress));
+        }
+
+        lock (_syncRoot)
+        {
+            _progressCallback = callback;
+            NativeMethods.UpSetProgressCallback(RawHandle, callback!);
         }
     }
 
@@ -239,10 +272,20 @@ internal sealed class UplRenderContext : IDisposable
 
     private static string ReadLastError(ulong ctx)
     {
-        var pointer = NativeMethods.UpLastError(ctx);
-        return pointer == IntPtr.Zero
-            ? string.Empty
-            : Marshal.PtrToStringUTF8(pointer) ?? string.Empty;
+        // 与 1.1.x renderer_ffi.py 的 _err_message 对齐：读取错误消息本身绝不能再抛异常，
+        // 否则「取错误信息」会把真正的失败原因盖掉。缓冲区按 C ABI 保证为合法 UTF-8，
+        // 指针为空 ⇒ 无错误。
+        try
+        {
+            var pointer = NativeMethods.UpLastError(ctx);
+            return pointer == IntPtr.Zero
+                ? string.Empty
+                : Marshal.PtrToStringUTF8(pointer) ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
     }
 
     private void ThrowIfError(int code, string stage)
