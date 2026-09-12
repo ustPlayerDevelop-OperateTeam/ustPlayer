@@ -45,6 +45,7 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     private readonly Dictionary<string, Control> _pages = [];
 
     private BasicPage? _basicPage;
+    private FilePage? _filePage;
 
     /// <summary>当前打开的播放窗口；用于避免同时打开多个全屏播放器。</summary>
     private PlayerWindow? _playerWindow;
@@ -99,8 +100,10 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     {
         _basicPage = new BasicPage(new BasicPageViewModel(_services), this);
         _basicPage.SetPlayHandler(PlayAsync);
-
         _pages["basic"] = _basicPage;
+
+        _filePage = new FilePage(new FilePageViewModel(_services), this);
+        _pages["file"] = _filePage;
     }
 
     /// <summary>
@@ -208,6 +211,7 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         }
 
         _basicPage?.Retranslate();
+        _filePage?.Retranslate();
 
         if (NavView.Content is TextBlock placeholder)
         {

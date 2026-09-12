@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:UstPlayer.ViewModels"
+             xmlns:controls="using:UstPlayer.Views.Controls"
+             x:Class="UstPlayer.Views.Pages.FilePage"
+             x:DataType="vm:FilePageViewModel">
+
+  <!--
+    文件页（对应 1.1.x file_page.py）：UST 选择、编码切换与内容预览。
+    UST 路径与音高线开关直接双向绑定设置子域；编码经 ViewModel 的属性做规范化，
+    避免设置里的非候选取值把 ComboBox 变成 null 再写回设置。
+  -->
+  <Grid RowDefinitions="Auto,*,Auto" Margin="24,20,24,24">
+
+    <!-- ===================== 文件与编码 ===================== -->
+    <controls:SectionCard Grid.Row="0" x:Name="FileCard">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock x:Name="UstLabel" Grid.Column="0" MinWidth="48" VerticalAlignment="Center" />
+          <TextBox x:Name="UstPathBox" Grid.Column="1"
+                   Text="{Binding File.UstPath, Mode=TwoWay}" />
+          <Button x:Name="SelectUstButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectUstClick" />
+        </Grid>
+
+        <CheckBox x:Name="CurveShowBox"
+                  IsChecked="{Binding File.CurveShow, Mode=TwoWay}" />
+
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+          <TextBlock x:Name="EncodingLabel" Grid.Column="0" MinWidth="88" VerticalAlignment="Center" />
+          <ComboBox x:Name="EncodingCombo" Grid.Column="1" MinWidth="130"
+                    ItemsSource="{Binding SupportedEncodings}"
+                    SelectedItem="{Binding Encoding, Mode=TwoWay}" />
+          <Button x:Name="CheckEncodingButton" Grid.Column="3" Margin="8,0,0,0"
+                  Click="OnCheckEncodingClick" />
+        </Grid>
+      </StackPanel>
+    </controls:SectionCard>
+
+    <!-- ===================== 预览 ===================== -->
+    <controls:SectionCard Grid.Row="1" x:Name="PreviewCard" Margin="0,14,0,0">
+      <TextBox x:Name="PreviewBox"
+               IsReadOnly="True"
+               AcceptsReturn="True"
+               TextWrapping="NoWrap"
+               FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+               MinHeight="240"
+               Text="{Binding PreviewText, Mode=OneWay}" />
+    </controls:SectionCard>
+
+  </Grid>
+
+</UserControl>
