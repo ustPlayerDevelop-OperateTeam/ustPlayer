@@ -2,16 +2,26 @@
 
 > 记录 2.0 迁移相对**已批准计划**的偏差及其理由。新增偏差请追加，不要删改历史条目。
 
-## D1：Android 头工程暂不纳入解决方案
+## D1：Android 头工程**已补建**，但刻意留在解决方案之外
 
 - **计划要求**：`ustPlayer.Android/` 头工程骨架，Phase 1 内编译通过。
-- **实际**：已实测本机 `.NET SDK 10.0.400` **未安装任何 workload**（`dotnet workload list` 为空），
-  `net10.0-android` 目标无法还原与编译。
-- **处理**：暂不创建 Android 工程，避免在每次 `dotnet build UstPlayer.slnx` 时制造失败步骤。
-  `Directory.Packages.props` 已预置 `Avalonia.Android` 版本；共享工程的分层约束测试
-  （`共享工程不得出现平台条件编译`）已就位，保证 Android 接入时不需要重构。
-- **解除条件**：安装 `dotnet workload install android` 后补建工程骨架，并把
-  `ApplicationManifest` 一类的 Windows 专属设置按平台条件隔离（见 Desktop 工程的既有做法）。
+- **实际进展**：
+  1. `dotnet workload install android` **已成功**（原阻塞点解除）；
+  2. `ustPlayer.Android/` 骨架**已创建**：`MainActivity : AvaloniaMainActivity<App>`
+     （与桌面头等价，只负责构建 AppBuilder）、`Resources/values/styles.xml`、csproj 指向 `net10.0-android`；
+  3. **但它不在 `UstPlayer.slnx` 里**，且**本地从未编译成功过**。
+- **为什么不在解决方案里**：本机缺 **Android SDK**，`-t:InstallAndroidDependencies`
+  自动安装失败（下载 SDK 清单时 `DownloadToString` 抛异常，随后去找
+  `AndroidManifestFeed_d18.0.xml` 这个不存在的本地文件）。把它放进 sln 会让
+  `dotnet build UstPlayer.slnx` 在没有 Android SDK 的机器上**每次都失败**——
+  这正是本条最初不建工程的原因。
+- **怎么验证它**：新增 CI 作业 `android`（ubuntu-latest 预装 Android SDK）单独构建该工程。
+  **该作业首次运行时才真正编译过这份代码**；在此之前它的 C# 是未验证的。
+- **命名坑（已规避）**：命名空间取 `UstPlayer.AndroidHead` 而非 `UstPlayer.Android`，
+  否则 `using Android.App;` 会先按外层命名空间解析成 `UstPlayer.Android`，
+  与 Android SDK 的 `Android` 撞名、报错难懂。程序集名仍是 `ustPlayer.Android`。
+- **解除条件**：CI 的 android 作业通过后，可评估是否放回解决方案。
+
 
 ## D2：测试工程合并为单一 `ustPlayer.Tests`
 

@@ -140,6 +140,32 @@ jobs:
           --filter "$NATIVE_ONLY_TESTS_FILTER"
 
   # ============================================================
+  # Android 头：**刻意不在解决方案里**
+  # 本机无法验证它（见 docs/plan-deviations.md D1：workload 已装，但 Android SDK
+  # 自动安装在该机器上失败）。若把它放进 UstPlayer.slnx，`dotnet build UstPlayer.slnx`
+  # 会在没有 Android SDK 的机器上每次失败——这正是 D1 当初不建工程的原因。
+  # ubuntu runner 预装 Android SDK，因此由这个作业承担它的首次真实编译验证。
+  # ============================================================
+  android:
+    name: Android 头构建（ubuntu，含 Android SDK）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 安装 Android workload
+        run: dotnet workload install android
+
+      # 单独构建该工程（它不在解决方案里，原因见上）
+      - name: 构建 Android 头
+        run: dotnet build ustPlayer.Android/ustPlayer.Android.csproj -c Release
+
+  # ============================================================
   # 打包：每次推送都真的打一次包，确认产物完整
   # 这一环刻意放在日常 CI 而不是只在发版时跑：
   # 「资源没打进产物」本仓库踩过多次（翻译 .ts、ERcode.txt / Terms.txt），

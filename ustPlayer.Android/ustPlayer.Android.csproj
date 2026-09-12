@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Android 平台头：与 ustPlayer.Desktop 一样，只负责启动共享工程，
+    不含任何业务逻辑（共享工程里的 UI 与逻辑原样复用）。
+
+    这是 D1 的解除条件：「安装 dotnet workload install android 后补建工程骨架」。
+    注意 Android 目标的 `SupportedOSPlatformVersion` 与桌面不同，且**不要**把
+    Windows 专属设置（如 ApplicationIcon / app.manifest）带进来——
+    见 docs/plan-deviations.md D1。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UstPlayer.AndroidHead</RootNamespace>
+    <AssemblyName>ustPlayer.Android</AssemblyName>
+
+    <!-- 包信息 -->
+    <ApplicationId>tech.ustplayer.app</ApplicationId>
+    <ApplicationTitle>ustPlayer</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>2.0.0</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ustPlayer\ustPlayer.csproj" />
+  </ItemGroup>
+
+</Project>
