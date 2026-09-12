@@ -243,36 +243,40 @@ public class VideoExporterTests : IDisposable
     }
 
     /// <summary>
-    /// 导出失败时必须清理半成品：不留打不开的 MP4，也不留指向无效视频的 <c>.uprd</c>。
+    /// 导出中途失败时必须清理半成品：不留打不开的 MP4，也不留指向无效视频的 <c>.uprd</c>。
     /// </summary>
     /// <remarks>
-    /// 本用例不假定失败的具体原因——渲染器缺失、ffmpeg 缺失（本机常见）、渲染中途出错
-    /// 都会走到同一段清理逻辑。因此成功与失败两种结果都接受，
-    /// 但**失败时两件产物都必须消失**。
+    /// <para>
+    /// 用**必定抛异常的混流器**制造「渲染之后」的失败：只有走到这一步，
+    /// <c>.uprd</c> 才已经被真正写出来，清理逻辑才谈得上被验证。
+    /// </para>
+    /// <para>
+    /// 缺渲染器 / 缺 ffmpeg 的环境会更早失败——同样必须清理，
+    /// 因此「抛异常 + 两件产物都消失」这个断言在任何环境下都成立，
+    /// 不需要像此前那样「成功失败都算通过」（那条写法在缺 ffmpeg 的机器上永远是绿的，
+    /// 实际上什么都没验证；成功路径现由 <see cref="VideoExportIntegrationTests"/> 覆盖）。
+    /// </para>
     /// </remarks>
     [Fact]
-    public async Task 导出失败时清理半成品()
+    public async Task 导出中途失败时清理半成品()
     {
-        var (exporter, settings, _) = CreateExporter();
-        var output = Path.Combine(_tempDirectory, "output.mp4");
+        var (exporter, settings, root) = CreateExporter();
+        var output = Path.Combine(root, "output.mp4");
 
         settings.File.UstPath = WriteUst("song.ust");
 
-        try
-        {
-            await exporter.RenderAsync(output, 1920, 1080, 60, muxAudio: false);
+        // 让混流分支真正被进入：路径非空即可（内容无关紧要，混流器是抛异常的假件）
+        var musicPath = Path.Combine(_tempDirectory, "dummy.mp3");
+        File.WriteAllBytes(musicPath, [0x00]);
+        settings.Project.MusicPath = musicPath;
 
-            // 环境齐备（渲染器 + ffmpeg 都在）时正常产出
-            Assert.True(File.Exists(output));
-        }
-        catch (Exception)
-        {
-            // 失败路径：两件产物都不得残留
-            Assert.False(File.Exists(output), "失败的导出不应留下 MP4");
-            Assert.False(
-                File.Exists(VideoExporter.UprdPathFor(output)),
-                "失败的导出不应留下指向无效视频的 .uprd");
-        }
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => exporter.RenderAsync(output, 640, 360, 30, muxAudio: true));
+
+        Assert.False(File.Exists(output), "失败的导出不应留下 MP4");
+        Assert.False(
+            File.Exists(VideoExporter.UprdPathFor(output)),
+            "失败的导出不应留下指向无效视频的 .uprd");
     }
 
     // ===================== 辅助 =====================
@@ -284,7 +288,7 @@ public class VideoExporterTests : IDisposable
 
         var settings = new SettingsManager(Path.Combine(root, "Settings.json"));
         var projectIo = new UplrProjectIO(settings, cacheBaseOverride: Path.Combine(root, "cache"));
-        var exporter = new VideoExporter(settings, new UstFileReader(), projectIo, new NoopMuxer());
+        var exporter = new VideoExporter(settings, new UstFileReader(), projectIo, new ThrowingMuxer());
 
         return (exporter, settings, root);
     }
@@ -317,12 +321,13 @@ public class VideoExporterTests : IDisposable
         return ust;
     }
 
-    /// <summary>测试用混流器：不做任何事（避免测试依赖 ffmpeg）。</summary>
-    private sealed class NoopMuxer : IVideoMuxer
+    /// <summary>测试用混流器：必定抛异常，用于制造「渲染之后」的失败以验证清理。</summary>
+    private sealed class ThrowingMuxer : IVideoMuxer
     {
         public bool IsAvailable => true;
 
         public Task MuxAsync(string videoPath, string audioPath, Func<bool>? cancelCheck,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("测试用混流器：故意失败");
     }
 }

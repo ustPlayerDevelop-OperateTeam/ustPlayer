@@ -7,6 +7,7 @@
 | `verify-app-launch.ps1` | 以真实进程启动 `ustPlayer.exe`，验证窗口能正常创建 | 本地改动窗口/主题后；CI 的 Windows 作业 |
 | `verify-player-launch.ps1` | 以真实进程跑一遍**播放链路**（`--play` + 日志标记校验） | 本地改动播放器/时序/渲染后；CI 的 Windows 作业 |
 | `sync-native-assets.ps1` | 把渲染器原生库同步到各工程的 `renderer/` 目录 | 本地开发（由测试工程的 MSBuild 目标自动调用一次） |
+| `fetch-ffmpeg.ps1` | 下载 `ffmpeg`/`ffprobe` 到各工程的 `ffmpeg/` 目录 | 本地开发首次；CI 的 Windows 作业 |
 
 ## 约定
 
@@ -96,3 +97,25 @@ System.ArgumentException: An item with the same key has already been added.
 **打包分发不走这个脚本**：发布产物里的 `renderer/` 与 `ffmpeg/` 由 CI 在打包阶段放入
 （CI 检出并编译 uPlRender、下载对应平台的 FFmpeg）。两条来源互不冲突：
 脚本只管本地开发就位，CI 只管发布产物就位。
+
+## `fetch-ffmpeg.ps1` 的定位
+
+**视频导出必须有 ffmpeg**——不只是混入伴奏才需要。uPlRender 的编码器**只从 `PATH`
+查找 ffmpeg**（它不认程序目录），所以 `VideoExporter` 会在 `up_begin_export` 前把
+`<程序目录>/ffmpeg` 临时加进 `PATH`（`Video/BundledFfmpegPathScope.cs`）。
+没有任何 ffmpeg 时的实际报错：
+
+```
+up_begin_export 失败：编码失败（ffmpeg init failed: ffmpeg executable not found in PATH）
+```
+
+因此本脚本把 `ffmpeg`/`ffprobe` 下载到各工程的 `ffmpeg/` 目录，再由工程里的
+`<None Include="ffmpeg\**\*" CopyToOutputDirectory="PreserveNewest" />` 复制到输出目录——
+与 `renderer/` 完全一致的做法。`ffprobe` 只在「混入伴奏 / 探测音频时长」时用到。
+
+- 自动下载仅支持 Windows（`-Url` 可用环境变量 `USTPLAYER_FFMPEG_URL` 换成镜像）。
+  macOS / Linux 请用系统包管理器安装后 `-SourceDirectory` 指过去。
+- 已就位时直接跳过；`-Force` 强制重下。
+- **不要在 MSBuild 里自动调用它**：下载约 106 MB，构建时静默联网不可接受。
+  渲染器（2.8 MB，本地已常有副本）可以自动同步，ffmpeg 不行。
+

@@ -24,13 +24,17 @@
 ### 命令
 
 - 构建：`dotnet build UstPlayer.slnx -c Debug`（`TreatWarningsAsErrors=true`，**0 警告是硬要求**）。
-- 测试：`dotnet test UstPlayer.slnx -c Debug`（334 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
-- 跨平台过滤：依赖渲染器原生库的三个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。
+- 测试：`dotnet test UstPlayer.slnx -c Debug`（335 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
+- 跨平台过滤：依赖**渲染器原生库或 ffmpeg** 的四个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。新增这类测试类时记得同步该清单：漏了会让非 Windows 作业**明确失败**（刻意如此，不静默跳过）。
 - 真实进程验证（窗口无法在 headless 下构造，见 `docs/adr-0002-window-chrome.md`，**改动窗口/播放链路后必须跑**）：
   - `pwsh -File build/verify-app-launch.ps1` —— 主窗口能启动并稳定运行。
   - `pwsh -File build/verify-player-launch.ps1` —— 用 `--play` 真跑一遍：UST 解析 → 渲染器出帧 → 窗口显示 → 首帧已渲染 → **播放进行中**（并拒绝任何 ERROR 级日志）。
 - 直接播放：`ustPlayer.exe --play <某个 .ust 路径>`（跳过主窗口，全屏播放）。
-- 原生渲染器：`pwsh -File build/sync-native-assets.ps1`（可用环境变量 `UPLRENDER_RELEASE_DIR` 指定 uPlRender 的 `target/release`）。缺库时相关测试**明确失败**而非跳过。
+- 原生依赖（两者都**不入库**，需本地就位）：
+  - 渲染器：`pwsh -File build/sync-native-assets.ps1`（可用 `UPLRENDER_RELEASE_DIR` 指定 uPlRender 的 `target/release`）。
+  - **ffmpeg：`pwsh -File build/fetch-ffmpeg.ps1`**（约 106 MB，首次开发要跑一次）。
+    **视频导出必须有 ffmpeg**——uPlRender 的编码器只从 `PATH` 查找它，
+    「导出无声 MP4 不需要 ffmpeg」是错误说法（曾写在 `ffmpeg/README.md` 里，已更正）。
 
 ### ⚠️ 两个容易踩的坑
 
