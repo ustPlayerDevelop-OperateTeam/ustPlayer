@@ -84,15 +84,15 @@ if ($LASTEXITCODE -ne 0) {
 
 # ===================== 产物校验 =====================
 
-$isWindows = $RuntimeIdentifier -like 'win-*'
+$isWindowsTarget = $RuntimeIdentifier -like 'win-*'
 
 # 文件名按平台区分（与 build/sync-native-assets.ps1 的约定一致）
-$rendererName = if ($isWindows) { 'ustplayer_renderer.dll' }
+$rendererName = if ($isWindowsTarget) { 'ustplayer_renderer.dll' }
     elseif ($RuntimeIdentifier -like 'osx-*') { 'libustplayer_renderer.dylib' }
     else { 'libustplayer_renderer.so' }
 
-$ffmpegName = if ($isWindows) { 'ffmpeg.exe' } else { 'ffmpeg' }
-$ffprobeName = if ($isWindows) { 'ffprobe.exe' } else { 'ffprobe' }
+$ffmpegName = if ($isWindowsTarget) { 'ffmpeg.exe' } else { 'ffmpeg' }
+$ffprobeName = if ($isWindowsTarget) { 'ffprobe.exe' } else { 'ffprobe' }
 
 # 「必须有」：缺了功能会静默失效
 $required = @(
@@ -105,7 +105,7 @@ $required = @(
     'LICENSE'
 )
 
-if (-not $isWindows) {
+if (-not $isWindowsTarget) {
     # 非 Windows 的可执行文件没有 .exe 后缀
     $required[0] = 'ustPlayer'
 }
@@ -126,9 +126,9 @@ if ($missing.Count -gt 0) {
 # 原生件：Windows 上必须有（渲染器与 ffmpeg 是本机可得的）；
 # 其他平台目前**确实没有**渲染器产物（Spike 0c 待补目标），因此只提示不失败。
 $nativeChecks = @(
-    @{ Path = "renderer\$rendererName"; Label = '渲染器'; Fatal = $isWindows },
-    @{ Path = "ffmpeg\$ffmpegName"; Label = 'ffmpeg'; Fatal = $isWindows },
-    @{ Path = "ffmpeg\$ffprobeName"; Label = 'ffprobe'; Fatal = $isWindows }
+    @{ Path = "renderer\$rendererName"; Label = '渲染器'; Fatal = $isWindowsTarget },
+    @{ Path = "ffmpeg\$ffmpegName"; Label = 'ffmpeg'; Fatal = $isWindowsTarget },
+    @{ Path = "ffmpeg\$ffprobeName"; Label = 'ffprobe'; Fatal = $isWindowsTarget }
 )
 
 $nativeMissing = @()

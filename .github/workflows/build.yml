@@ -72,13 +72,26 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: 同步渲染器原生库
+      - name: 设置 Rust 工具链
+        # 渲染器是 Rust cdylib。uPlRender 仓库里的 rust-toolchain.toml 指定了它需要的
+        # 工具链版本，rustup 会据此自动安装/切换，因此这里只负责把 rustup 装上。
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 uPlRender 构建
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/ustplayer-uplrender/uPlRender
+
+      - name: 编译渲染器并同步到工程目录
         shell: pwsh
-        # 优先用仓库内已有副本（由开发者提交前的同步脚本放入，实体不入库故 CI 里通常缺失）；
-        # 缺失时脚本以 0 退出，随后依赖它的测试会明确失败并给出指引——
-        # 这样「渲染器没就位」不会被静默跳过。
-        run: ./build/sync-native-assets.ps1
-        continue-on-error: true
+        # 渲染器实体不入库（见 .gitignore），干净环境里必须现构建一份，
+        # 否则依赖它的原生测试会明确失败。
+        run: |
+          ./build/build-uplrender.ps1 -WorkDirectory "${{ runner.temp }}/ustplayer-uplrender"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $env:UPLRENDER_RELEASE_DIR = "${{ runner.temp }}/ustplayer-uplrender/uPlRender/target/release"
+          ./build/sync-native-assets.ps1 -RendererPath $env:UPLRENDER_RELEASE_DIR
 
       - name: 获取内置 FFmpeg
         shell: pwsh
@@ -183,10 +196,23 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: 同步渲染器原生库
+      - name: 设置 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 uPlRender 构建
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/ustplayer-uplrender/uPlRender
+
+      - name: 编译渲染器并同步到工程目录
         shell: pwsh
-        run: ./build/sync-native-assets.ps1
-        continue-on-error: true
+        # publish.ps1 会校验 Windows 产物里必须有 renderer/，因此这一环不能缺。
+        run: |
+          ./build/build-uplrender.ps1 -WorkDirectory "${{ runner.temp }}/ustplayer-uplrender"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $env:UPLRENDER_RELEASE_DIR = "${{ runner.temp }}/ustplayer-uplrender/uPlRender/target/release"
+          ./build/sync-native-assets.ps1 -RendererPath $env:UPLRENDER_RELEASE_DIR
 
       - name: 获取内置 FFmpeg
         shell: pwsh
@@ -231,13 +257,27 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: 同步渲染器原生库
+      - name: 设置 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 uPlRender 构建
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/ustplayer-uplrender/uPlRender
+
+      - name: 编译渲染器并同步到工程目录
         shell: pwsh
-        run: ./build/sync-native-assets.ps1
-        continue-on-error: true
+        # 发版产物同样要有 renderer/，否则发布包在用户机器上无法渲染。
+        run: |
+          ./build/build-uplrender.ps1 -WorkDirectory "${{ runner.temp }}/ustplayer-uplrender"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $env:UPLRENDER_RELEASE_DIR = "${{ runner.temp }}/ustplayer-uplrender/uPlRender/target/release"
+          ./build/sync-native-assets.ps1 -RendererPath $env:UPLRENDER_RELEASE_DIR
 
       - name: 获取内置 FFmpeg
         shell: pwsh
+        # 发版产物要自带 ffmpeg（导出视频依赖它），publish.ps1 会校验它在不在。
         run: ./build/fetch-ffmpeg.ps1
         continue-on-error: true
 
