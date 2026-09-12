@@ -5,6 +5,7 @@
 | 脚本 | 用途 | 何时运行 |
 |---|---|---|
 | `verify-app-launch.ps1` | 以真实进程启动 `ustPlayer.exe`，验证窗口能正常创建 | 本地改动窗口/主题后；CI 的 Windows 作业 |
+| `verify-player-launch.ps1` | 以真实进程跑一遍**播放链路**（`--play` + 日志标记校验） | 本地改动播放器/时序/渲染后；CI 的 Windows 作业 |
 | `sync-native-assets.ps1` | 把渲染器原生库同步到各工程的 `renderer/` 目录 | 本地开发（由测试工程的 MSBuild 目标自动调用一次） |
 
 ## 约定
@@ -25,13 +26,17 @@ $text = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($fa
 
 > **易踩的坑**：多数编辑器与「写入文件」类工具在保存时会**丢掉 BOM**（本仓库已因此
 > 坏过一次 `verify-app-launch.ps1`：PS 5.1 按 GBK 解码中文注释后报
-> `The string is missing the terminator`）。改完脚本务必跑一次语法检查：
+> `The string is missing the terminator`；写 `verify-player-launch.ps1` 时又踩了两次）。
+> 改完脚本务必跑一次语法检查：
 >
 > ```powershell
 > $errors = $null
 > [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path).Path, [ref]$null, [ref]$errors)
 > if ($errors) { $errors | ForEach-Object { $_.Message } } else { 'ok' }
 > ```
+>
+> 另外有测试守着这一点：`ustPlayer.Tests/BuildScriptsTests.cs` 的
+> `构建脚本必须带_UTF8_BOM` 会检查本目录下每个 `.ps1`。
 
 ### 2. 兼容 PowerShell 5.1 与 7+
 
@@ -60,6 +65,27 @@ System.ArgumentException: An item with the same key has already been added.
 该问题只影响 headless 单元测试，不影响真实桌面运行（详见
 `docs/adr-0002-window-chrome.md`）。因此窗口的实例化与显示**无法**用 headless 单测覆盖，
 只能以真实进程启动来验证。脚本退出码：**0 = 启动成功、1 = 启动失败**。
+
+## 为什么还需要 `verify-player-launch.ps1`
+
+播放窗口同样是 `AppWindow`，所以 `PlayerWindow.Show` 这条路径也无法用单测覆盖。
+本脚本用 `--play <临时 UST>` 真跑一遍，并要求日志里出现全部标记：
+
+| 标记 | 说明 |
+|---|---|
+| `已进入直接播放模式` | UST 解析成功且走的是播放模式 |
+| `播放器帧合成器就绪` | 渲染器已被配置（原生库可用） |
+| `播放器已启动` | `PlayerWindow.Show` 真的把窗口显示出来了 |
+| `首帧已渲染` | 渲染器确实出了帧并拷进了位图 |
+
+并且要求**没有** ERROR 级日志、且**播放仍在进行中**。后两条是必需的，不是锦上添花：
+
+- 帧渲染失败只停掉帧循环、窗口仍然开着 → 前四条标记依然齐全；
+- 时间轴零点未锚定时第一帧就判定播完、窗口 1 秒内自动关闭 → 前四条标记**同样**齐全。
+
+这个脚本上线即体现价值：它当场暴露了「时间轴未锚定」这个真实 bug——真实时钟以系统启动为
+零点，而假时钟从 0 开始，恰好等价于「已锚定」，因此单元测试全绿而实际播放瞬间结束。
+临时 UST 有约 20 秒内容、只观察数秒，所以「此刻仍在播放」本身就是有效断言。
 
 ## `sync-native-assets.ps1` 的定位
 
