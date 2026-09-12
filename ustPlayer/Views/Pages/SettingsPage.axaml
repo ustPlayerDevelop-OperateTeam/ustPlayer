@@ -39,6 +39,17 @@
         </fa:SettingsExpander.Footer>
       </fa:SettingsExpander>
 
+      <!--
+        外观参照卡片：**只在 USTPLAYER_UI_PROBE=1 时可见**（见 code-behind）。
+
+        设置页用 FluentAvalonia 的 SettingsExpander，其余四页用本仓库的 SettingsRow，
+        两者版式是否真的一致只能看渲染结果。这里放一张由 SettingsRow 渲染的**空卡片**，
+        在截图里与相邻的 SettingsExpander 卡片上下相邻、宽度相同，
+        于是边框/底色/间距的差异会直接显现出来，不必靠肉眼估计。
+        正常运行时它不占版面（IsVisible 默认 False）。
+      -->
+      <controls:SettingsRow x:Name="AppearanceProbeRow" IsVisible="False" />
+
       <!-- ===================== 外部工具与纠错 ===================== -->
       <TextBlock x:Name="ToolsHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="ErcodeRow">

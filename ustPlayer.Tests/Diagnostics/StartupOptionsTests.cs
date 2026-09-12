@@ -85,4 +85,55 @@ public class StartupOptionsTests
             Assert.Null(options.PlayUstPath);
         }
     }
+
+    /// <summary>无参数时不开指定页（由主窗口决定用基础页）。</summary>
+    [Fact]
+    public void 无参数时不指定启动页()
+    {
+        Assert.Null(StartupOptions.Parse([]).PageKey);
+        Assert.Null(StartupOptions.Parse(null).PageKey);
+    }
+
+    /// <summary><c>--page &lt;键&gt;</c> 与 <c>--page=&lt;键&gt;</c> 两种写法都被识别。</summary>
+    [Theory]
+    [InlineData("--page", "settings")]
+    [InlineData("--page=settings", null)]
+    public void 启动页两种写法被识别(string first, string? second)
+    {
+        var args = second is null ? new[] { first } : [first, second];
+        var options = StartupOptions.Parse(args);
+
+        Assert.Equal("settings", options.PageKey);
+    }
+
+    /// <summary>
+    /// 取值为空（或漏写）时**不吞掉后面的开关**——否则 <c>--page --play song.ust</c>
+    /// 会把 <c>--play</c> 当成页面键，播放模式静默失效。
+    /// </summary>
+    [Fact]
+    public void 取值为空时不吞掉后续开关()
+    {
+        var options = StartupOptions.Parse(["--page", "--play", "test.ust"]);
+
+        Assert.Null(options.PageKey);
+        Assert.Equal("test.ust", options.PlayUstPath);
+
+        var trailing = StartupOptions.Parse(["--play", "test.ust", "--page"]);
+
+        Assert.Null(trailing.PageKey);
+        Assert.Equal("test.ust", trailing.PlayUstPath);
+    }
+
+    /// <summary>两个开关可以同时出现（<c>--page</c> 用于脚本把窗口开到指定页）。</summary>
+    [Fact]
+    public void 启动页与播放开关可同时识别()
+    {
+        var leadingPage = StartupOptions.Parse(["--page", "lyric", "--play", "test.ust"]);
+        Assert.Equal("lyric", leadingPage.PageKey);
+        Assert.Equal("test.ust", leadingPage.PlayUstPath);
+
+        var trailingPage = StartupOptions.Parse(["--play", "test.ust", "--page", "file"]);
+        Assert.Equal("file", trailingPage.PageKey);
+        Assert.Equal("test.ust", trailingPage.PlayUstPath);
+    }
 }

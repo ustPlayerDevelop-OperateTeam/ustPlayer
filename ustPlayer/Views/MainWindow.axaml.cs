@@ -80,7 +80,10 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
     /// <summary>构造主窗口。</summary>
     /// <param name="services">组合根。</param>
-    public MainWindow(AppServices services)
+    /// <param name="pageKey">
+    /// 启动时直接打开的页面键（<c>--page</c>）；为 <see langword="null"/> 或无法识别时打开基础页。
+    /// </param>
+    public MainWindow(AppServices services, string? pageKey = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -105,67 +108,112 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         // 语言偏好变更后立即重译整个外壳（1.1.x 走 language_changed 信号）
         _services.Settings.Language.PropertyChanged += OnLanguageSettingsChanged;
 
-        NavView.SelectedItem = _navItems[BasicNavKey];
+        NavView.SelectedItem = _navItems[ResolveStartupNavKey(pageKey)];
 
         // 布局完成后再对齐设置项：模板在 footer 下方留了一段内边距，
         // 靠测量把它抵消掉（而不是写死一个魔数，见方法说明）。
-        Dispatcher.UIThread.Post(AlignSettingsItemToBottom, DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(MeasureSettingsItemPosition, DispatcherPriority.Loaded);
 
         AppLogger.Info($"主窗口就绪（设置文件：{_services.Settings.SettingsPath}）");
     }
 
-    /// <summary>是否已校正过设置项距底部的残留下沉（只做一次，避免反复触发布局）。</summary>
-    private bool _settingsItemFlushCorrected;
+    /// <summary>
+    /// 把 <c>--page</c> 参数解析成有效的导航键。
+    /// </summary>
+    /// <param name="pageKey">命令行给出的页面键。</param>
+    /// <returns>可用的导航键；未指定或无法识别时为 <see cref="BasicNavKey"/>。</returns>
+    /// <remarks>
+    /// 识别不了就退回基础页并记日志，而不是抛异常：启动参数来自用户手输或外部启动器，
+    /// 打错一个词就让程序起不来是不合理的。
+    /// </remarks>
+    private string ResolveStartupNavKey(string? pageKey)
+    {
+        if (string.IsNullOrWhiteSpace(pageKey))
+        {
+            return BasicNavKey;
+        }
+
+        if (_navItems.ContainsKey(pageKey))
+        {
+            return pageKey;
+        }
+
+        AppLogger.Warning($"无法识别的启动页面「{pageKey}」，改为打开基础页");
+        return BasicNavKey;
+    }
 
     /// <summary>
-    /// 把设置导航项对齐到导航栏最底部。
+    /// 量出设置导航项与导航栏底部的距离并记日志。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 实测（本机 620 高窗口）：设置项已经在 footer 里贴底定位，但**下方仍留 11px**——
-    /// 这段来自 FluentAvalonia 模板内部，`NavigationView.Padding.Bottom` 为 0，
-    /// 且该模板不暴露可命中的部件名（DLL 里只有 <c>PART_InnerDockPanel</c> /
-    /// <c>PART_SpinnerPanel</c>），因此没法用样式精确改它。
+    /// ⚠️ <b>本方法未能达成目标，目前只起「量并记日志」的作用</b>，保留是为了不让这段
+    /// 排查结论丢失（试过的路都写在下面）。设置项在 footer 里，**下方固定留 11px 空白**。
     /// </para>
     /// <para>
-    /// 于是改为**按测量值自校正**：量出残留下沉，把设置项按这个差值下拉。
-    /// 不写死 11 这个数字——模板内边距若随版本变化，这里依然算得对。
-    /// 只校正一次，改完再量一次并记日志，避免布局反复触发。
+    /// 试过且**无效**的做法：
+    /// <list type="number">
+    /// <item>给项设负的下外边距（含闭环：量一次、按差值调一次、再量）——
+    /// 布局层报告的位置确实下移了（项底＝栏底），但**渲染出来的高亮纹丝不动**
+    /// （截图量得总是 613–639），说明这 11px 是承载 footer 的容器留的，不是项自己的。</item>
+    /// <item>改用 <c>NavigationView.PaneFooter</c>（单个内容槽，容器自理）——
+    /// 只要往里面放任何容器（<c>StackPanel</c> / <c>Border</c>）进程就**直接崩溃**
+    /// （<c>0xC0000005</c>，无托管异常）；只放裸项不崩，但余量反而变成 15px。</item>
+    /// <item>样式改模板部件——模板只暴露 <c>PART_InnerDockPanel</c> /
+    /// <c>PART_SpinnerPanel</c>，footer 的 <c>ItemsRepeater</c> 没有可命中的名字；
+    /// 用 <c>/template/</c> 选择器猜一个会让启动即崩。</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// 结论：这 11px 钉在 FluentAvalonia 2.5.1 的 <c>NavigationView</c> 模板里，
+    /// 不换控件（自己画导航栏）就改不掉。要真正贴底需要重做导航栏，属单独一项工作。
     /// </para>
     /// </remarks>
-    private void AlignSettingsItemToBottom()
+    private void MeasureSettingsItemPosition()
     {
         if (!_navItems.TryGetValue(SettingsNavKey, out var item))
         {
             return;
         }
 
-        var origin = item.TranslatePoint(new Point(0, 0), NavView);
+        var itemOrigin = item.TranslatePoint(new Point(0, 0), this);
+        var navOrigin = NavView.TranslatePoint(new Point(0, 0), this);
 
-        if (origin is not { } top)
+        if (itemOrigin is not { } itemTop || navOrigin is not { } navTop)
         {
             AppLogger.Warning("设置导航项尚未进入可视树，无法测量位置");
             return;
         }
 
-        var gap = NavView.Bounds.Height - (top.Y + item.Bounds.Height);
+        // 统一在**窗口**坐标系里算：项底边 vs 导航栏底边
+        var itemBottom = itemTop.Y + item.Bounds.Height;
+        var navBottom = navTop.Y + NavView.Bounds.Height;
+        var gap = navBottom - itemBottom;
 
-        if (!_settingsItemFlushCorrected && gap > 0.5)
+        LogNavGeometry(item, itemTop, navTop, gap);
+
+        // 曾在这里按 gap 调 item.Margin 试图下拉——无效（见 remarks），已移除，
+        // 免得日志写着「已贴底」而截图里仍差 11px，反而误导后面的人。
+        if (gap > 0.5)
         {
-            _settingsItemFlushCorrected = true;
-            item.Margin = new Thickness(0, 0, 0, -gap);
-
-            AppLogger.Info($"设置导航项下方残留 {gap:F1}px，已按此下拉使其贴底");
-
-            // 改完再量一次，确认结果并留下数字
-            Dispatcher.UIThread.Post(AlignSettingsItemToBottom, DispatcherPriority.Loaded);
-            return;
+            AppLogger.Info($"设置导航项距导航栏底部 {gap:F1}px（模板内边距所致，当前无法消除）");
         }
+    }
 
-        // 校正完成后只记 Debug：这是每次启动都会走的正常路径，不必占 Info
+    /// <summary>
+    /// 记录设置项与导航栏的几何量（诊断用）。
+    /// </summary>
+    /// <param name="item">设置导航项。</param>
+    /// <param name="itemTop">项左上角在窗口坐标系里的位置。</param>
+    /// <param name="navTop">导航栏左上角在窗口坐标系里的位置。</param>
+    /// <param name="gap">项底边到导航栏底边的距离（正数＝还没贴到底）。</param>
+    private void LogNavGeometry(NavigationViewItem item, Point itemTop, Point navTop, double gap)
+    {
         AppLogger.Debug(
-            $"设置导航项位置：项高 {item.Bounds.Height:F1}，距导航栏底部 {gap:F1}px"
-            + $"（导航栏高 {NavView.Bounds.Height:F1}）");
+            $"设置项几何：项高 {item.Bounds.Height:F1} 槽宽 {item.Bounds.Width:F1}"
+            + $" | 窗口内 项top={itemTop.Y:F1} 导航栏top={navTop.Y:F1}"
+            + $" 导航栏高={NavView.Bounds.Height:F1} | 项底={itemTop.Y + item.Bounds.Height:F1}"
+            + $" 栏底={navTop.Y + NavView.Bounds.Height:F1} 余量={gap:F1}px");
     }
 
     // ===================== 提示条 =====================
@@ -280,13 +328,23 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 四个内容页在上，「设置」用 <see cref="NavigationView.FooterMenuItems"/> 放在**底部**
-    /// （对应 1.1.x 把「其他」放底部的布局）。
+    /// 四个内容页在上，「设置」放在**导航栏底部**（对应 1.1.x 把「其他」放底部的布局），
+    /// 走 <see cref="NavigationView.FooterMenuItems"/>。
+    /// </para>
+    /// <para>
+    /// <b>已知未解决</b>：footer 区域底部固定留有一段空白（本机实测 11px），
+    /// 设置项因此没能真正贴到导航栏最下沿。钉死这段空白的尝试都失败了：
+    /// 改项自身的 <c>Margin</c> 不影响渲染出来的位置（布局报告的位置与截图量到的对不上）；
+    /// 换 <see cref="NavigationView.PaneFooter"/> 更糟——套任何容器都会让进程崩溃
+    /// （<c>0xC0000005</c>），只塞裸项时余量反增到 15px；
+    /// 模板也不暴露可命中的部件名（DLL 里只有 <c>PART_InnerDockPanel</c> /
+    /// <c>PART_SpinnerPanel</c>）。
+    /// 详见 <see cref="MeasureSettingsItemPosition"/> 的说明与 <c>docs/plan-deviations.md</c>。
     /// </para>
     /// <para>
     /// 不用 <see cref="NavigationView.IsSettingsVisible"/> 的内建设置项：
     /// 它的外观由 FluentAvalonia 模板决定，而这里看不到界面、无法目视核对——
-    /// 自定义 footer 项与上面四项走完全相同的构造路径，样式必然一致。
+    /// 自定义项与上面四项走完全相同的构造路径，样式必然一致。
     /// </para>
     /// <para>
     /// 图标只能用 FluentAvalonia <c>Symbol</c> 枚举里真实存在的成员：该枚举没有
@@ -324,6 +382,10 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         if (footer)
         {
+            // 用 FooterMenuItems 而不是 PaneFooter：后者看似更适合「单个底部内容」，
+            // 但实测（build/capture-window.ps1 截图量像素）**只要套任何容器就崩**
+            // （StackPanel / Border 都是 0xC0000005，无托管异常），
+            // 只塞裸项时不崩但底边余量反而更大（15px vs 11px）。
             NavView.FooterMenuItems.Add(item);
         }
         else

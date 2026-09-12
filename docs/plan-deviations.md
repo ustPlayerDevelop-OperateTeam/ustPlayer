@@ -142,6 +142,30 @@
   「任意输入只返回 null 或文件名，绝不抛异常」。
 - **解除条件**：渲染器开始消费 `custom_font_paths` / `font_*` 时，或 Avalonia 开放
   运行时字体注册时，把族名解析换成字体引擎（SkiaSharp `SKTypeface.FromFile` 已在依赖图中）
+
+## D10：导航栏「设置」项**没能真正贴底**（下方固定留 11px）
+
+- **计划要求**：设置入口放在导航栏最底部（对应 1.1.x 把「其他」放底部的布局）。
+- **实际**：设置项已经在底部区域（`FooterMenuItems`），但**下方仍固定留 11px 空白**，
+  没能贴到导航栏最下沿。
+- **为什么不写死一个补偿值**：这 11px 是承载 footer 的容器留的，不是项自己的。
+  给项设负下外边距时，**布局层报告的位置确实下移了（项底＝栏底），但渲染出来的高亮
+  纹丝不动**——截图量得高亮始终是 y 613–639（`build/capture-window.ps1` + 逐行亮度）。
+  也就是说，按布局数字写补偿值只会得到「日志说贴底了、画面没变」的假结论。
+- **已排除的做法**（都实测过）：
+  1. 项自身 `Margin`（含按测量值闭环校正）——渲染无变化，原因同上；
+  2. 改用 `NavigationView.PaneFooter`（单个内容槽）——**只要套任何容器进程就崩**
+     （`StackPanel` / `Border` 均为 `0xC0000005`，无托管异常）；只塞裸项不崩，
+     但余量**反而更大**（15px）；
+  3. 样式改模板部件——模板只暴露 `PART_InnerDockPanel` / `PART_SpinnerPanel`，
+     footer 的 `ItemsRepeater` 没有可命中的名字；用 `/template/` 选择器猜一个会让启动即崩。
+- **结论**：这 11px 钉在 FluentAvalonia 2.5.1 的 `NavigationView` 模板里。
+  **要真正贴底只能不用它的 footer 机制**——即导航栏改为自绘（自己用
+  `NavigationViewItem` 摆一个两行 `Grid`，底部那行放设置项），属单独一项工作。
+- **当前处理**：保留 `FooterMenuItems`（稳定、外观与其余四项一致）；
+  `MainWindow.MeasureSettingsItemPosition` 每次启动量出该余量并记日志，
+  方便将来核对（不写死数字，模板若变化日志会跟着变）。
+
   并补上真实预览。
 
 ---

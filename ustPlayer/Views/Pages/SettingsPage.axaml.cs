@@ -56,6 +56,11 @@ internal sealed partial class SettingsPage : UserControl
         DataContext = viewModel;
         ApplyTexts();
 
+        // 版式自检开关：置 1 时显示一张由 SettingsRow 渲染的参照卡片，
+        // 便于用 build/capture-window.ps1 截图比对两种卡片的边框与间距。
+        AppearanceProbeRow.IsVisible =
+            Environment.GetEnvironmentVariable("USTPLAYER_UI_PROBE") == "1";
+
         // 设置被外部改动（例如导入工程、或另一个入口切换主题）时同步刷新本页
         _viewModel.Theme.PropertyChanged += OnThemeChanged;
         _viewModel.Language.PropertyChanged += OnLanguageChanged;

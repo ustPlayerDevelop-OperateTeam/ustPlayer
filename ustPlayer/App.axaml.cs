@@ -38,6 +38,13 @@ public partial class App : Application
 
             var options = StartupOptions.Parse(desktop.Args);
 
+            // 把解析结果记下来：启动参数只能这样核对（`--page` 没生效时，
+            // 看不出是「参数没传到」还是「解析错了」）
+            AppLogger.Info(
+                $"启动参数：页面={options.PageKey ?? "（默认）"}，"
+                + $"播放路径={options.PlayUstPath ?? "（无）"}"
+                + $"（原始 {desktop.Args?.Length ?? 0} 个参数）");
+
             if (options.IsPlayerMode)
             {
                 // 直接播放模式：不开主窗口。不设 MainWindow 时生命周期为
@@ -46,7 +53,7 @@ public partial class App : Application
             }
             else
             {
-                desktop.MainWindow = new MainWindow(_services);
+                desktop.MainWindow = new MainWindow(_services, options.PageKey);
             }
         }
 
