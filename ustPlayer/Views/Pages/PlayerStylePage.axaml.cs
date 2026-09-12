@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using UstPlayer.Diagnostics;
 using UstPlayer.I18n;
 using UstPlayer.ViewModels;
+using UstPlayer.Views.Controls;
 
 namespace UstPlayer.Views.Pages;
 
@@ -60,12 +61,12 @@ internal sealed partial class PlayerStylePage : UserControl
 
         _colorRows.AddRange(
         [
-            new ColorRow(BackgroundColorLabel, BackgroundColorPicker, "背景色:"),
-            new ColorRow(NoteColorLabel, NoteColorPicker, "音名色:"),
-            new ColorRow(LyricColorLabel, LyricColorPicker, "歌字色:"),
-            new ColorRow(LyricTextColorLabel, LyricTextColorPicker, "歌词色:"),
-            new ColorRow(PitchCurveColorLabel, PitchCurveColorPicker, "音高线颜色:"),
-            new ColorRow(OtherTextColorLabel, OtherTextColorPicker, "其他文字色:"),
+            new ColorRow(BackgroundColorRow, BackgroundColorPicker, "背景色:"),
+            new ColorRow(NoteColorRow, NoteColorPicker, "音名色:"),
+            new ColorRow(LyricColorRow, LyricColorPicker, "歌字色:"),
+            new ColorRow(LyricTextColorRow, LyricTextColorPicker, "歌词色:"),
+            new ColorRow(PitchCurveColorRow, PitchCurveColorPicker, "音高线颜色:"),
+            new ColorRow(OtherTextColorRow, OtherTextColorPicker, "其他文字色:"),
         ]);
 
         _fontSlots.AddRange(
@@ -91,32 +92,43 @@ internal sealed partial class PlayerStylePage : UserControl
     /// <summary>设置界面文案（UI 字符串一律经 <see cref="Translator.Tr"/>）。</summary>
     private void ApplyTexts()
     {
-        StyleCard.Title = Translator.Tr("播放器样式");
+        StyleSection.Header = Translator.Tr("播放器样式");
 
         foreach (var row in _colorRows)
         {
-            row.Label.Text = Translator.Tr(row.LabelSource);
-            ToolTip.SetTip(row.Picker, string.Format(Translator.Tr("选择{0}"), row.Label.Text));
+            row.Row.Header = Label(row.LabelSource);
+            ToolTip.SetTip(row.Picker, string.Format(Translator.Tr("选择{0}"), row.Row.Header));
         }
 
-        LyricPositionLabel.Text = Translator.Tr("歌词位置:");
+        LyricPositionRow.Header = Label("歌词位置:");
 
-        FontCard.Title = Translator.Tr("字体");
-        FontNoteLabel.Text = Translator.Tr("音名字体:");
-        FontUstLyricLabel.Text = Translator.Tr("歌字字体:");
-        FontLrcLabel.Text = Translator.Tr("歌词字体:");
-        FontOtherLabel.Text = Translator.Tr("其他文字字体:");
+        FontSection.Header = Translator.Tr("字体");
+        FontNoteRow.Header = Label("音名字体:");
+        FontUstLyricRow.Header = Label("歌字字体:");
+        FontLrcRow.Header = Label("歌词字体:");
+        FontOtherRow.Header = Label("其他文字字体:");
 
-        OtherCard.Title = Translator.Tr("其他显示设置");
-        PitchPlaceholderLabel.Text = Translator.Tr("音高间占位符:");
-        SilentDisplayLabel.Text = Translator.Tr("静默时显示:");
-        EndDisplayLabel.Text = Translator.Tr("结束时显示:");
+        OtherSection.Header = Translator.Tr("其他显示设置");
+        PitchPlaceholderRow.Header = Label("音高间占位符:");
+        SilentDisplayRow.Header = Label("静默时显示:");
+        EndDisplayRow.Header = Label("结束时显示:");
 
         var customWatermark = Translator.Tr("自定义文字...");
         PitchCustomBox.Watermark = customWatermark;
         SilentCustomBox.Watermark = customWatermark;
         EndCustomBox.Watermark = customWatermark;
     }
+
+    /// <summary>
+    /// 行标题：取译文的正文部分（去掉结尾冒号）。
+    /// </summary>
+    /// <param name="source">翻译条目的中文原文（1.1.x 的表单标签带冒号）。</param>
+    /// <returns>去掉结尾冒号的译文。</returns>
+    /// <remarks>
+    /// 译文键必须与既有 .ts 逐字一致（含冒号），否则对应译文静默失效；
+    /// Windows 11 设置样式的行标题不带冒号，因此在显示这一层去掉。
+    /// </remarks>
+    private static string Label(string source) => Translator.Tr(source).TrimEnd('：', ':', ' ');
 
     // ===================== 字体 =====================
 
@@ -236,7 +248,7 @@ internal sealed partial class PlayerStylePage : UserControl
     /// <param name="Label">颜色名标签。</param>
     /// <param name="Picker">取色器。</param>
     /// <param name="LabelSource">标签的中文原文。</param>
-    private sealed record ColorRow(TextBlock Label, ColorPicker Picker, string LabelSource);
+    private sealed record ColorRow(SettingsRow Row, ColorPicker Picker, string LabelSource);
 
     /// <summary>一个字体槽位：下拉框 + 读写该槽位设置的动作。</summary>
     /// <param name="Combo">字体下拉框。</param>

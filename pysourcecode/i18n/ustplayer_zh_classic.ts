@@ -932,5 +932,17 @@
         <source>字体</source>
         <translation>字體</translation>
     </message>
+    <message>
+        <source>工程文件</source>
+        <translation>工程檔案</translation>
+    </message>
+    <message>
+        <source>UST 文件</source>
+        <translation>UST 檔案</translation>
+    </message>
+    <message>
+        <source>内容预览</source>
+        <translation>內容預覽</translation>
+    </message>
 </context>
 </TS>

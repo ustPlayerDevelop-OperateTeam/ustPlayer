@@ -7,24 +7,26 @@
 
   <!--
     歌词页（对应 1.1.x lyric_page.py）：展示歌词开关 + LRC 文件选择。
-    两个设置项直接双向绑定子域，无需手工同步。
+    版式对齐 Windows 11 设置应用：分组标题在卡片外，每行「左标题 / 右控件」。
   -->
   <ScrollViewer>
-    <StackPanel Margin="24,20,24,24" Spacing="14">
+    <StackPanel Margin="24,4,24,24">
 
-      <controls:SectionCard x:Name="LyricCard">
-        <StackPanel Spacing="10">
-          <CheckBox x:Name="ShowLyricBox"
-                    IsChecked="{Binding Display.ShowLyric, Mode=TwoWay}" />
+      <controls:SettingsSection x:Name="LyricSection">
+        <StackPanel>
+          <controls:SettingsRow x:Name="ShowLyricRow">
+            <ToggleSwitch IsChecked="{Binding Display.ShowLyric, Mode=TwoWay}" />
+          </controls:SettingsRow>
 
-          <Grid ColumnDefinitions="Auto,*,Auto">
-            <TextBlock x:Name="LrcLabel" Grid.Column="0" MinWidth="110" VerticalAlignment="Center" />
-            <TextBox x:Name="LrcPathBox" Grid.Column="1"
-                     Text="{Binding Player.LrcPath, Mode=TwoWay}" />
-            <Button x:Name="SelectLrcButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectLrcClick" />
-          </Grid>
+          <controls:SettingsRow x:Name="LrcRow">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox x:Name="LrcPathBox" MinWidth="320"
+                       Text="{Binding Player.LrcPath, Mode=TwoWay}" />
+              <Button x:Name="SelectLrcButton" Click="OnSelectLrcClick" />
+            </StackPanel>
+          </controls:SettingsRow>
         </StackPanel>
-      </controls:SectionCard>
+      </controls:SettingsSection>
 
     </StackPanel>
   </ScrollViewer>

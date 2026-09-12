@@ -7,45 +7,51 @@
 
   <!--
     文件页（对应 1.1.x file_page.py）：UST 选择、编码切换与内容预览。
-    UST 路径与音高线开关直接双向绑定设置子域；编码经 ViewModel 的属性做规范化，
+    版式对齐 Windows 11 设置应用：分组标题在卡片外，每行「左标题 / 右控件」。
+    UST 路径与音高线开关直接双向绑定设置子域；编码经 ViewModel 属性做规范化，
     避免设置里的非候选取值把 ComboBox 变成 null 再写回设置。
   -->
-  <Grid RowDefinitions="Auto,*,Auto" Margin="24,20,24,24">
+  <Grid RowDefinitions="Auto,*" Margin="24,4,24,24">
 
-    <!-- ===================== 文件与编码 ===================== -->
-    <controls:SectionCard Grid.Row="0" x:Name="FileCard">
-      <StackPanel Spacing="10">
-        <Grid ColumnDefinitions="Auto,*,Auto">
-          <TextBlock x:Name="UstLabel" Grid.Column="0" MinWidth="48" VerticalAlignment="Center" />
-          <TextBox x:Name="UstPathBox" Grid.Column="1"
-                   Text="{Binding File.UstPath, Mode=TwoWay}" />
-          <Button x:Name="SelectUstButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectUstClick" />
-        </Grid>
+    <!-- ===================== 文件 ===================== -->
+    <controls:SettingsSection Grid.Row="0" x:Name="FileSection">
+      <StackPanel>
+        <controls:SettingsRow x:Name="UstRow">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox x:Name="UstPathBox" MinWidth="320"
+                     Text="{Binding File.UstPath, Mode=TwoWay}" />
+            <Button x:Name="SelectUstButton" Click="OnSelectUstClick" />
+          </StackPanel>
+        </controls:SettingsRow>
 
-        <CheckBox x:Name="CurveShowBox"
-                  IsChecked="{Binding File.CurveShow, Mode=TwoWay}" />
+        <controls:SettingsRow x:Name="CurveShowRow">
+          <ToggleSwitch IsChecked="{Binding File.CurveShow, Mode=TwoWay}" />
+        </controls:SettingsRow>
 
-        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-          <TextBlock x:Name="EncodingLabel" Grid.Column="0" MinWidth="88" VerticalAlignment="Center" />
-          <ComboBox x:Name="EncodingCombo" Grid.Column="1" MinWidth="130"
-                    ItemsSource="{Binding SupportedEncodings}"
-                    SelectedItem="{Binding Encoding, Mode=TwoWay}" />
-          <Button x:Name="CheckEncodingButton" Grid.Column="3" Margin="8,0,0,0"
-                  Click="OnCheckEncodingClick" />
-        </Grid>
+        <controls:SettingsRow x:Name="EncodingRow">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="EncodingCombo" MinWidth="130"
+                      ItemsSource="{Binding SupportedEncodings}"
+                      SelectedItem="{Binding Encoding, Mode=TwoWay}" />
+            <Button x:Name="CheckEncodingButton" Click="OnCheckEncodingClick" />
+          </StackPanel>
+        </controls:SettingsRow>
       </StackPanel>
-    </controls:SectionCard>
+    </controls:SettingsSection>
 
     <!-- ===================== 预览 ===================== -->
-    <controls:SectionCard Grid.Row="1" x:Name="PreviewCard" Margin="0,14,0,0">
-      <TextBox x:Name="PreviewBox"
-               IsReadOnly="True"
-               AcceptsReturn="True"
-               TextWrapping="NoWrap"
-               FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
-               MinHeight="240"
-               Text="{Binding PreviewText, Mode=OneWay}" />
-    </controls:SectionCard>
+    <controls:SettingsSection Grid.Row="1" x:Name="PreviewSection">
+      <!-- 预览区不是「一行」而是整块内容，因此直接放一张卡片，不套 SettingsRow -->
+      <Border Classes="settingsCard" Padding="16">
+        <TextBox x:Name="PreviewBox"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="NoWrap"
+                 FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                 MinHeight="240"
+                 Text="{Binding PreviewText, Mode=OneWay}" />
+      </Border>
+    </controls:SettingsSection>
 
   </Grid>
 

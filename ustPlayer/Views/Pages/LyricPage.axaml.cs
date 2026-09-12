@@ -41,12 +41,19 @@ internal sealed partial class LyricPage : UserControl
     /// <summary>设置界面文案。</summary>
     private void ApplyTexts()
     {
-        LyricCard.Title = Translator.Tr("歌词");
-        ShowLyricBox.Content = Translator.Tr("展示歌词");
-        LrcLabel.Text = Translator.Tr("歌词文件（.lrc）:");
+        LyricSection.Header = Translator.Tr("歌词");
+        ShowLyricRow.Header = Translator.Tr("展示歌词");
+        LrcRow.Header = Label("歌词文件（.lrc）:");
         LrcPathBox.Watermark = Translator.Tr("请选择 .lrc 歌词文件...");
         SelectLrcButton.Content = Translator.Tr("选择文件");
     }
+
+    /// <summary>
+    /// 行标题：取译文的正文部分（去掉结尾冒号）。
+    /// </summary>
+    /// <param name="source">翻译条目的中文原文（1.1.x 的表单标签带冒号）。</param>
+    /// <returns>去掉结尾冒号的译文。</returns>
+    private static string Label(string source) => Translator.Tr(source).TrimEnd('：', ':', ' ');
 
     /// <summary>选择 LRC 歌词文件。</summary>
     /// <param name="sender">事件源。</param>

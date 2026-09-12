@@ -14,33 +14,41 @@
   -->
   <Application.Styles>
     <sty:FluentAvaloniaTheme />
+
+    <StyleInclude Source="avares://ustPlayer.Core/Styles/SettingsControls.axaml" />
   </Application.Styles>
 
   <Application.Resources>
     <ResourceDictionary>
       <!--
-        SectionCard 的 ControlTheme 放在独立文件里（Styles/SectionCardTheme.axaml）。
-        它是资源字典而不是样式表，因此必须用 ResourceInclude 合并进 Resources——
+        自定义控件主题放在独立文件里（Styles/*.axaml）。
+        它们是资源字典而不是样式表，因此必须用 ResourceInclude 合并进 Resources——
         用 StyleInclude 会在运行时报类型不匹配。
       -->
       <ResourceDictionary.MergedDictionaries>
-        <ResourceInclude Source="avares://ustPlayer.Core/Styles/SectionCardTheme.axaml" />
+        <ResourceInclude Source="avares://ustPlayer.Core/Styles/SettingsControlsTheme.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
       <!--
         随主题变体的资源。用 ThemeDictionaries 而不是代码里判断亮暗：
         跟随系统时用户改系统主题，这里会自动跟着换，不需要额外的监听。
+
+        取值对齐 Windows 11 设置应用（WinUI 的 CardBackgroundFillColorDefault /
+        CardStrokeColorDefault / TextFillColorSecondary）——Avalonia 自带的 Fluent 主题
+        **没有** TextFillColorSecondaryBrush 这类 WinUI 名字的画刷，所以次级文字色也得自己定义。
       -->
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFFFF" />
-          <SolidColorBrush x:Key="CardBorderBrush" Color="#14000000" />
+          <SolidColorBrush x:Key="CardBackgroundBrush" Color="#B3FFFFFF" />
+          <SolidColorBrush x:Key="CardBorderBrush" Color="#0F000000" />
+          <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#9E000000" />
           <SolidColorBrush x:Key="PageBackgroundBrush" Color="#F3F3F3" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="CardBackgroundBrush" Color="#14FFFFFF" />
-          <SolidColorBrush x:Key="CardBorderBrush" Color="#14FFFFFF" />
+          <SolidColorBrush x:Key="CardBackgroundBrush" Color="#0DFFFFFF" />
+          <SolidColorBrush x:Key="CardBorderBrush" Color="#19000000" />
+          <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#C5FFFFFF" />
           <SolidColorBrush x:Key="PageBackgroundBrush" Color="#202020" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>

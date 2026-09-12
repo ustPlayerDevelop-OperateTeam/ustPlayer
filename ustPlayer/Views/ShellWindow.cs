@@ -22,13 +22,15 @@ namespace UstPlayer.Views;
 /// </list>
 ///
 /// 决策依据与备选方案见 <c>docs/adr-0002-window-chrome.md</c>。
+/// 窗口图标不在这里设置——各窗口在 XAML 上写 <c>Icon="/Assets/icon.ico"</c>
+/// （与 ClassIsland 一致：图标是声明式的资源引用，不是代码里的加载逻辑）。
 /// </summary>
 public class ShellWindow : AppWindow
 {
     /// <summary>初始化窗口基类的默认标题栏设置。</summary>
     protected ShellWindow()
     {
-        Title = "ustPlayer";
+        Title = AppInfo.Name;
 
         // 内容延伸进标题栏，由基类处理命中测试与拖拽区
         TitleBar.ExtendsContentIntoTitleBar = true;

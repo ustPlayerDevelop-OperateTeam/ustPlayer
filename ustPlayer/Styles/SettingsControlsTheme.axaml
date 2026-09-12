@@ -1,0 +1,78 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:UstPlayer.Views.Controls"
+                    xmlns:fa="using:FluentAvalonia.UI.Controls">
+
+  <!--
+    设置行 / 设置分组的样式。
+
+    版式：**每一项设置各自一张独立卡片**（浅底 + 1px 描边 + 4px 圆角，卡片之间留空隙），
+    卡片内部不画分割线；分组标题在卡片之外。
+
+    颜色一律走主题字典（App.axaml 的 CardBackgroundBrush / CardBorderBrush /
+    TextFillColorSecondaryBrush），亮暗主题自动跟随，不需要在代码或样式里判断当前主题。
+  -->
+
+  <!-- ===================== 设置行（= 一张卡片） ===================== -->
+  <ControlTheme x:Key="{x:Type controls:SettingsRow}" TargetType="controls:SettingsRow">
+    <Setter Property="HorizontalContentAlignment" Value="Right" />
+    <!-- 卡片之间的空隙；最后一张的下边距与下一个分组标题的上边距叠加，视觉上正好 -->
+    <Setter Property="Margin" Value="0,0,0,4" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="16,14">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <!-- 图标列：未设置 Icon 时整列不占宽度 -->
+            <fa:IconSourceElement Grid.Column="0"
+                                  IconSource="{TemplateBinding Icon}"
+                                  Width="20" Height="20"
+                                  Margin="0,0,16,0"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{TemplateBinding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="{TemplateBinding Header}"
+                         TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="{TemplateBinding Description}"
+                         TextWrapping="Wrap"
+                         FontSize="12"
+                         Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                         IsVisible="{TemplateBinding Description, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+
+            <ContentPresenter Grid.Column="2"
+                              Margin="16,0,0,0"
+                              VerticalAlignment="Center"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- ===================== 设置分组（只有标题 + 内容，本身不是卡片） ===================== -->
+  <ControlTheme x:Key="{x:Type controls:SettingsSection}" TargetType="controls:SettingsSection">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel>
+          <!-- 分组标题在卡片之外；为空时整块折叠（连上边距一起省掉） -->
+          <TextBlock Text="{TemplateBinding Header}"
+                     FontSize="14"
+                     FontWeight="SemiBold"
+                     Margin="2,18,0,8"
+                     IsVisible="{TemplateBinding Header, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+        </StackPanel>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+</ResourceDictionary>

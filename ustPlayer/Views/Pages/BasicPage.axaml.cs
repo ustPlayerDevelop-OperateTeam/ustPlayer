@@ -61,13 +61,14 @@ internal sealed partial class BasicPage : UserControl
     /// <summary>设置界面文案（UI 字符串一律经 <see cref="Translator.Tr"/>）。</summary>
     private void ApplyTexts()
     {
-        ProjectCard.Title = Translator.Tr("项目");
-        ProjectNameLabel.Text = Translator.Tr("项目名：");
-        SongNameLabel.Text = Translator.Tr("曲名&曲师：");
-        SongAuthorLabel.Text = Translator.Tr("MIDI作者：");
-        UstAuthorLabel.Text = Translator.Tr("调音师：");
-        MusicLabel.Text = Translator.Tr("音乐：");
+        ProjectSection.Header = Translator.Tr("项目");
+        ProjectNameRow.Header = Label("项目名：");
+        SongNameRow.Header = Label("曲名&曲师：");
+        SongAuthorRow.Header = Label("MIDI作者：");
+        UstAuthorRow.Header = Label("调音师：");
+        MusicRow.Header = Label("音乐：");
         MusicButton.Content = Translator.Tr("选择");
+        ProjectFileRow.Header = Translator.Tr("工程文件");
 
         ProjectNameBox.Watermark = Translator.Tr("请输入项目名");
         SongNameBox.Watermark = Translator.Tr("请输入曲名&曲师");
@@ -75,20 +76,32 @@ internal sealed partial class BasicPage : UserControl
         UstAuthorBox.Watermark = Translator.Tr("请输入调音师");
         MusicPathBox.Watermark = Translator.Tr("请选择音频（可选）");
 
-        DisplayCard.Title = Translator.Tr("显示选项");
-        ShowBpmLabel.Text = Translator.Tr("显示BPM");
-        ShowPlayTimeLabel.Text = Translator.Tr("显示播放时间");
-        ShowSongNameLabel.Text = Translator.Tr("显示曲目信息");
-        ShowSongAuthorLabel.Text = Translator.Tr("显示MIDI作者");
-        ShowUstAuthorLabel.Text = Translator.Tr("显示调音师");
-        ShowNoteNameLabel.Text = Translator.Tr("显示音名");
-        ShowUstLyricLabel.Text = Translator.Tr("显示歌字");
-        ShowCopyrightLabel.Text = Translator.Tr("显示版权");
+        DisplaySection.Header = Translator.Tr("显示选项");
+        ShowBpmRow.Header = Translator.Tr("显示BPM");
+        ShowPlayTimeRow.Header = Translator.Tr("显示播放时间");
+        ShowSongNameRow.Header = Translator.Tr("显示曲目信息");
+        ShowSongAuthorRow.Header = Translator.Tr("显示MIDI作者");
+        ShowUstAuthorRow.Header = Translator.Tr("显示调音师");
+        ShowNoteNameRow.Header = Translator.Tr("显示音名");
+        ShowUstLyricRow.Header = Translator.Tr("显示歌字");
+        ShowCopyrightRow.Header = Translator.Tr("显示版权");
 
         ImportButton.Content = Translator.Tr("导入项目");
         ExportButton.Content = Translator.Tr("保存项目");
         PlayButton.Content = Translator.Tr("播放 Play");
     }
+
+    /// <summary>
+    /// 行标题：取译文的正文部分。
+    /// </summary>
+    /// <param name="source">翻译条目的中文原文（含冒号，1.1.x 的表单标签即如此）。</param>
+    /// <returns>去掉结尾冒号的译文。</returns>
+    /// <remarks>
+    /// Windows 11 设置样式的行标题不带冒号，但**译文键必须保持原样**（含冒号）——
+    /// 改键就等于让既有 161 条译文里对应的那几条失效。因此显示时去掉结尾冒号，
+    /// 而不是新增一批「无冒号」的原文条目。
+    /// </remarks>
+    private static string Label(string source) => Translator.Tr(source).TrimEnd('：', ':', ' ');
 
     // ===================== 交互 =====================
 

@@ -11,6 +11,13 @@
     <StartupObject>UstPlayer.Desktop.Program</StartupObject>
 
     <!--
+      exe 图标：Windows 上任务栏 / 资源管理器 / 快捷方式显示的就是它（与 Window.Icon 各管一处）。
+      图标是两条产品线共用的根目录资产（与 1.1.x 同一份文件）。
+      只对 Windows 有意义，但设置它不影响其他平台的可构建性。
+    -->
+    <ApplicationIcon>..\icon.ico</ApplicationIcon>
+
+    <!--
       发布目标：只列真正会发布且原生件齐备的目标。
       渲染器（uPlRender）与内置 FFmpeg 目前都没有 Windows/Linux arm64 产物，
       列出来只会让 restore 去解析用不上的 runtime pack。

@@ -1,0 +1,28 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    跨控件的样式（ControlTheme 放不下的部分：目标不是本仓库定义的控件）。
+  -->
+
+  <!--
+    开关不带「开 / 关」文字：设置行里的开关就是裸控件，行标题已经说明这一项是什么；
+    FluentAvalonia 的 ToggleSwitch 默认会显示 On/Off。
+  -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="OnContent" Value="{x:Null}" />
+    <Setter Property="OffContent" Value="{x:Null}" />
+  </Style>
+
+  <!--
+    卡片外观：给不是「一行」的内容用（例如文件页的预览区整块内容）。
+    与 SettingsRow 的卡片保持一致，避免页面里各写一遍颜色与圆角。
+  -->
+  <Style Selector="Border.settingsCard">
+    <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+  </Style>
+
+</Styles>

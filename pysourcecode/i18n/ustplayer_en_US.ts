@@ -932,5 +932,17 @@ Project saved: {1}</translation>
         <source>字体</source>
         <translation>Fonts</translation>
     </message>
+    <message>
+        <source>工程文件</source>
+        <translation>Project file</translation>
+    </message>
+    <message>
+        <source>UST 文件</source>
+        <translation>UST file</translation>
+    </message>
+    <message>
+        <source>内容预览</source>
+        <translation>Preview</translation>
+    </message>
 </context>
 </TS>

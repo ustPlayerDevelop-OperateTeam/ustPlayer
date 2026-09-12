@@ -4,29 +4,56 @@
                    xmlns:fa="using:FluentAvalonia.UI.Controls"
                    x:Class="UstPlayer.Views.MainWindow"
                    Title="ustPlayer"
+                   Icon="/Assets/icon.ico"
                    Width="900" Height="620"
                    MinWidth="640" MinHeight="480"
                    WindowStartupLocation="CenterScreen">
 
   <!--
     窗口镶边：由 ShellWindow 基类设置（扩展客户区 + 保留系统窗口按钮），
-    见 docs/adr-0002-window-chrome.md。内容延伸到标题栏区域，
-    因此 NavigationView 顶部留出标题栏高度。
+    见 docs/adr-0002-window-chrome.md。
+
+    因为客户区延伸进了标题栏，系统**不再绘制标题文字**，所以要自己画一行：
+    图标 + 应用名（见下方 Row 0）。这一行同时充当拖拽区
+    （TitleBarHitTestType=Complex 会把可交互控件排除在拖拽区之外）。
 
     导航项在 code-behind 里构造（标题需要 tr() 翻译，且页面实例要注入 ViewModel）。
-    页面切换采用「选中即换 Content」，与 1.1.x 的 addSubInterface 语义一致。
   -->
-  <Grid RowDefinitions="Auto,*">
+  <Grid RowDefinitions="40,Auto,*">
+
+    <!-- ===================== 标题栏（自绘） ===================== -->
+    <!--
+      两个元素都设 IsHitTestVisible=False：否则它们会参与命中测试，
+      把标题栏这一段的拖拽区吃掉（ClassIsland 的标题栏元素同样如此）。
+      标题文字绑定 Window.Title，不重复写一份字符串——
+      改标题时只需要改一处。
+    -->
+    <StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                Spacing="10"
+                Margin="16,0,0,0"
+                VerticalAlignment="Center">
+      <Image Source="/Assets/icon.png"
+             Width="18" Height="18"
+             VerticalAlignment="Center"
+             IsHitTestVisible="False"
+             RenderOptions.BitmapInterpolationMode="HighQuality" />
+      <TextBlock Text="{Binding Title, RelativeSource={RelativeSource FindAncestor, AncestorType=Window}}"
+                 FontSize="12"
+                 VerticalAlignment="Center"
+                 IsHitTestVisible="False" />
+    </StackPanel>
+
     <!--
       提示条：FluentAvalonia 的 InfoBar 是控件（没有 1.1.x 那种静态弹出入口），
       因此由主窗口持有一个，页面经 INotificationHost 使用它。
     -->
-    <fa:InfoBar x:Name="NotificationBar" Grid.Row="0"
-                Margin="12,40,12,0"
+    <fa:InfoBar x:Name="NotificationBar" Grid.Row="1"
+                Margin="12,0,12,4"
                 IsOpen="False"
                 IsClosable="True" />
 
-    <fa:NavigationView x:Name="NavView" Grid.Row="1"
+    <fa:NavigationView x:Name="NavView" Grid.Row="2"
                        Margin="0,8,0,0"
                        IsSettingsVisible="False"
                        IsBackButtonVisible="False"

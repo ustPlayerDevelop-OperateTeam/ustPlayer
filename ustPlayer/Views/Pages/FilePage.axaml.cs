@@ -71,16 +71,27 @@ internal sealed partial class FilePage : UserControl
     /// <summary>设置界面文案。</summary>
     private void ApplyTexts()
     {
-        FileCard.Title = Translator.Tr("文件");
-        UstLabel.Text = Translator.Tr("ust:");
+        FileSection.Header = Translator.Tr("文件");
+        UstRow.Header = Translator.Tr("UST 文件");
         UstPathBox.Watermark = Translator.Tr("请选择或拖入 .ust 文件路径...");
         SelectUstButton.Content = Translator.Tr("选择ust文件");
-        CurveShowBox.Content = Translator.Tr("显示音高线变化");
-        EncodingLabel.Text = Translator.Tr("编码方式:");
+        CurveShowRow.Header = Translator.Tr("显示音高线变化");
+        EncodingRow.Header = Label("编码方式:");
         CheckEncodingButton.Content = Translator.Tr("编码检查");
-        PreviewCard.Title = Translator.Tr("内容预览");
+        PreviewSection.Header = Translator.Tr("内容预览");
         PreviewBox.Watermark = Translator.Tr("选择 UST 文件后在此预览...");
     }
+
+    /// <summary>
+    /// 行标题：取译文的正文部分（去掉结尾冒号）。
+    /// </summary>
+    /// <param name="source">翻译条目的中文原文（1.1.x 的表单标签带冒号）。</param>
+    /// <returns>去掉结尾冒号的译文。</returns>
+    /// <remarks>
+    /// 译文键必须与既有 .ts 保持逐字一致（含冒号），否则对应译文会静默失效；
+    /// Windows 11 设置样式的行标题不带冒号，因此在显示这一层去掉。
+    /// </remarks>
+    private static string Label(string source) => Translator.Tr(source).TrimEnd('：', ':', ' ');
 
     /// <summary>UST 路径或编码变化后刷新预览。</summary>
     /// <param name="sender">事件源。</param>

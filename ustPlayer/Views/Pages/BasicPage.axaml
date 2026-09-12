@@ -7,102 +7,96 @@
 
   <!--
     基础页（对应 1.1.x basic_page.py）：项目信息 + 显示选项 + 播放。
+    版式对齐 Windows 11 设置应用：分组标题在卡片之外，每行「左标题 / 右控件」。
+
     所有输入控件**直接双向绑定设置子域**——导入工程改了设置，界面自动跟着变，
     不需要 1.1.x 的 sync_all_from_settings()。
     文本一律在 code-behind 用 Translator.Tr(...) 赋值（见 AGENTS.md 的 i18n 约定）。
   -->
   <ScrollViewer>
-    <StackPanel Margin="24,20,24,24" Spacing="14">
+    <StackPanel Margin="24,4,24,24">
 
       <!-- ===================== 项目 ===================== -->
-      <controls:SectionCard x:Name="ProjectCard">
-        <StackPanel Spacing="10">
-          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" >
-            <TextBlock x:Name="ProjectNameLabel" Grid.Row="0" Grid.Column="0"
-                       MinWidth="90" VerticalAlignment="Center" />
-            <TextBox x:Name="ProjectNameBox" Grid.Row="0" Grid.Column="1"
+      <controls:SettingsSection x:Name="ProjectSection">
+        <StackPanel>
+          <controls:SettingsRow x:Name="ProjectNameRow">
+            <TextBox x:Name="ProjectNameBox" MinWidth="320"
                      Text="{Binding Project.ProjectName, Mode=TwoWay}" />
+          </controls:SettingsRow>
 
-            <TextBlock x:Name="SongNameLabel" Grid.Row="1" Grid.Column="0"
-                       MinWidth="90" VerticalAlignment="Center" Margin="0,8,0,0" />
-            <TextBox x:Name="SongNameBox" Grid.Row="1" Grid.Column="1" Margin="0,8,0,0"
+          <controls:SettingsRow x:Name="SongNameRow">
+            <TextBox x:Name="SongNameBox" MinWidth="320"
                      Text="{Binding Project.SongName, Mode=TwoWay}" />
+          </controls:SettingsRow>
 
-            <TextBlock x:Name="SongAuthorLabel" Grid.Row="2" Grid.Column="0"
-                       MinWidth="90" VerticalAlignment="Center" Margin="0,8,0,0" />
-            <TextBox x:Name="SongAuthorBox" Grid.Row="2" Grid.Column="1" Margin="0,8,0,0"
+          <controls:SettingsRow x:Name="SongAuthorRow">
+            <TextBox x:Name="SongAuthorBox" MinWidth="320"
                      Text="{Binding Project.SongAuthor, Mode=TwoWay}" />
+          </controls:SettingsRow>
 
-            <TextBlock x:Name="UstAuthorLabel" Grid.Row="3" Grid.Column="0"
-                       MinWidth="90" VerticalAlignment="Center" Margin="0,8,0,0" />
-            <TextBox x:Name="UstAuthorBox" Grid.Row="3" Grid.Column="1" Margin="0,8,0,0"
+          <controls:SettingsRow x:Name="UstAuthorRow">
+            <TextBox x:Name="UstAuthorBox" MinWidth="320"
                      Text="{Binding Project.UstAuthor, Mode=TwoWay}" />
-          </Grid>
+          </controls:SettingsRow>
 
-          <!-- 伴奏：路径可直接编辑，也可点「选择」 -->
-          <Grid ColumnDefinitions="Auto,*,Auto">
-            <TextBlock x:Name="MusicLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
-            <TextBox x:Name="MusicPathBox" Grid.Column="1"
-                     Text="{Binding Project.MusicPath, Mode=TwoWay}" />
-            <Button x:Name="MusicButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectMusicClick" />
-          </Grid>
+          <controls:SettingsRow x:Name="MusicRow">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox x:Name="MusicPathBox" MinWidth="320"
+                       Text="{Binding Project.MusicPath, Mode=TwoWay}" />
+              <Button x:Name="MusicButton" Click="OnSelectMusicClick" />
+            </StackPanel>
+          </controls:SettingsRow>
 
-          <!--
-            工程文件的导入 / 保存与 1.1.x 一样放在「项目」卡内（1.1.x 就是同一个卡片）。
-            刻意不另起一张卡：那需要一个新中文标题，而它不在既有 161 条译文里，
-            英文 / 文言界面下会退回显示中文。
-          -->
-          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
-            <Button x:Name="ImportButton" Click="OnImportClick" />
-            <Button x:Name="ExportButton" Click="OnExportClick" />
-          </StackPanel>
+          <controls:SettingsRow x:Name="ProjectFileRow">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button x:Name="ImportButton" Click="OnImportClick" />
+              <Button x:Name="ExportButton" Click="OnExportClick" />
+            </StackPanel>
+          </controls:SettingsRow>
         </StackPanel>
-      </controls:SectionCard>
+      </controls:SettingsSection>
 
       <!-- ===================== 显示选项 ===================== -->
-      <controls:SectionCard x:Name="DisplayCard">
-        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
-          <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+      <controls:SettingsSection x:Name="DisplaySection">
+        <StackPanel>
+          <controls:SettingsRow x:Name="ShowBpmRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowBpm, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowBpmLabel" VerticalAlignment="Center" />
-          </StackPanel>
-          <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+          </controls:SettingsRow>
+
+          <controls:SettingsRow x:Name="ShowPlayTimeRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowPlayTime, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowPlayTimeLabel" VerticalAlignment="Center" />
-          </StackPanel>
+          </controls:SettingsRow>
 
-          <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+          <controls:SettingsRow x:Name="ShowSongNameRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowSongName, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowSongNameLabel" VerticalAlignment="Center" />
-          </StackPanel>
-          <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+          </controls:SettingsRow>
+
+          <controls:SettingsRow x:Name="ShowSongAuthorRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowSongAuthor, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowSongAuthorLabel" VerticalAlignment="Center" />
-          </StackPanel>
+          </controls:SettingsRow>
 
-          <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+          <controls:SettingsRow x:Name="ShowUstAuthorRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowUstAuthor, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowUstAuthorLabel" VerticalAlignment="Center" />
-          </StackPanel>
-          <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
-            <ToggleSwitch IsChecked="{Binding Display.ShowNoteName, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowNoteNameLabel" VerticalAlignment="Center" />
-          </StackPanel>
+          </controls:SettingsRow>
 
-          <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+          <controls:SettingsRow x:Name="ShowNoteNameRow">
+            <ToggleSwitch IsChecked="{Binding Display.ShowNoteName, Mode=TwoWay}" />
+          </controls:SettingsRow>
+
+          <controls:SettingsRow x:Name="ShowUstLyricRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowUstLyric, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowUstLyricLabel" VerticalAlignment="Center" />
-          </StackPanel>
-          <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+          </controls:SettingsRow>
+
+          <controls:SettingsRow x:Name="ShowCopyrightRow">
             <ToggleSwitch IsChecked="{Binding Display.ShowCopyright, Mode=TwoWay}" />
-            <TextBlock x:Name="ShowCopyrightLabel" VerticalAlignment="Center" />
-          </StackPanel>
-        </Grid>
-      </controls:SectionCard>
+          </controls:SettingsRow>
+        </StackPanel>
+      </controls:SettingsSection>
 
       <!-- ===================== 播放（1.1.x 同样把播放按钮放在卡片之外） ===================== -->
       <Button x:Name="PlayButton" HorizontalAlignment="Stretch"
-              MinHeight="40" Click="OnPlayClick"
+              MinHeight="40" Margin="0,18,0,0"
+              Click="OnPlayClick"
               Classes="accent" />
 
     </StackPanel>

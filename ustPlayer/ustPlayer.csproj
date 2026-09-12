@@ -46,4 +46,19 @@
     <InternalsVisibleTo Include="ustPlayer.Tests" />
   </ItemGroup>
 
+  <!--
+    窗口/标题栏图标：把仓库根目录的图标**嵌入程序集**，而不是运行时按路径读文件。
+    嵌入的好处与翻译资产正好相反——它不依赖打包时把文件放到某个目录，
+    因此不会出现「图标在某些部署方式下悄悄消失」。
+
+    两种格式各管一处（与 ClassIsland 的做法一致）：
+      · `.ico` —— 窗口图标（任务栏 / Alt-Tab / 标题栏左侧），多尺寸，由系统按 DPI 选；
+      · `.png` —— 标题栏里自己画的那个 18×18 小图标（Image 的 Source）。
+    路径与 1.1.x 一致（两条产品线共用根目录的图标文件）。
+  -->
+  <ItemGroup>
+    <AvaloniaResource Include="..\icon.ico" Link="Assets\icon.ico" />
+    <AvaloniaResource Include="..\icon.png" Link="Assets\icon.png" />
+  </ItemGroup>
+
 </Project>
