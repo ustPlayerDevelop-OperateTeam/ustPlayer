@@ -9,6 +9,7 @@
 | `sync-native-assets.ps1` | 把渲染器原生库同步到各工程的 `renderer/` 目录 | 本地开发（由测试工程的 MSBuild 目标自动调用一次） |
 | `fetch-ffmpeg.ps1` | 下载 `ffmpeg`/`ffprobe` 到各工程的 `ffmpeg/` 目录 | 本地开发首次；CI 的 Windows 作业 |
 | `publish.ps1` | 打成可分发产物（zip + SHA256），并**校验产物完整性** | 本地出包验证；Phase 6 的发布流程 |
+| `extract-release-notes.ps1` | 从 CHANGELOG 提取某版本小节并附 SHA256 校验表 | 发版时（CI 的 release 作业） |
 
 ## 约定
 
@@ -145,4 +146,26 @@ pwsh -File build/publish.ps1 -Version 2.0.0-beta1       # 覆盖程序集版本
 
 已实测：win-x64 自包含产物 **305 MB**（其中 ffmpeg 约 196 MB），
 产物内 `--play` 能加载渲染器、渲染出首帧并持续播放——即打包布局本身是可用。
+
+## `extract-release-notes.ps1` 的定位
+
+发版时把 `CHANGELOG.md` 里对应版本的小节抽出来当 Release 说明，并在末尾附上所有发布附件的
+SHA256 校验表（沿用 1.1.x CI 的行为）。
+
+版本匹配规则（与 1.1.x 一致）：`v` 前缀可省略、连字符与空格互通、大小写不敏感；
+只认**一级**标题 `# 1.1.0 Beta 2`，顶部的 `## Unreleased` 不会被当作版本小节。
+
+**找不到对应小节时以退出码 1 失败**，并列出可用小节——这是刻意的：
+发版时静默发布占位内容会让用户看不到真实更新说明（1.1.x 也是这么做的）。
+
+```powershell
+pwsh -File build/extract-release-notes.ps1 -Tag v1.1.0-beta-2
+pwsh -File build/extract-release-notes.ps1 -Tag 2.0.0 -Artifacts artifacts/*.zip -OutputFile notes.md
+```
+
+已实测：`v1.1.0-beta-2` 与 `v1.1.0-Beta-2` 都能匹配 `# 1.1.0 Beta 2`；`9.9.9` 以退出码 1 失败。
+
+> 实现上有一处必须注意：`-Artifacts` 里的通配符要**先展开成具体文件**再取哈希。
+> `Test-Path` / `Get-FileHash` 都接受通配符，直接喂进去会在一个「路径」上返回多个哈希、
+> 被拼成一行乱码，整个校验表失效（实测踩到过，已修）。
 
