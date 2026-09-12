@@ -88,18 +88,17 @@ public class PlayerLauncherTests : IDisposable
     // ===================== 音频后端 =====================
 
     /// <summary>
-    /// 音频后端尚未实现，当前恒返回 <see langword="null"/>（走墙钟计时）。
+    /// 未配置伴奏、或伴奏文件不存在时返回空（播放器走墙钟计时）。
     /// </summary>
     /// <remarks>
-    /// 这条断言是**故意**的「未完成标记」：将来接入音频库（见
-    /// <c>docs/plan-deviations.md</c> 的 D3）时它会失败，从而强制实现者同时更新这里的
-    /// 期望值，而不是让降级路径悄悄留在原地。
+    /// 这条断言原本是「音频后端尚未实现」的刻意标记，接入 LibVLCSharp 之后使命完成，
+    /// 改成断言真实契约：**只有文件确实存在时才会去创建后端**。
     /// </remarks>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData(@"C:\music\伴奏.mp3")]
-    public void 音频后端尚未实现时返回空(string? musicPath)
+    [InlineData(@"C:\music\不存在的伴奏.mp3")]
+    public void 无可用伴奏时返回空(string? musicPath)
     {
         Assert.Null(PlayerLauncher.CreateAudioBackend(musicPath));
     }

@@ -30,6 +30,14 @@
     <PackageReference Include="Avalonia.Headless.XUnit" />
   </ItemGroup>
 
+  <!--
+    伴奏后端测试也要真的加载原生 libvlc，因此与桌面头一样引用原生包。
+    只对有 NuGet 包的平台引用；Linux 用系统 libvlc。
+  -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <PackageReference Include="VideoLAN.LibVLC.Windows" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\ustPlayer\ustPlayer.csproj" />
   </ItemGroup>

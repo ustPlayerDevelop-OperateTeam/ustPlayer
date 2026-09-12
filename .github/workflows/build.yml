@@ -28,7 +28,7 @@ env:
   # 新增依赖原生库的测试类时，请一并加到这里：filter 只认 FullyQualifiedName
   # （本 runner 上 [Trait]/TestCategory 过滤无效，已实测）。
   # 必须写成单行：折叠标量（>-）会把换行变成**空格**，而 --filter 表达式里不能有空格。
-  NATIVE_ONLY_TESTS_FILTER: "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests&FullyQualifiedName!~PlayerFrameCompositorTests&FullyQualifiedName!~VideoExportIntegrationTests"
+  NATIVE_ONLY_TESTS_FILTER: "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests&FullyQualifiedName!~PlayerFrameCompositorTests&FullyQualifiedName!~VideoExportIntegrationTests&FullyQualifiedName!~AudioBackendIntegrationTests"
 
 jobs:
   # ============================================================

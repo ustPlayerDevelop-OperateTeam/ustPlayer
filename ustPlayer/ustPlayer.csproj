@@ -39,6 +39,13 @@
     <PackageReference Include="FluentAvaloniaUI" />
 
     <PackageReference Include="CommunityToolkit.Mvvm" />
+
+    <!--
+      伴奏音频后端：LibVLCSharp（托管部分，跨平台）。
+      原生 libvlc 由各平台头引用：Windows / macOS 走 NuGet，Linux 用系统安装的 libvlc。
+      选它的理由见 Directory.Packages.props 与 docs/plan-deviations.md D3。
+    -->
+    <PackageReference Include="LibVLCSharp" />
   </ItemGroup>
 
   <ItemGroup>

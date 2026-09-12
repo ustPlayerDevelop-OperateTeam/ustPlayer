@@ -40,6 +40,21 @@
     <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
 
+  <!--
+    伴奏播放所需的**原生** libvlc：
+    · Windows / macOS 有官方 NuGet 包；
+    · **Linux 没有**——按 LibVLCSharp 的约定用系统安装的 libvlc（如
+      `apt install libvlc-dev vlc-plugin-base`）。因此这里只在有包的平台上引用，
+      不硬失败（否则 Linux 构建直接挂）。
+  -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <PackageReference Include="VideoLAN.LibVLC.Windows" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <PackageReference Include="VideoLAN.LibVLC.Mac" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\ustPlayer\ustPlayer.csproj" />
   </ItemGroup>
