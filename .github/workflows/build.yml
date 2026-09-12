@@ -1,0 +1,120 @@
+# 说明：本仓库现在是**双产品线**（根目录 = C# / Avalonia 2.0 主线，
+# pysourcecode/ = 冻结的 1.1.x）。本 workflow 只构建与验证 2.0 主线；
+# 1.1.x 的旧 CI 已归档为 pysourcecode/.github/workflows/build.yml
+# （GitHub 不执行子目录中的 workflow，仅作存档）。
+
+name: Build / Test
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# 同一 ref 的并发运行自动取消旧的，避免连续提交时构建堆积
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # CI 上不因 NuGet 警告中断（真正需要拦截的编译警告由 TreatWarningsAsErrors 管）
+  DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
+
+jobs:
+  # ============================================================
+  # 快速反馈：Linux 上做 restore / build / 纯托管测试（无原生依赖）
+  # ============================================================
+  build-and-test:
+    name: 构建与测试（Linux 快速反馈）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 还原
+        run: dotnet restore UstPlayer.slnx
+
+      - name: 构建（warnings 视为错误已在 Directory.Build.props 配置）
+        run: dotnet build UstPlayer.slnx -c Release --no-restore
+
+      - name: 测试（跳过依赖渲染器原生库的用例）
+        run: >
+          dotnet test UstPlayer.slnx -c Release --no-build --nologo
+          --filter "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests"
+
+  # ============================================================
+  # Windows：完整验证 —— 含原生渲染器集成测试与真实窗口启动
+  # ============================================================
+  windows:
+    name: Windows 完整验证（原生 + 启动）
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 同步渲染器原生库
+        shell: pwsh
+        # 优先用仓库内已有副本（由开发者提交前的同步脚本放入，实体不入库故 CI 里通常缺失）；
+        # 缺失时脚本以 0 退出，随后依赖它的测试会明确失败并给出指引——
+        # 这样「渲染器没就位」不会被静默跳过。
+        run: ./build/sync-native-assets.ps1
+        continue-on-error: true
+
+      - name: 还原
+        run: dotnet restore UstPlayer.slnx
+
+      - name: 构建
+        run: dotnet build UstPlayer.slnx -c Release --no-restore
+
+      - name: 测试（全量）
+        run: dotnet test UstPlayer.slnx -c Release --no-build --nologo
+
+      - name: 真实窗口启动验证
+        shell: pwsh
+        # AppWindow 在 headless 平台无法实例化（见 docs/adr-0002-window-chrome.md），
+        # 因此窗口的创建与显示只能以真实进程启动验证。
+        run: ./build/verify-app-launch.ps1 -Configuration Release
+
+  # ============================================================
+  # macOS / Linux：验证跨平台可构建性 + 纯托管测试
+  # 渲染器原生库目前只有 Windows 产物（Spike 0c 待补目标），故过滤 RequiresNative
+  # ============================================================
+  cross-platform:
+    name: 跨平台构建（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 还原
+        run: dotnet restore UstPlayer.slnx
+
+      - name: 构建
+        run: dotnet build UstPlayer.slnx -c Release --no-restore
+
+      - name: 测试（跳过依赖原生渲染器的用例）
+        run: >
+          dotnet test UstPlayer.slnx -c Release --no-build --nologo
+          --filter "FullyQualifiedName!~RenderBufferBlitTests&FullyQualifiedName!~RendererInteropTests"
