@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 
+using UstPlayer.Diagnostics;
 using UstPlayer.Models;
 
 namespace UstPlayer.Ust;
@@ -340,28 +342,56 @@ internal sealed class UstFileReader
         int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
 
     /// <summary>
+    /// 注册代码页编码提供程序（Shift-JIS / GBK 等）。
+    /// </summary>
+    /// <remarks>
+    /// Shift-JIS 是默认的 UST 编码，不注册就等于默认打不开日文工程。
+    /// 用模块初始化器保证早于任何一次编码解析。
+    /// </remarks>
+    [ModuleInitializer]
+    // CA2255：分析器不建议库用模块初始化器；此处是刻意的（见上方理由）。
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Usage",
+        "CA2255:The ModuleInitializer attribute should not be used in libraries",
+        Justification = "必须在任何一次编码解析前注册代码页提供程序，否则默认的 Shift-JIS 会直接不可用。")]
+    internal static void RegisterEncodingProvider() => EncodingBootstrap.EnsureRegistered();
+
+    /// <summary>
     /// 解析编码名。UTF-8 家族统一用「吞 BOM」的编码（对应 1.1.x 的 <c>utf-8-sig</c>）。
     /// </summary>
     /// <param name="encoding">编码名；为空用默认值。</param>
     /// <returns>可用于读取的编码。</returns>
-    /// <exception cref="ArgumentException">编码名不受支持。</exception>
+    /// <remarks>
+    /// 编码名不受支持时**回退 UTF-8 并记录警告**，而不是抛异常：
+    /// 用户拿到的应该是「文件读出来是乱码（可换编码重试）」，而不是一个启动即崩的异常。
+    /// </remarks>
     private static Encoding ResolveEncoding(string? encoding)
     {
+        EncodingBootstrap.EnsureRegistered();
+
         var name = string.IsNullOrWhiteSpace(encoding) ? DefaultEncoding : encoding;
         var normalized = name.ToLowerInvariant().Replace("-", string.Empty).Replace("_", string.Empty);
 
-        // UTF-8 家族：显式用「吞 BOM」的实例。注意 .NET 的 StreamReader 默认也会吞 BOM，
+        // UTF-8 家族：显式用「吞 BOM」的实例。.NET 的 StreamReader 默认也会吞 BOM，
         // 这里显式化是为了让意图清楚，并与 1.1.x 的 utf-8-sig 行为对齐。
         if (normalized is "utf8" or "utf8sig" or "utf8bom")
         {
             return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         }
 
-        // 失败时抛出（由调用方转为用户提示），与 1.1.x 抛 UnicodeDecodeError 的语义一致
-        return Encoding.GetEncoding(
-            name,
-            EncoderFallback.ExceptionFallback,
-            DecoderFallback.ExceptionFallback);
+        try
+        {
+            // 解码失败时抛出（由调用方转为用户提示），与 1.1.x 抛 UnicodeDecodeError 的语义一致
+            return Encoding.GetEncoding(
+                name,
+                EncoderFallback.ExceptionFallback,
+                DecoderFallback.ExceptionFallback);
+        }
+        catch (ArgumentException exception)
+        {
+            AppLogger.Warning($"不支持的编码「{name}」，回退 UTF-8（{exception.Message}）");
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        }
     }
 
     /// <summary>按行枚举文本，兼容 CRLF / LF / CR。</summary>
