@@ -24,7 +24,7 @@
 ### 命令
 
 - 构建：`dotnet build UstPlayer.slnx -c Debug`（`TreatWarningsAsErrors=true`，**0 警告是硬要求**）。
-- 测试：`dotnet test UstPlayer.slnx -c Debug`（335 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
+- 测试：`dotnet test UstPlayer.slnx -c Debug`（346 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
 - 跨平台过滤：依赖**渲染器原生库或 ffmpeg** 的四个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。新增这类测试类时记得同步该清单：漏了会让非 Windows 作业**明确失败**（刻意如此，不静默跳过）。
 - 真实进程验证（窗口无法在 headless 下构造，见 `docs/adr-0002-window-chrome.md`，**改动窗口/播放链路后必须跑**）：
   - `pwsh -File build/verify-app-launch.ps1` —— 主窗口能启动并稳定运行。
@@ -44,17 +44,37 @@
 - **`PlayerFrameCompositor` 的渲染尺寸上限是 1920×1080**（4K 实时渲染达不到 60fps，见 `docs/adr-0001-renderer-strategy.md`）；
   渲染尺寸必须按**窗口实际尺寸**传，因为渲染器的字号按画布尺寸计算。
 
+### UI 层（Phase 5）
+
+- **控件直接双向绑定设置子域**（`{Binding Display.ShowBpm, Mode=TwoWay}`），
+  **不要**再引入 1.1.x 那种 `sync_all_from_settings()` 手工同步（原因见 `docs/plan-deviations.md` D8）。
+  设置子域自身会通知变更，导入工程后界面自动刷新。
+- **XAML 用编译期绑定**（`AvaloniaUseCompiledBindingsByDefault=true`）：页面必须写
+  `x:DataType`，绑定路径写错会在**构建时**报 `AVLN2000`。这是 2.0 的一道免费防线，别把它关掉。
+- **FluentAvalonia 的 `Symbol` 枚举没有 `Palette` / `Music` / `Info` / `Color` / `Language` / `Text`**，
+  且 `MusicInfo` 已标记过时（无字形，用它会因 `TreatWarningsAsErrors` 直接编译失败）。
+  挑图标前先确认成员存在，不要照 WinUI 的名字猜。
+- **FluentAvalonia 的 `InfoBar` 是控件、没有静态弹出入口**：主窗口持有唯一一个，
+  页面经 `INotificationHost`（`Views/INotificationHost.cs`）使用它。
+- 页面文案在 code-behind 用 `Translator.Tr(...)` 赋值，并在 `Retranslate()` 里集中重设，
+  由主窗口在语言变更时调用。
+
 ### 架构（依赖方向）
 
 ```
-AppContext 组合根 → AppServices（唯一组装具体实现的地方，不得在别处 new 服务）
-   ├─ Settings     SettingsManager（七个设置子域 + BuildLaunchParams）
-   ├─ Ust          UstFileReader（只处理 .ust 文本，不支持 USTX）
-   ├─ ProjectIo    UplrProjectIO（.uplr 导入导出 / .uprd 导出）
+AppServices 组合根（唯一组装具体实现的地方，不得在别处 new 服务）
+   ├─ Settings      SettingsManager（七个设置子域 + BuildLaunchParams）
+   ├─ Ust           UstFileReader（只处理 .ust 文本，不支持 USTX）
+   ├─ ProjectIo     UplrProjectIO（.uplr 导入导出 / .uprd 导出）
    └─ VideoExporter
-MainWindow ──注入──> AppServices ──> PlayerLauncher ──> PlayerWindow ──> PlayerFrameCompositor
-                                                             └─> PlaybackSession（时序 / 文字）
+App ──创建──> AppServices ──注入──> MainWindow（NavigationView 外壳，实现 INotificationHost）
+                                      └─> Pages（绑定各自的 ViewModel）
+MainWindow ──> PlayerLauncher ──> PlayerWindow ──> PlayerFrameCompositor
+                                                       └─> PlaybackSession（时序 / 文字）
 ```
+
+- `Views/` 是 UI；`ViewModels/` 是页面状态与命令（**可以**引用 Avalonia，但不得被逻辑层反向引用）。
+  `UstPlayer.ViewModels` 已列入 `LayeringTests` 的 UI 命名空间清单，因此逻辑层不能依赖它。
 
 - 分层红线由 `ustPlayer.Tests/Architecture/LayeringTests.cs` 强制：`Models`/`Ust`/`Settings`/`Projects`/`Video`/`Timing`/`I18n`/`Diagnostics`/`Interop` **不得引用 Avalonia 或 FluentAvalonia**，也不得反向依赖 `Views` 等 UI 命名空间；共享工程**不得出现平台条件编译**（平台差异走运行时判断）。
 - `AppServices` 位于根命名空间 `UstPlayer`，是**刻意**的分层例外（组合根按定义要跨层）。它叫 `AppServices` 而非 1.1.x 的 `AppContext`，是为避免遮蔽 `System.AppContext`。

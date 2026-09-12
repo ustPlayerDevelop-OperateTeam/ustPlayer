@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:UstPlayer.ViewModels"
+             xmlns:controls="using:UstPlayer.Views.Controls"
+             x:Class="UstPlayer.Views.Pages.BasicPage"
+             x:DataType="vm:BasicPageViewModel">
+
+  <!--
+    基础页（对应 1.1.x basic_page.py）：项目信息 + 显示选项 + 播放。
+    所有输入控件**直接双向绑定设置子域**——导入工程改了设置，界面自动跟着变，
+    不需要 1.1.x 的 sync_all_from_settings()。
+    文本一律在 code-behind 用 Translator.Tr(...) 赋值（见 AGENTS.md 的 i18n 约定）。
+  -->
+  <ScrollViewer>
+    <StackPanel Margin="24,20,24,24" Spacing="14">
+
+      <!-- ===================== 项目 ===================== -->
+      <controls:SectionCard x:Name="ProjectCard">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" >
+            <TextBlock x:Name="ProjectNameLabel" Grid.Row="0" Grid.Column="0"
+                       MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="ProjectNameBox" Grid.Row="0" Grid.Column="1"
+                     Text="{Binding Project.ProjectName, Mode=TwoWay}" />
+
+            <TextBlock x:Name="SongNameLabel" Grid.Row="1" Grid.Column="0"
+                       MinWidth="90" VerticalAlignment="Center" Margin="0,8,0,0" />
+            <TextBox x:Name="SongNameBox" Grid.Row="1" Grid.Column="1" Margin="0,8,0,0"
+                     Text="{Binding Project.SongName, Mode=TwoWay}" />
+
+            <TextBlock x:Name="SongAuthorLabel" Grid.Row="2" Grid.Column="0"
+                       MinWidth="90" VerticalAlignment="Center" Margin="0,8,0,0" />
+            <TextBox x:Name="SongAuthorBox" Grid.Row="2" Grid.Column="1" Margin="0,8,0,0"
+                     Text="{Binding Project.SongAuthor, Mode=TwoWay}" />
+
+            <TextBlock x:Name="UstAuthorLabel" Grid.Row="3" Grid.Column="0"
+                       MinWidth="90" VerticalAlignment="Center" Margin="0,8,0,0" />
+            <TextBox x:Name="UstAuthorBox" Grid.Row="3" Grid.Column="1" Margin="0,8,0,0"
+                     Text="{Binding Project.UstAuthor, Mode=TwoWay}" />
+          </Grid>
+
+          <!-- 伴奏：路径可直接编辑，也可点「选择」 -->
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock x:Name="MusicLabel" Grid.Column="0" MinWidth="90" VerticalAlignment="Center" />
+            <TextBox x:Name="MusicPathBox" Grid.Column="1"
+                     Text="{Binding Project.MusicPath, Mode=TwoWay}" />
+            <Button x:Name="MusicButton" Grid.Column="2" Margin="8,0,0,0" Click="OnSelectMusicClick" />
+          </Grid>
+        </StackPanel>
+      </controls:SectionCard>
+
+      <!-- ===================== 显示选项 ===================== -->
+      <controls:SectionCard x:Name="DisplayCard">
+        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
+          <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowBpm, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowBpmLabel" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowPlayTime, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowPlayTimeLabel" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowSongName, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowSongNameLabel" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowSongAuthor, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowSongAuthorLabel" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowUstAuthor, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowUstAuthorLabel" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowNoteName, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowNoteNameLabel" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowUstLyric, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowUstLyricLabel" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <ToggleSwitch IsChecked="{Binding Display.ShowCopyright, Mode=TwoWay}" />
+            <TextBlock x:Name="ShowCopyrightLabel" VerticalAlignment="Center" />
+          </StackPanel>
+        </Grid>
+      </controls:SectionCard>
+
+      <!-- ===================== 工程与播放 ===================== -->
+      <controls:SectionCard x:Name="ActionsCard">
+        <StackPanel Spacing="12">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button x:Name="ImportButton" Click="OnImportClick" />
+            <Button x:Name="ExportButton" Click="OnExportClick" />
+          </StackPanel>
+          <Button x:Name="PlayButton" HorizontalAlignment="Stretch"
+                  MinHeight="40" Click="OnPlayClick"
+                  Classes="accent" />
+        </StackPanel>
+      </controls:SectionCard>
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

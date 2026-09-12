@@ -7,10 +7,44 @@
   <!--
     主题：FluentAvaloniaTheme（Fluent v2）。
     注意：不要再叠加 Avalonia 自带的 FluentTheme / SimpleTheme，官方明确说明会产生视觉瑕疵。
-    强调色默认跟随系统（Avalonia 的 Accent 在未覆盖时即取系统强调色）。
+    强调色默认跟随系统（Avalonia 的 SystemAccentColor 在未覆盖时即取系统强调色）。
+
+    主题变体由设置驱动（ThemeSettings.ThemeMode），启动时经
+    MainWindowViewModel.ApplyTheme() 设置到 Application.RequestedThemeVariant。
   -->
   <Application.Styles>
     <sty:FluentAvaloniaTheme />
   </Application.Styles>
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <!--
+        SectionCard 的 ControlTheme 放在独立文件里（Styles/SectionCardTheme.axaml）。
+        它是资源字典而不是样式表，因此必须用 ResourceInclude 合并进 Resources——
+        用 StyleInclude 会在运行时报类型不匹配。
+      -->
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://ustPlayer.Core/Styles/SectionCardTheme.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!--
+        随主题变体的资源。用 ThemeDictionaries 而不是代码里判断亮暗：
+        跟随系统时用户改系统主题，这里会自动跟着换，不需要额外的监听。
+      -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFFFF" />
+          <SolidColorBrush x:Key="CardBorderBrush" Color="#14000000" />
+          <SolidColorBrush x:Key="PageBackgroundBrush" Color="#F3F3F3" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="CardBackgroundBrush" Color="#14FFFFFF" />
+          <SolidColorBrush x:Key="CardBorderBrush" Color="#14FFFFFF" />
+          <SolidColorBrush x:Key="PageBackgroundBrush" Color="#202020" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
 
 </Application>

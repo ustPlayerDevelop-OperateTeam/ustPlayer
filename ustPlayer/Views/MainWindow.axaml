@@ -1,26 +1,37 @@
 <views:ShellWindow xmlns="https://github.com/avaloniaui"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:views="using:UstPlayer.Views"
+                   xmlns:fa="using:FluentAvalonia.UI.Controls"
                    x:Class="UstPlayer.Views.MainWindow"
                    Title="ustPlayer"
                    Width="900" Height="620"
+                   MinWidth="640" MinHeight="480"
                    WindowStartupLocation="CenterScreen">
 
   <!--
     窗口镶边：由 ShellWindow 基类设置（扩展客户区 + 保留系统窗口按钮），
-    见 docs/adr-0002-window-chrome.md。内容可延伸进标题栏区域，
-    因此顶部留出标题栏高度（-1 表示由平台自动计算）。
+    见 docs/adr-0002-window-chrome.md。内容延伸到标题栏区域，
+    因此 NavigationView 顶部留出标题栏高度。
 
-    ⚠️ 本页仍是**临时**内容：Phase 4 用它打通「选 UST → 全屏播放」这条端到端链路，
-    Phase 5 会整体替换为 FluentAvalonia 的 NavigationView 外壳 + 5 个设置页。
-    文案一律在 code-behind 里用 Translator.Tr(...) 设置（见 AGENTS.md 的 i18n 约定）。
+    导航项在 code-behind 里构造（标题需要 tr() 翻译，且页面实例要注入 ViewModel）。
+    页面切换采用「选中即换 Content」，与 1.1.x 的 addSubInterface 语义一致。
   -->
-  <StackPanel Margin="24,48,24,24" Spacing="12">
-    <TextBlock Name="TitleText" FontSize="28" FontWeight="SemiBold" />
-    <TextBlock Name="SubtitleText" Opacity="0.7" TextWrapping="Wrap" />
-    <Button Name="OpenUstButton" Click="OnOpenUstClick" HorizontalAlignment="Left" />
-    <TextBlock Name="StatusText" Opacity="0.7" TextWrapping="Wrap" />
-    <TextBlock Name="ErrorText" Foreground="#C42B1C" TextWrapping="Wrap" IsVisible="False" />
-  </StackPanel>
+  <Grid RowDefinitions="Auto,*">
+    <!--
+      提示条：FluentAvalonia 的 InfoBar 是控件（没有 1.1.x 那种静态弹出入口），
+      因此由主窗口持有一个，页面经 INotificationHost 使用它。
+    -->
+    <fa:InfoBar x:Name="NotificationBar" Grid.Row="0"
+                Margin="12,40,12,0"
+                IsOpen="False"
+                IsClosable="True" />
+
+    <fa:NavigationView x:Name="NavView" Grid.Row="1"
+                       Margin="0,8,0,0"
+                       IsSettingsVisible="False"
+                       IsBackButtonVisible="False"
+                       PaneDisplayMode="Left"
+                       OpenPaneLength="200" />
+  </Grid>
 
 </views:ShellWindow>
