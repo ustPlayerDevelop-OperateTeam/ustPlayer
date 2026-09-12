@@ -422,16 +422,33 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         if (_pages.TryGetValue(key, out var page))
         {
-            NavView.Content = page;
+            PageHost.Content = page;
+            LogPageTransition(key);
             return;
         }
 
-        NavView.Content = new TextBlock
+        PageHost.Content = new TextBlock
         {
             Text = Translator.Tr("该页面尚未迁移（Phase 5 进行中）"),
             Margin = new Thickness(24),
             Opacity = 0.6,
         };
+
+        LogPageTransition(key);
+    }
+
+    /// <summary>
+    /// 记录一次页面切换（诊断用）。
+    /// </summary>
+    /// <param name="key">导航键。</param>
+    /// <remarks>
+    /// 过渡动画是 0.3 秒的视觉效果，截图与无头测试都抓不到它「有没有生效」，
+    /// 因此把「哪一页、用什么过渡」写进日志，供真实进程核对。
+    /// </remarks>
+    private void LogPageTransition(string key)
+    {
+        AppLogger.Debug(
+            $"页面切换：{key}（过渡 {PageHost.PageTransition?.GetType().Name ?? "无"}）");
     }
 
     // ===================== 文件拖放 =====================
@@ -587,7 +604,7 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         _lyricPage?.Retranslate();
         _settingsPage?.Retranslate();
 
-        if (NavView.Content is TextBlock placeholder)
+        if (PageHost.Content is TextBlock placeholder)
         {
             placeholder.Text = Translator.Tr("该页面尚未迁移（Phase 5 进行中）");
         }

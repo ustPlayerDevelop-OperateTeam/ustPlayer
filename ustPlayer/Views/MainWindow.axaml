@@ -56,7 +56,30 @@
                        IsSettingsVisible="False"
                        IsBackButtonVisible="False"
                        PaneDisplayMode="Left"
-                       OpenPaneLength="200" />
+                       OpenPaneLength="200">
+      <!--
+        页面切换过渡：横向滑动 + 交叉淡入叠加（对应 ClassIsland 的
+        CompositePageTransition：PageSlide + CrossFade，各 0.3 秒）。
+
+        缓动取 ClassIsland 用的那组（cubic-bezier(0.76, 0, 0.24, 1)）在 Avalonia 里
+        的等价写法 CubicEaseOut：两端慢、中间快，切换显得利落而不生硬。
+
+        用 TransitioningContentControl 而不是把页面直接塞进 NavigationView.Content：
+        后者是瞬间替换、没有过渡。页面实例仍由 code-behind 缓存（_pages），
+        因此切换不会重建页面、输入到一半的内容不会丢。
+      -->
+      <TransitioningContentControl x:Name="PageHost">
+        <TransitioningContentControl.PageTransition>
+          <CompositePageTransition>
+            <PageSlide Duration="0:0:0.3"
+                       Orientation="Horizontal"
+                       SlideOutEasing="CubicEaseOut"
+                       SlideInEasing="CubicEaseOut" />
+            <CrossFade Duration="0:0:0.3" />
+          </CompositePageTransition>
+        </TransitioningContentControl.PageTransition>
+      </TransitioningContentControl>
+    </fa:NavigationView>
 
     <!--
       通知浮层：右上角，**不参与布局**（所以不会把导航区挤下去），

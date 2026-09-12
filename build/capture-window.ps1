@@ -11,6 +11,10 @@
 #   # 版式自检：额外渲染一张由 SettingsRow 画的参照卡片（见 SettingsPage.axaml）
 #   pwsh -File build/capture-window.ps1 -Page settings -Environment USTPLAYER_UI_PROBE=1
 #
+#   # 交互验证：先点客户区 (100,112)（「文件」导航项）、等 0.9 秒再截图，
+#   # 可用来核对页面切换是否真的发生了
+#   pwsh -File build/capture-window.ps1 -Click 100,112 -Output artifacts/ui-shots/file.png
+#
 # 退出码：0 = 已截图；1 = 窗口没起来 / 截图失败。
 
 [CmdletBinding()]
@@ -19,7 +23,9 @@ param(
     [string]$Configuration = 'Debug',
     [string]$Output,
     [int]$WaitSeconds = 6,
-    [string[]]$Environment
+    [string[]]$Environment,
+    [string]$Click,
+    [string]$ClickBeforeCapture
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +63,15 @@ public static extern bool SetForegroundWindow(IntPtr hwnd);
 
 [StructLayout(LayoutKind.Sequential)]
 public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+[DllImport("user32.dll")]
+public static extern bool SetCursorPos(int x, int y);
+
+[DllImport("user32.dll")]
+public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+
+public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+public const uint MOUSEEVENTF_LEFTUP = 0x0004;
 '@
 
 Write-Host "启动：$exe --page $Page"
@@ -123,6 +138,37 @@ if ($hwnd -eq [IntPtr]::Zero) {
 
 [void][UstShot.Native]::SetForegroundWindow($hwnd)
 Start-Sleep -Milliseconds 700
+
+# 点击某个客户区坐标（形如 "100,112"）：用来验证「切页」这类交互，
+# 因为导航项的点按无法从静态截图里体现出来
+function Invoke-ClientClick([string]$spec) {
+    $parts = $spec.Split(',')
+    if ($parts.Count -ne 2) {
+        Write-Host "点击坐标写法应为 x,y：$spec"
+        return
+    }
+
+    $rect = New-Object UstShot.Native+RECT
+    [void][UstShot.Native]::GetWindowRect($hwnd, [ref]$rect)
+
+    $screenX = $rect.Left + [int]$parts[0]
+    $screenY = $rect.Top + [int]$parts[1]
+
+    [void][UstShot.Native]::SetCursorPos($screenX, $screenY)
+    Start-Sleep -Milliseconds 120
+    [UstShot.Native]::mouse_event([UstShot.Native]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+    [UstShot.Native]::mouse_event([UstShot.Native]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    Write-Host "已在客户区 ($($parts[0]),$($parts[1])) 点击"
+}
+
+if ($Click) {
+    Invoke-ClientClick $Click
+    Start-Sleep -Milliseconds 900
+}
+
+if ($ClickBeforeCapture) {
+    Invoke-ClientClick $ClickBeforeCapture
+}
 
 $rect = New-Object UstShot.Native+RECT
 [void][UstShot.Native]::GetWindowRect($hwnd, [ref]$rect)
