@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
@@ -26,27 +27,79 @@ internal static partial class SettingsValueConverter
     /// </remarks>
     internal static bool ToBool(JsonNode? node, bool fallback = false)
     {
-        switch (node)
+        if (node is not JsonValue value)
         {
-            case null:
-                return fallback;
+            return fallback;
+        }
 
-            case JsonValue value when value.TryGetValue<bool>(out var boolean):
-                return boolean;
+        // 按 JsonValueKind 分派，而不是直接 TryGetValue<T>：
+        // JsonValue.Create(1) 内部保存的是 **int**，而 TryGetValue<double>() 不做数值转换，
+        // 会返回 false —— 于是所有整数标志都会落到 fallback 分支，表现为「值被取反」。
+        // 这类错误不会抛异常，只会让布尔设置静默用错默认值，非常难查。
+        switch (value.GetValueKind())
+        {
+            case JsonValueKind.True:
+                return true;
 
-            case JsonValue value when value.TryGetValue<double>(out var number):
-                return number != 0;
+            case JsonValueKind.False:
+                return false;
 
-            case JsonValue value when value.TryGetValue<string>(out var text):
-                var normalized = text.Trim();
+            case JsonValueKind.Number:
+                // 数字：非零即真（与 1.1.x 的 as_bool 一致）
+                return TryReadNumber(value) is { } number && number != 0;
+
+            case JsonValueKind.String:
+                var normalized = value.GetValue<string>().Trim();
                 return normalized.Equals("1", StringComparison.OrdinalIgnoreCase) ||
                        normalized.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                        normalized.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
                        normalized.Equals("on", StringComparison.OrdinalIgnoreCase);
 
             default:
+                // Null / Object / Array：与 1.1.x 的 as_bool 一样回退默认值
                 return fallback;
         }
+    }
+
+    /// <summary>
+    /// 从 JSON 数字按可能的后备类型逐个尝试读取。
+    /// </summary>
+    /// <param name="value">JSON 值（须为数字）。</param>
+    /// <returns>数值；无法读取时返回 <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <c>JsonValue</c> 会保留创建时的具体数值类型（<c>int</c> / <c>long</c> / <c>double</c> …），
+    /// 且 <c>TryGetValue&lt;T&gt;</c> 不做隐式数值转换，因此必须逐个类型尝试。
+    /// 也可用 <c>value.GetValue&lt;JsonElement&gt;().GetDouble()</c>，但那依赖 JsonElement 后备存储，
+    /// 对程序内构造的 <c>JsonValue</c> 不成立。
+    /// </remarks>
+    private static double? TryReadNumber(JsonValue value)
+    {
+        if (value.TryGetValue<double>(out var asDouble))
+        {
+            return asDouble;
+        }
+
+        if (value.TryGetValue<int>(out var asInt))
+        {
+            return asInt;
+        }
+
+        if (value.TryGetValue<long>(out var asLong))
+        {
+            return asLong;
+        }
+
+        if (value.TryGetValue<decimal>(out var asDecimal))
+        {
+            return (double)asDecimal;
+        }
+
+        if (value.TryGetValue<float>(out var asFloat))
+        {
+            return asFloat;
+        }
+
+        return null;
     }
 
     /// <summary>判断是否为合法的 <c>#RRGGBB</c> 颜色。</summary>
