@@ -140,12 +140,17 @@ up_begin_export 失败：编码失败（ffmpeg init failed: ffmpeg executable no
 ```powershell
 pwsh -File build/publish.ps1                            # win-x64 自包含
 pwsh -File build/publish.ps1 -RuntimeIdentifier linux-x64
-pwsh -File build/publish.ps1 -SelfContained:$false      # 依赖框架，体积小
-pwsh -File build/publish.ps1 -Version 2.0.0-beta1       # 覆盖程序集版本
+pwsh -File build/publish.ps1 -FrameworkDependent        # 依赖框架，体积小
+pwsh -File build/publish.ps1 -Version 2.0.0-beta1       # 覆盖程序集版本（v 前缀会被剥掉）
 ```
 
-已实测：win-x64 自包含产物 **305 MB**（其中 ffmpeg 约 196 MB），
-产物内 `--play` 能加载渲染器、渲染出首帧并持续播放——即打包布局本身是可用。
+> 用 `-FrameworkDependent` 这种**反向开关**，而不是 `-SelfContained:$false`：
+> `powershell.exe/pwsh -File` 传参时不解析 `-X:$false`，会当成字符串再转 bool 而报错（实测踩到）。
+> 同理 `-Version` 会剥掉 `v` 前缀——MSBuild 的 `Version` 不接受 `v2.0.0`。
+
+已实测：win-x64 自包含产物 **305 MB**（其中 ffmpeg 约 196 MB，依赖框架则约 229 MB），
+产物内 `--play` 能加载渲染器、渲染出首帧并持续播放——即打包布局本身是可用；
+`-Version v9.9.9-test` 会写成程序集 `9.9.9.0`。
 
 ## `extract-release-notes.ps1` 的定位
 

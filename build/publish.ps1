@@ -8,8 +8,12 @@
 # 用法：
 #   pwsh -File build/publish.ps1                          # win-x64 自包含
 #   pwsh -File build/publish.ps1 -RuntimeIdentifier linux-x64
-#   pwsh -File build/publish.ps1 -SelfContained:$false    # 依赖框架（体积小，需装 .NET 运行时）
-#   pwsh -File build/publish.ps1 -Version 2.0.0-beta1     # 覆盖程序集版本
+#   pwsh -File build/publish.ps1 -FrameworkDependent      # 依赖框架（体积小，需装 .NET 运行时）
+#   pwsh -File build/publish.ps1 -Version 2.0.0-beta1     # 覆盖程序集版本（v 前缀会被剥掉）
+#
+# 注意：这里用反向开关 `-FrameworkDependent`，而不是 `-SelfContained:$false`。
+# `powershell.exe/pwsh -File` 传参时**不解析 `-X:$false` 这种写法**，会把它当字符串
+# ":$false" 再转 bool，直接报参数转换错误（实测踩到）。反向开关在两种调用方式下都可靠。
 #
 # 退出码：0 = 产物完整；1 = 构建失败或产物缺件。
 
@@ -19,12 +23,17 @@ param(
     [string]$Configuration = 'Release',
     [string]$OutputDirectory,
     [string]$Version,
-    [bool]$SelfContained = $true,
+
+    # 打成依赖框架的产物（体积小得多，但用户机器需装对应 .NET 运行时）。
+    [switch]$FrameworkDependent,
+
     [switch]$SkipArchive
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+
+$SelfContained = -not $FrameworkDependent
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
@@ -55,8 +64,15 @@ $arguments = @(
 )
 
 if ($Version) {
-    $arguments += "-p:Version=$Version"
-    Write-Host "覆盖版本号：$Version"
+    # MSBuild 的 Version 不接受 `v` 前缀（`-p:Version=v2.0.0` 会直接报非法版本号），
+    # 而发版时标签常写成 `v2.0.0`。这里统一剥掉，让脚本对两种标签写法都能用。
+    $msbuildVersion = $Version.Trim()
+    if ($msbuildVersion -match '^[vV](?=\d)') {
+        $msbuildVersion = $msbuildVersion.Substring(1)
+    }
+
+    $arguments += "-p:Version=$msbuildVersion"
+    Write-Host "覆盖版本号：$Version → $msbuildVersion"
 }
 
 & dotnet @arguments

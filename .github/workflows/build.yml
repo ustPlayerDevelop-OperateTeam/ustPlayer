@@ -138,3 +138,106 @@ jobs:
         run: >
           dotnet test UstPlayer.slnx -c Release --no-build --nologo
           --filter "$NATIVE_ONLY_TESTS_FILTER"
+
+  # ============================================================
+  # 打包：每次推送都真的打一次包，确认产物完整
+  # 这一环刻意放在日常 CI 而不是只在发版时跑：
+  # 「资源没打进产物」本仓库踩过多次（翻译 .ts、ERcode.txt / Terms.txt），
+  # 而它不会报错、只在用户机器上表现为功能静默失效。日常跑一次最便宜。
+  # ============================================================
+  package:
+    name: 打包产物校验（Windows）
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 同步渲染器原生库
+        shell: pwsh
+        run: ./build/sync-native-assets.ps1
+        continue-on-error: true
+
+      - name: 获取内置 FFmpeg
+        shell: pwsh
+        run: ./build/fetch-ffmpeg.ps1
+        continue-on-error: true
+
+      # publish.ps1 会逐项校验产物里该有的文件（可执行文件、三份 .ts、
+      # ERcode.txt / Terms.txt / LICENSE、Windows 上的渲染器与 ffmpeg），缺一个就失败。
+      - name: 打包并校验产物
+        shell: pwsh
+        run: ./build/publish.ps1 -RuntimeIdentifier win-x64
+
+      # 即使打包校验失败也把目录传上来，便于事后看清到底缺了什么
+      - name: 上传产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ustPlayer-win-x64
+          path: artifacts/ustPlayer-win-x64/
+          if-no-files-found: warn
+
+  # ============================================================
+  # 发版：只由标签推送触发
+  # 版本号**全部从 tag 推导**（tag 就是版本），因此不需要在仓库里另存一份
+  # 「2.0 从哪个版本起」的配置；`-p:Version=` 会把版本写进程序集，
+  # 与 CHANGELOG 的小节标题各自独立、不会互相矛盾。
+  # 1.1.x 的 CI 已归档在 pysourcecode/.github/（GitHub 不执行子目录 workflow），
+  # 因此当前**所有**标签都属于 2.0 线，不存在两条线抢标签的问题。
+  # ============================================================
+  release:
+    name: 发版（标签驱动）
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 同步渲染器原生库
+        shell: pwsh
+        run: ./build/sync-native-assets.ps1
+        continue-on-error: true
+
+      - name: 获取内置 FFmpeg
+        shell: pwsh
+        run: ./build/fetch-ffmpeg.ps1
+        continue-on-error: true
+
+      # 标签名直接当版本号传进程序集
+      - name: 打包并校验产物
+        shell: pwsh
+        run: ./build/publish.ps1 -RuntimeIdentifier win-x64 -Version "${{ github.ref_name }}"
+
+      # 提取 CHANGELOG 小节；找不到对应小节会以非 0 退出，
+      # 从而**中止发版**而不是发布占位内容（与 1.1.x 的行为一致）。
+      - name: 提取发布说明
+        shell: pwsh
+        run: >
+          ./build/extract-release-notes.ps1
+          -Tag "${{ github.ref_name }}"
+          -Artifacts artifacts/*.zip
+          -OutputFile release-notes.md
+
+      # 先建草稿：发版说明与附件需要人工过目后再手动 Publish
+      - name: 创建草稿 Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}"
+          --draft
+          --title "${{ github.ref_name }}"
+          --notes-file release-notes.md
+          artifacts/*.zip
