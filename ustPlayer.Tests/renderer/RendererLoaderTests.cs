@@ -16,6 +16,7 @@ namespace UstPlayer.Tests.Renderer;
 /// <see cref="RenderBufferBlitTests"/>，它们标了 <c>RequiresNative</c>；
 /// 本类刻意拆开，使「路径解析」这条纯托管逻辑在 macOS / Linux CI 上也被验证。
 /// </remarks>
+[Collection(NativeRendererCollection.Name)]
 public class RendererLoaderTests
 {
     /// <summary>候选目录不含重复项（重复会让解析器做无谓的重复磁盘探测）。</summary>

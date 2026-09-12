@@ -39,6 +39,7 @@ namespace UstPlayer.Tests.Renderer;
 /// 避免「渲染器没就位却一路绿灯」。
 /// </para>
 /// </remarks>
+[Collection(NativeRendererCollection.Name)]
 public class RenderBufferBlitTests
 {
     /// <summary>60fps 的单帧预算（毫秒）。</summary>

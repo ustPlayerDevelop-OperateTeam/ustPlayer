@@ -33,6 +33,7 @@ namespace UstPlayer.Tests.Video;
 /// 那条用例在缺 ffmpeg 的机器上一直是绿的，实际上什么都没验证。
 /// </para>
 /// </remarks>
+[Collection(NativeRendererCollection.Name)]
 public class VideoExportIntegrationTests : IDisposable
 {
     private readonly string _tempDirectory;

@@ -8,6 +8,7 @@
 | `verify-player-launch.ps1` | 以真实进程跑一遍**播放链路**（`--play` + 日志标记校验） | 本地改动播放器/时序/渲染后；CI 的 Windows 作业 |
 | `sync-native-assets.ps1` | 把渲染器原生库同步到各工程的 `renderer/` 目录 | 本地开发（由测试工程的 MSBuild 目标自动调用一次） |
 | `fetch-ffmpeg.ps1` | 下载 `ffmpeg`/`ffprobe` 到各工程的 `ffmpeg/` 目录 | 本地开发首次；CI 的 Windows 作业 |
+| `publish.ps1` | 打成可分发产物（zip + SHA256），并**校验产物完整性** | 本地出包验证；Phase 6 的发布流程 |
 
 ## 约定
 
@@ -118,4 +119,30 @@ up_begin_export 失败：编码失败（ffmpeg init failed: ffmpeg executable no
 - 已就位时直接跳过；`-Force` 强制重下。
 - **不要在 MSBuild 里自动调用它**：下载约 106 MB，构建时静默联网不可接受。
   渲染器（2.8 MB，本地已常有副本）可以自动同步，ffmpeg 不行。
+
+## `publish.ps1` 的定位
+
+把程序打成可分发产物（`artifacts/ustPlayer-<RID>/`，`-SkipArchive` 可只出目录），
+并**校验产物完整性**——这是它存在的主要理由，而不是复制：
+
+「资源没打进产物」是本仓库反复踩过的一类坑（翻译 `.ts`、`ERcode.txt` / `Terms.txt`
+都曾只存在于仓库里，运行时静默失效、不报错）。因此脚本会逐个检查产物里该有的东西：
+
+- **必须有**（缺任一即失败）：`ustPlayer.exe`、`i18n/ustplayer_*.ts`（三份）、
+  `ERcode.txt`、`Terms.txt`、`LICENSE`
+- **Windows 上必须**：`renderer/ustplayer_renderer.dll`、`ffmpeg/ffmpeg.exe`、`ffmpeg/ffprobe.exe`
+- **非 Windows 只提示不失败**：渲染器目前只有 Windows 产物（见 `docs/plan-deviations.md` D3），
+  硬失败会让 macOS / Linux 永远出不了包
+
+用法：
+
+```powershell
+pwsh -File build/publish.ps1                            # win-x64 自包含
+pwsh -File build/publish.ps1 -RuntimeIdentifier linux-x64
+pwsh -File build/publish.ps1 -SelfContained:$false      # 依赖框架，体积小
+pwsh -File build/publish.ps1 -Version 2.0.0-beta1       # 覆盖程序集版本
+```
+
+已实测：win-x64 自包含产物 **305 MB**（其中 ffmpeg 约 196 MB），
+产物内 `--play` 能加载渲染器、渲染出首帧并持续播放——即打包布局本身是可用。
 

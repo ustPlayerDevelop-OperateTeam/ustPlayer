@@ -27,6 +27,7 @@ namespace UstPlayer.Tests.Renderer;
 /// 判定依据与实测数据见 <c>docs/adr-0001-renderer-strategy.md</c>。
 /// </para>
 /// </remarks>
+[Collection(NativeRendererCollection.Name)]
 public class RendererInteropTests
 {
     /// <summary>原生库应由同步脚本就位；缺失时给出可操作提示。</summary>

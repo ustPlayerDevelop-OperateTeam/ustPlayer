@@ -26,6 +26,7 @@ namespace UstPlayer.Tests.Renderer;
 /// 本类确认**正确性与生命周期**：尺寸决策、降级路径能跑、帧循环可推进到结束、
 /// 位图复用、释放后不可再用。
 /// </remarks>
+[Collection(NativeRendererCollection.Name)]
 public class PlayerFrameCompositorTests : IDisposable
 {
     private readonly string _tempDirectory;
