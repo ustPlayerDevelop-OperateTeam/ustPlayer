@@ -117,8 +117,9 @@ internal sealed class ShowConfig
     public bool UstAuthor { get; set; } = true;
 
     /// <summary>显示 LRC 歌词。</summary>
+    /// <remarks>默认 <see langword="false"/>——与 1.1.x <c>DisplaySettings._show_lyric</c> 一致。</remarks>
     [JsonPropertyName("lyric")]
-    public bool Lyric { get; set; } = true;
+    public bool Lyric { get; set; }
 
     /// <summary>显示音高曲线。</summary>
     [JsonPropertyName("curve_show")]

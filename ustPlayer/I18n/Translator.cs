@@ -303,6 +303,13 @@ internal static class Translator
         return DefaultLanguage;
     }
 
+    /// <summary>判断语言代码是否受支持（不含「跟随系统」）。</summary>
+    /// <param name="language">语言代码。</param>
+    /// <returns>受支持返回 <see langword="true"/>。</returns>
+    internal static bool IsSupportedLanguage(string? language) =>
+        !string.IsNullOrEmpty(language) &&
+        TranslationCatalogLoader.SupportedLanguages.ContainsKey(language);
+
     /// <summary>清空缓存（测试用；语言切换本身不需要清缓存）。</summary>
     internal static void Reset()
     {
