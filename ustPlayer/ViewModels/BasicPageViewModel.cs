@@ -4,6 +4,7 @@ using System.IO;
 using UstPlayer.Projects;
 using UstPlayer.Settings;
 using UstPlayer.Settings.Domains;
+using UstPlayer.Video;
 
 namespace UstPlayer.ViewModels;
 
@@ -40,6 +41,21 @@ internal sealed class BasicPageViewModel : ViewModelBase
 
     /// <summary>文件子域（UST 路径与编码）。</summary>
     internal FileSettings File => _services.Settings.File;
+
+    /// <summary>
+    /// 设置门面（「导出视频」对话框需要读项目名 / 最近导出目录，成功后写回）。
+    /// </summary>
+    /// <remarks>命名与 <see cref="MainWindowViewModel.Settings"/> 一致。</remarks>
+    internal SettingsManager Settings => _services.Settings;
+
+    /// <summary>
+    /// 视频导出器（「导出视频」对话框调用）。
+    /// </summary>
+    /// <remarks>
+    /// 只是把组合根里**已经装配好**的实例转出去，页面不会自己 <c>new</c> 一个
+    /// （否则设置会被重复读取、写入互相覆盖）。
+    /// </remarks>
+    internal VideoExporter VideoExporter => _services.VideoExporter;
 
     /// <summary>上次打开工程所在目录（供打开对话框定位）。</summary>
     internal string LastOpenDirectory => _services.Settings.LastOpenDirectory;

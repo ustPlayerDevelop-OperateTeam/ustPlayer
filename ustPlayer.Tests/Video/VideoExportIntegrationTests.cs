@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
+using UstPlayer.I18n;
 using UstPlayer.Interop;
 using UstPlayer.Projects;
 using UstPlayer.Settings;
 using UstPlayer.Ust;
 using UstPlayer.Video;
+using UstPlayer.ViewModels;
 
 using Xunit;
 
@@ -129,4 +133,151 @@ public class VideoExportIntegrationTests : IDisposable
 
         return path;
     }
+
+    // ===================== 对话框 ViewModel 的真实导出 =====================
+    //
+    // 放在本类（而不是 ViewModels/）的原因是跨平台 CI 过滤只按 FullyQualifiedName 排除
+    // 本类——这里的用例同样依赖渲染器原生库与 ffmpeg，另起一个类就必须同步 CI 的
+    // NATIVE_ONLY_TESTS_FILTER，漏改会让非 Windows 作业明确失败。
+
+    /// <summary>
+    /// 「导出视频」对话框的 ViewModel 能真的驱动一次导出：成功状态、.uprd 与目录记忆都对。
+    /// </summary>
+    /// <returns>任务。</returns>
+    /// <remarks>
+    /// 覆盖对话框最关键的一段接线：分辨率 / 帧率 / 混音开关与进度回调真的传到了导出器，
+    /// 且成功后把 <c>.uprd</c> 所在目录写回设置（1.1.x 亦如此）。
+    /// </remarks>
+    [Fact]
+    public async Task 对话框ViewModel能驱动真实导出()
+    {
+        RequireNativeRenderer();
+
+        var root = Path.Combine(_tempDirectory, "vm-success");
+        Directory.CreateDirectory(root);
+
+        var settings = new SettingsManager(Path.Combine(root, "Settings.json"));
+        var projectIo = new UplrProjectIO(settings, cacheBaseOverride: Path.Combine(root, "cache"));
+
+        RequireFfmpeg(settings.ProgramRoot);
+
+        settings.File.UstPath = WriteUst(root);
+        settings.Project.ProjectName = "对话框";
+
+        var viewModel = CreateDialogViewModel(settings, projectIo, root, "out.mp4");
+
+        // 记录进度通知：导出期间进度条必须真的推进，而不是一直停在 0
+        var observed = new List<double>();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VideoExportViewModel.Progress))
+            {
+                observed.Add(viewModel.Progress);
+            }
+        };
+
+        var outcome = await viewModel.ExportAsync();
+
+        Assert.Equal(VideoExportOutcomeKind.Success, outcome.Kind);
+        Assert.Equal(VideoExporter.UprdPathFor(viewModel.OutputPath), outcome.UprdPath);
+        Assert.True(File.Exists(outcome.UprdPath), "应产出 .uprd 工程文件");
+
+        Assert.Equal(VideoExportStatus.Done, viewModel.Status);
+        Assert.Equal(TranslatorSample("完成"), viewModel.StatusText);
+        Assert.Equal(VideoExportViewModel.ProgressMaximum, viewModel.Progress);
+        Assert.False(viewModel.IsExporting);
+        Assert.True(viewModel.CanEdit);
+
+        // 渲染器按千分比回调（本用例 48 帧 → 24 次），且单调不减、最终到 1000
+        Assert.True(
+            observed.Count >= 3,
+            $"导出期间没有收到进度回调（{observed.Count} 次），进度条会一直停在 0");
+
+        Assert.Equal(observed.OrderBy(value => value), observed);
+        Assert.Equal(VideoExportViewModel.ProgressMaximum, observed[^1]);
+
+        // 成功后记住本次导出目录并立即写盘
+        Assert.Equal(root, settings.LastExportDirectory);
+        Assert.Contains("last_export_dir", File.ReadAllText(settings.SettingsPath));
+    }
+
+    /// <summary>
+    /// 「取消」必须真的中止渲染：状态变「已取消」，半成品 MP4 与 .uprd 都被清理。
+    /// </summary>
+    /// <returns>任务。</returns>
+    /// <remarks>
+    /// 这是对话框里最容易「看起来能用其实没用」的一条：取消按钮只改文案而没把令牌传给
+    /// 渲染循环时，界面会显示「已取消」但进程仍在渲染，还会留下打不开的文件。
+    /// </remarks>
+    [Fact]
+    public async Task 对话框取消会中止导出并清理半成品()
+    {
+        RequireNativeRenderer();
+
+        var root = Path.Combine(_tempDirectory, "vm-cancel");
+        Directory.CreateDirectory(root);
+
+        var settings = new SettingsManager(Path.Combine(root, "Settings.json"));
+        var projectIo = new UplrProjectIO(settings, cacheBaseOverride: Path.Combine(root, "cache"));
+
+        RequireFfmpeg(settings.ProgramRoot);
+
+        settings.File.UstPath = WriteUst(root);
+
+        var viewModel = CreateDialogViewModel(settings, projectIo, root, "cancelled.mp4");
+
+        // ExportAsync 的同步段已经把状态置为「正在渲染」并建好取消令牌，
+        // 因此这里紧接着请求取消，渲染循环的第一帧检查就会抛出
+        var export = viewModel.ExportAsync();
+        viewModel.RequestCancel();
+
+        Assert.Equal(VideoExportStatus.Cancelling, viewModel.Status);
+        Assert.Equal(TranslatorSample("正在取消…"), viewModel.StatusText);
+
+        var outcome = await export;
+
+        Assert.Equal(VideoExportOutcomeKind.Cancelled, outcome.Kind);
+        Assert.Equal(VideoExportStatus.Cancelled, viewModel.Status);
+        Assert.Equal(TranslatorSample("已取消"), viewModel.StatusText);
+        Assert.False(viewModel.IsExporting);
+
+        Assert.False(File.Exists(viewModel.OutputPath), "取消后不应留下半成品 MP4");
+        Assert.False(
+            File.Exists(VideoExporter.UprdPathFor(viewModel.OutputPath)),
+            "取消后不应留下指向无效视频的 .uprd");
+    }
+
+    /// <summary>
+    /// 按对话框的默认值之外的最小尺寸配置一个 ViewModel（把渲染压到最快）。
+    /// </summary>
+    /// <param name="settings">设置管理器。</param>
+    /// <param name="projectIo">工程 IO。</param>
+    /// <param name="root">输出目录。</param>
+    /// <param name="fileName">输出文件名。</param>
+    /// <returns>ViewModel。</returns>
+    private static VideoExportViewModel CreateDialogViewModel(
+        SettingsManager settings,
+        UplrProjectIO projectIo,
+        string root,
+        string fileName)
+    {
+        var viewModel = new VideoExportViewModel(
+            settings,
+            new VideoExporter(settings, new UstFileReader(), projectIo));
+
+        // 自定义分辨率下限 320 × 240 + 24 fps：帧数最少，渲染最快
+        viewModel.SelectedResolution = viewModel.Resolutions[^1];
+        viewModel.CustomWidth = VideoExportViewModel.MinimumWidth;
+        viewModel.CustomHeight = VideoExportViewModel.MinimumHeight;
+        viewModel.SelectedFps = viewModel.FpsChoices[0];
+        viewModel.MuxAudio = false;
+        viewModel.OutputPath = Path.Combine(root, fileName);
+
+        return viewModel;
+    }
+
+    /// <summary>查一条译文（<see cref="Translator"/> 是全局状态，因此不写死中文）。</summary>
+    /// <param name="source">中文原文。</param>
+    /// <returns>当前语言的译文。</returns>
+    private static string TranslatorSample(string source) => Translator.Tr(source);
 }

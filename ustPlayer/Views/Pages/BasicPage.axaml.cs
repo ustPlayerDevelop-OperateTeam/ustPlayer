@@ -88,6 +88,7 @@ internal sealed partial class BasicPage : UserControl
 
         ImportButton.Content = Translator.Tr("导入项目");
         ExportButton.Content = Translator.Tr("保存项目");
+        VideoExportButton.Content = Translator.Tr("导出视频");
         PlayButton.Content = Translator.Tr("播放 Play");
     }
 
@@ -226,6 +227,24 @@ internal sealed partial class BasicPage : UserControl
                 "ERcode010",
                 string.Format(Translator.Tr("导出失败：{0}"), exception.Message));
         }
+    }
+
+    /// <summary>导出视频（打开「导出视频」对话框）。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    /// <remarks>
+    /// 文件选择框与「开始导出」都在对话框里，本页只负责把组合根里的导出器与设置门面递进去。
+    /// </remarks>
+    private async void OnExportVideoClick(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var viewModel = new VideoExportViewModel(_viewModel.Settings, _viewModel.VideoExporter);
+
+        await VideoExportWindow.ShowAsync(owner, viewModel, _notifications);
     }
 
     /// <summary>播放。</summary>

@@ -51,6 +51,7 @@
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Button x:Name="ImportButton" Click="OnImportClick" />
               <Button x:Name="ExportButton" Click="OnExportClick" />
+              <Button x:Name="VideoExportButton" Click="OnExportVideoClick" />
             </StackPanel>
           </controls:SettingsRow>
         </StackPanel>

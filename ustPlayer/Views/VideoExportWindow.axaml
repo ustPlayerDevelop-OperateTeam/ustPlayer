@@ -1,0 +1,112 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:UstPlayer.ViewModels"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        x:Class="UstPlayer.Views.VideoExportWindow"
+        x:DataType="vm:VideoExportViewModel"
+        Width="560"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    「导出视频」对话框（对应 1.1.x ui/video_export_dialog.py）：
+    输出路径 / 分辨率 / 帧率 / 是否混入伴奏 + 进度与状态。
+
+    · 控件直接双向绑定 VideoExportViewModel：导出期间 IsEnabled 跟着 CanEdit 走
+      （「取消」不受限，否则用户没有任何取消途径）。
+    · 分辨率选「自定义」时显示宽 / 高输入框（NumberBox 的范围 = 1.1.x 的 SpinBox 范围）。
+    · 文案一律在 code-behind 用 Translator.Tr(...) 赋值（见 AGENTS.md 的 i18n 约定）。
+  -->
+  <Window.Resources>
+    <!-- 下拉项模板：显示尺寸 / 帧率文案（尺寸与「fps」各语言一致，不查译文表） -->
+    <DataTemplate x:Key="ResolutionTemplate" x:DataType="vm:ResolutionPreset">
+      <TextBlock Text="{Binding Label}" />
+    </DataTemplate>
+    <DataTemplate x:Key="FpsTemplate" x:DataType="vm:FpsPreset">
+      <TextBlock Text="{Binding Label}" />
+    </DataTemplate>
+  </Window.Resources>
+
+  <StackPanel Margin="24,20,24,16" Spacing="14">
+
+    <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" />
+
+    <!-- ===================== 参数 ===================== -->
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+
+      <!-- 输出视频（Grid 而不是横向 StackPanel：StackPanel 会按内容测量子控件，
+           长路径会把「浏览」按钮挤出窗口） -->
+      <TextBlock x:Name="OutputLabel" Grid.Row="0" Grid.Column="0"
+                 MinWidth="92" VerticalAlignment="Center" />
+      <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto">
+        <TextBox x:Name="OutputPathBox" Grid.Column="0"
+                 IsEnabled="{Binding CanEdit, Mode=OneWay}"
+                 Text="{Binding OutputPath, Mode=TwoWay}" />
+        <Button x:Name="BrowseButton" Grid.Column="1" Margin="8,0,0,0" Click="OnBrowseClick"
+                IsEnabled="{Binding CanEdit, Mode=OneWay}" />
+      </Grid>
+
+      <!-- 分辨率 -->
+      <TextBlock x:Name="ResolutionLabel" Grid.Row="1" Grid.Column="0"
+                 MinWidth="92" VerticalAlignment="Center" Margin="0,12,0,0" />
+      <Grid Grid.Row="1" Grid.Column="1" Margin="0,12,0,0" ColumnDefinitions="*,Auto,Auto">
+        <ComboBox x:Name="ResolutionCombo" Grid.Column="0" MinWidth="140"
+                  HorizontalAlignment="Stretch"
+                  IsEnabled="{Binding CanEdit, Mode=OneWay}"
+                  ItemsSource="{Binding Resolutions}"
+                  SelectedItem="{Binding SelectedResolution, Mode=TwoWay}"
+                  ItemTemplate="{StaticResource ResolutionTemplate}" />
+        <fa:NumberBox x:Name="CustomWidthBox" Grid.Column="1" Width="96" Margin="8,0,0,0"
+                      Minimum="320" Maximum="7680" SmallChange="1"
+                      SpinButtonPlacementMode="Compact"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsCustomResolution, Mode=OneWay}"
+                      IsEnabled="{Binding CanEdit, Mode=OneWay}"
+                      Value="{Binding CustomWidth, Mode=TwoWay}" />
+        <fa:NumberBox x:Name="CustomHeightBox" Grid.Column="2" Width="96" Margin="8,0,0,0"
+                      Minimum="240" Maximum="4320" SmallChange="1"
+                      SpinButtonPlacementMode="Compact"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsCustomResolution, Mode=OneWay}"
+                      IsEnabled="{Binding CanEdit, Mode=OneWay}"
+                      Value="{Binding CustomHeight, Mode=TwoWay}" />
+      </Grid>
+
+      <!-- 帧率 -->
+      <TextBlock x:Name="FpsLabel" Grid.Row="2" Grid.Column="0"
+                 MinWidth="92" VerticalAlignment="Center" Margin="0,12,0,0" />
+      <ComboBox x:Name="FpsCombo" Grid.Row="2" Grid.Column="1" MinWidth="140"
+                HorizontalAlignment="Left" Margin="0,12,0,0"
+                IsEnabled="{Binding CanEdit, Mode=OneWay}"
+                ItemsSource="{Binding FpsChoices}"
+                SelectedItem="{Binding SelectedFps, Mode=TwoWay}"
+                ItemTemplate="{StaticResource FpsTemplate}" />
+
+      <!-- 混入伴奏音频 -->
+      <TextBlock x:Name="MuxLabel" Grid.Row="3" Grid.Column="0"
+                 MinWidth="92" VerticalAlignment="Center" Margin="0,12,0,0" />
+      <ToggleSwitch x:Name="MuxToggle" Grid.Row="3" Grid.Column="1"
+                    HorizontalAlignment="Left" Margin="0,12,0,0"
+                    IsEnabled="{Binding CanEdit, Mode=OneWay}"
+                    IsChecked="{Binding MuxAudio, Mode=TwoWay}" />
+    </Grid>
+
+    <!-- ===================== 进度 ===================== -->
+    <ProgressBar x:Name="ExportProgress" Minimum="0" Maximum="1000"
+                 Value="{Binding Progress, Mode=OneWay}" />
+
+    <TextBlock x:Name="StatusLabel" Opacity="0.7"
+               Text="{Binding StatusText, Mode=OneWay}" />
+
+    <!-- ===================== 按钮 ===================== -->
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button x:Name="CancelButton" IsCancel="True" Click="OnCancelClick" />
+      <Button x:Name="StartButton" Classes="accent" IsDefault="True" Click="OnStartClick"
+              IsEnabled="{Binding CanEdit, Mode=OneWay}" />
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>
