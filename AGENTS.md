@@ -25,11 +25,14 @@
 
 - 构建：`dotnet build UstPlayer.slnx -c Debug`（`TreatWarningsAsErrors=true`，**0 警告是硬要求**）。
 - 测试：`dotnet test UstPlayer.slnx -c Debug`（556 个用例）。跑单个类：`dotnet test ustPlayer.Tests --filter "FullyQualifiedName~PlaybackSessionTests"`。
-  - **已知偶发失败（未定位）**：全量跑时偶尔有 **1 个**用例失败，重跑即过；
-    已多次尝试抓它的名字但每次去抓时都全绿。成因未确认，**不要**把它当噪声重跑掩盖。
-    下次出现时先用 `--logger "trx;LogFileName=run.trx"` 落盘再用 `grep` 找 `outcome="Failed"`，
-    把名字记下来再谈修复。已修掉的那次并行竞态（进程级 `PATH` 被交错修改）见
-    `ustPlayer.Tests/NativeRendererCollection.cs`。
+  - **偶发失败已定位并修复**（曾长期只报「Success vs Failed」看不出原因）：
+    根因是**按异常类型判断取消**——中途取消时原生渲染器/编码器抛的往往是
+    `RendererException` / `IOException`（ffmpeg 被杀、MP4 只写了一半），而不是
+    `OperationCanceledException`，于是同一个「用户取消」会因为取消落在哪一步而时而是
+    `Cancelled`、时而是 `Failed`。现改为**以取消令牌为准**（`VideoExportViewModel`）。
+  - 排查手法值得保留：断言里要带上 `outcome.ErrorMessage` 之类的细节，
+    再用 `--logger "trx;LogFileName=r.trx"` 落盘、`grep 'outcome="Failed"'` 抓名字——
+    只报「期望 X 实际 Y」的断言会让偶发问题长期无法定位。
 - 跨平台过滤：依赖**渲染器原生库或 ffmpeg** 的四个测试类在非 Windows 平台必须排除；过滤器字符串在 `.github/workflows/build.yml` 的 `NATIVE_ONLY_TESTS_FILTER`（**只能按 `FullyQualifiedName` 过滤——本 runner 上 `[Trait]`/`TestCategory` 无效，已实测**）。新增这类测试类时记得同步该清单：漏了会让非 Windows 作业**明确失败**（刻意如此，不静默跳过）。
 - 真实进程验证（窗口无法在 headless 下构造，见 `docs/adr-0002-window-chrome.md`，**改动窗口/播放链路后必须跑**）：
   - `pwsh -File build/verify-app-launch.ps1` —— 主窗口能启动并稳定运行。

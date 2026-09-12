@@ -436,6 +436,20 @@ internal sealed class VideoExportViewModel : ViewModelBase
         }
         catch (Exception exception)
         {
+            // 取消是「意图」，不能按异常类型判断：中途取消时原生渲染器 / 编码器抛出的
+            // 往往是 RendererException 或 IOException（ffmpeg 被杀掉、MP4 只写了一半），
+            // 而不是 OperationCanceledException。若只看异常类型，同一个「用户取消」操作
+            // 会因为取消恰好落在哪一步而**时而是 Cancelled、时而是 Failed**——
+            // 既不符合语义，也正是本类用例偶发失败的原因（已实测复现并抓到名字）。
+            if (cancellation.IsCancellationRequested)
+            {
+                AppLogger.Info($"视频导出已取消：{outputPath}（底层报错：{exception.Message}）");
+                Progress = 0;
+                Status = VideoExportStatus.Cancelled;
+
+                return VideoExportOutcome.Cancelled();
+            }
+
             AppLogger.Error($"导出视频失败：{outputPath}", exception);
             Status = VideoExportStatus.Failed;
 

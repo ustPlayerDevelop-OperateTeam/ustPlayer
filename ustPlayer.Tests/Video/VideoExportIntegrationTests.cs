@@ -179,7 +179,12 @@ public class VideoExportIntegrationTests : IDisposable
 
         var outcome = await viewModel.ExportAsync();
 
-        Assert.Equal(VideoExportOutcomeKind.Success, outcome.Kind);
+        // 断言里必须带上 ErrorMessage：这条用例曾偶发失败，而原先的
+        // Assert.Equal 只报「Success vs Failed」，看不出到底是渲染器、ffmpeg
+        // 还是路径的问题，导致长期无法定位
+        Assert.True(
+            outcome.Kind == VideoExportOutcomeKind.Success,
+            $"真实导出应成功，实际为 {outcome.Kind}；错误信息：{outcome.ErrorMessage}");
         Assert.Equal(VideoExporter.UprdPathFor(viewModel.OutputPath), outcome.UprdPath);
         Assert.True(File.Exists(outcome.UprdPath), "应产出 .uprd 工程文件");
 
