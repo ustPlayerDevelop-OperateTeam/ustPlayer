@@ -55,6 +55,28 @@
 **但这不影响导出**——导出是离线流程（`up_render_frame` 逐帧写编码器），慢只影响耗时，
 不影响正确性；受影响的只有「4K 全屏实时预览」。
 
+## 实测（Spike 0b：Avalonia 侧端到端）
+
+探针：`ustPlayer.Tests/Renderer/RenderBufferBlitTests.cs`（headless Avalonia，真实加载 DLL）。
+
+流程与宿主播放器一致：`up_render_to_buffer` → 复用同一份 `byte[]` → `WriteableBitmap.Lock()`
+→ 整块拷入帧缓冲 → `Dispose` 提交。1920×1080、240 帧采样（20 帧预热）：
+
+| 阶段 | mean | P95 |
+|---|---|---|
+| 渲染（原生 CPU） | 5.09 ms | 6.00 ms |
+| 上传（`Lock()` + 8.3 MB 拷贝） | 2.43 ms | 2.81 ms |
+| **合计** | **7.52 ms** | **8.61 ms** |
+| 60fps 预算 | 16.67 ms | 用掉约 **52%** |
+
+要点：
+
+1. **格式可直接对接**：渲染器输出 RGBA8888 预乘，与 `PixelFormat.Rgba8888` +
+   `AlphaFormat.Premul` 完全匹配，**无需逐像素转换**。
+2. **上传不是免费的**：8.3 MB 整块拷贝稳定占约 2.4 ms（单帧成本的 32%）。
+   当前可接受；若将来成为瓶颈，可改为渲染线程与 UI 线程之间双缓冲 + 只提交最新帧。
+3. P95 8.61 ms 仍在预算内，余量约 48%，足以容纳 Avalonia 的组合与呈现开销。
+
 ## 决定
 
 **采纳方案 A**：播放器以渲染器出帧显示。
@@ -79,10 +101,12 @@
 - 「预览 = 导出」由同一实现保证，消除了 1.1.x 里两套绘制人工对齐的隐患。
 - 4K 实时预览帧率不足 60，已由「渲染尺寸 clamp」规避；该取舍记录在此 ADR。
 
-## 待办（Spike 0b / 0c）
+## Spike 状态
 
-- **Spike 0b**：在 Avalonia 侧做端到端验证——`WriteableBitmap` 的 RGBA 格式与
-  premultiplied alpha 是否匹配、`Lock()` 拷贝开销、60fps 驱动下 CPU 占用是否可接受。
-  若 0b 失败（例如上传开销过大），回退方案 B，并按方案 B 的工作量（额外 2–4 周）重排 Phase 5。
-- **Spike 0c**：在 macOS / Linux 上加载对应 `.dylib` / `.so`，验证 P/Invoke 解析、
-  字体回退与 buffer 输出。
+- **Spike 0a（原生单帧性能）**：✅ 通过（1080p P95 5.96 ms）。
+- **Spike 0b（Avalonia 端到端）**：✅ 通过（渲染 + 上传 P95 8.61 ms，格式直接对接）。
+  原计划「若 0b 失败则回退方案 B（自绘，额外 2–4 周）」的退路**不再需要**。
+- **Spike 0c（跨平台）**：⏳ 待做——需在 macOS / Linux 上加载对应 `.dylib` / `.so`，
+  验证 P/Invoke 解析、字体回退与 buffer 输出。**前置依赖**：uPlRender 需补
+  `x86_64/aarch64-unknown-linux-gnu` 与 `apple-darwin` 目标，或提供对应平台实机。
+  在该项完成前，`AppWindow` 的跨平台行为（见 ADR 0002）与渲染器字体回退均属**未验证**。

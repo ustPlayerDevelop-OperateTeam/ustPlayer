@@ -12,6 +12,9 @@
 
     <!-- 需要 Avalonia 的 XAML 编译器（Avalonia.Headless 会注入，此处显式声明） -->
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+
+    <!-- WriteableBitmap.Lock() 的帧缓冲拷贝需要指针（见 RenderBufferBlitTests） -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

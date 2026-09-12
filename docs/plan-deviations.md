@@ -24,16 +24,16 @@
 - **影响**：无功能影响。若将来把 `UstPlayer.Renderer` 拆成独立工程（例如为了隔离原生依赖），
   再把 `Renderer/` 目录的测试迁出。
 
-## D3：Spike 0b / 0c 与音频后端实现延后
+## D3：Spike 0c 与音频后端实现延后
 
 - **计划要求**：Phase 2 完成 Spike 0a / 0b / 0c 与音频后端实现。
-- **实际**：Spike 0a 与 Spike 1（接口 + 时序状态机的四条行为验收）已完成；
-  Spike 0b/0c 与后端选型待做。
+- **实际**：**Spike 0a、0b 与 Spike 1（接口 + 时序状态机的四条行为验收）均已完成**；
+  Spike 0c 与音频后端选型待做。
 - **理由**：
-  - **0b**（Avalonia `WriteableBitmap` 端到端）无外部依赖，可直接推进。
   - **0c**（跨平台渲染器验证）需 macOS/Linux 实机，或由 uPlRender 仓库补
     `x86_64/aarch64-unknown-linux-gnu` 与 `apple-darwin` 目标；本机仅有 Windows `.dll`，
-    属外部依赖，无法自行推进。
+    属外部依赖，无法自行推进。在该项完成前，渲染器在非 Windows 的字体回退与
+    `AppWindow` 的跨平台行为在两份 ADR 中均标注为**未验证**。
   - **音频后端选型**需在 `LibVLCSharp` / `NAudio` / `FFmpeg.AutoGen` 之间定夺，
     属需要决策的事项；接口（`IAudioBackend`）与状态机已先行落地，选型不阻塞其余工作。
 
