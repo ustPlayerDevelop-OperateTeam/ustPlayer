@@ -136,4 +136,33 @@ public class StartupOptionsTests
         Assert.Equal("file", trailingPage.PageKey);
         Assert.Equal("test.ust", trailingPage.PlayUstPath);
     }
+
+    /// <summary><c>--music</c> 的两种写法都被识别；未指定时不覆盖设置。</summary>
+    [Fact]
+    public void 伴奏参数被识别()
+    {
+        Assert.Null(StartupOptions.Parse([]).MusicPath);
+
+        Assert.Equal(
+            @"C:\song\a.wav",
+            StartupOptions.Parse(["--music", @"C:\song\a.wav"]).MusicPath);
+
+        Assert.Equal(
+            @"C:\song\a.wav",
+            StartupOptions.Parse([@"--music=C:\song\a.wav"]).MusicPath);
+
+        // 三个开关可以同时出现
+        var all = StartupOptions.Parse(
+            ["--play", "song.ust", "--music", "bgm.wav", "--page", "settings"]);
+
+        Assert.Equal("song.ust", all.PlayUstPath);
+        Assert.Equal("bgm.wav", all.MusicPath);
+        Assert.Equal("settings", all.PageKey);
+
+        // 缺取值时不吞掉后续开关
+        var missing = StartupOptions.Parse(["--music", "--play", "song.ust"]);
+
+        Assert.Null(missing.MusicPath);
+        Assert.Equal("song.ust", missing.PlayUstPath);
+    }
 }

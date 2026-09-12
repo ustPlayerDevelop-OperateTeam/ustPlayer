@@ -42,8 +42,16 @@ public partial class App : Application
             // 看不出是「参数没传到」还是「解析错了」）
             AppLogger.Info(
                 $"启动参数：页面={options.PageKey ?? "（默认）"}，"
-                + $"播放路径={options.PlayUstPath ?? "（无）"}"
+                + $"播放路径={options.PlayUstPath ?? "（无）"}，"
+                + $"伴奏={options.MusicPath ?? "（设置里的值）"}"
                 + $"（原始 {desktop.Args?.Length ?? 0} 个参数）");
+
+            // --music 覆盖伴奏设置：让「直接播放」能连伴奏一起验证，
+            // 也让用户不必先改设置再重启
+            if (options.MusicPath is { } musicPath)
+            {
+                _services.Settings.Project.MusicPath = musicPath;
+            }
 
             if (options.IsPlayerMode)
             {

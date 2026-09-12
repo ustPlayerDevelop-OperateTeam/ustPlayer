@@ -79,4 +79,15 @@ internal interface IAudioBackend : IDisposable
     /// 正确做法是同时参考 <see cref="Ended"/> 事件是否已置位。
     /// </remarks>
     bool IsFinished { get; }
+
+    /// <summary>
+    /// 状态快照（供日志与诊断使用）。
+    /// </summary>
+    /// <returns>可读的状态描述。</returns>
+    /// <remarks>
+    /// 存在的理由：音频链路出问题时的表现是「画面在动但没有声音」，
+    /// 从界面完全看不出是「没配伴奏」「解析还没完成」「解析失败」还是「播放没起来」。
+    /// 这几个字段单独看都容易误判，一次性写进日志才能一眼定位。
+    /// </remarks>
+    string DescribeState();
 }

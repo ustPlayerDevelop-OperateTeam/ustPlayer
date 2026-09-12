@@ -122,6 +122,18 @@ internal sealed class PlaybackSession : IDisposable
     private double _degradedRealSeconds;
     private int _audioReadyChecks;
 
+    /// <summary>「已发出播放但尚未真正开始」的累计检查次数（超过宽限才降级）。</summary>
+    private int _audioPlayGraceChecks;
+
+    /// <summary>
+    /// 「已发出播放但尚未真正开始」允许的检查次数，超过即降级。
+    /// </summary>
+    /// <remarks>
+    /// <c>Play()</c> 是异步的，实测刚调用后 <c>IsPlaying</c> 仍为 false；
+    /// 给一次宽限足够慢机器启动解码，又不会让「后端彻底播不了」永久拖着不降级。
+    /// </remarks>
+    private const int PlayGraceChecks = 1;
+
     // ---------- 文字状态 ----------
     private string _lastValidLyric = string.Empty;
     private string _currentLyric = string.Empty;
@@ -175,6 +187,69 @@ internal sealed class PlaybackSession : IDisposable
             {
                 return _audioHealthy;
             }
+        }
+    }
+
+    /// <summary>
+    /// 音频后端当前是否真的在播放。
+    /// </summary>
+    /// <remarks>
+    /// 与 <see cref="IsAudioHealthy"/> 不同：后者只表示「仍在用音频驱动」，
+    /// 而本属性直接问后端。看门狗用它在播放真正开始后收工。
+    /// </remarks>
+    internal bool IsAudioPlaying
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _audio?.IsPlaying ?? false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 音频被判为「已到结尾」时的时间轴位置（秒）；从未发生时为 <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 供宿主诊断用：短伴奏提前结束、或后端位置读数异常时，
+    /// 只有这个数字能区分「音频真的播完了」和「位置被读成了离谱的值」。
+    /// </remarks>
+    internal double? MediaEndedAtSeconds { get; private set; }
+
+    /// <summary>音频后端的状态快照（无音频时为 <see langword="null"/>）。</summary>
+    /// <remarks>
+    /// 音频链路故障的表现是「画面在动但没有声音」，从界面分不出原因，
+    /// 因此由会话把后端状态透出来供宿主记日志（判定仍属会话，宿主只负责写）。
+    /// </remarks>
+    internal string? AudioState
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _audio?.DescribeState();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 内部状态快照（诊断用）。
+    /// </summary>
+    /// <returns>可读的状态描述。</returns>
+    /// <remarks>
+    /// 「位置还很小却被判定播完」这类问题的成因在几个内部量之间
+    /// （总 tick、驱动时钟的锚点、播完锚点），单独看某一个都会误判，
+    /// 因此一次性全写出来。
+    /// </remarks>
+    internal string DescribePlaybackState()
+    {
+        lock (_syncRoot)
+        {
+            return $"位置={_elapsedSeconds:F2}秒 总tick={TotalTicks:F0} 当前tick={_elapsedSeconds * TickPerSecond:F0}"
+                + $" 音频健康={_audioHealthy} 已播完锚点={_mediaFinished}"
+                + $" 零点锚定={_startedOnce} 起点={_startRealSeconds:F2} 降级点={_degradedRealSeconds:F2}"
+                + $" 已发出播放={_playIssued} 已完成={_completed}";
         }
     }
 
@@ -297,7 +372,8 @@ internal sealed class PlaybackSession : IDisposable
     /// <param name="scheduleNext">需要再次检查时的调度回调（宿主用定时器实现）。</param>
     /// <remarks>
     /// 判定顺序刻意与 1.1.x 保持一致：**「已播完」优先排除**，其次补记播完锚点，
-    /// 然后才是「已加载但未播放 → 降级」「媒体无效 → 降级」「仍在加载 → 重试 / 超限降级」。
+    /// 然后是**「媒体无效 → 降级」**（必须先于「已加载」，「无效」不能被「已加载」吞掉）、
+    /// 「已加载 → 补播 / 宽限 / 降级」、「仍在加载 → 重试 / 超限降级」。
     /// </remarks>
     internal void CheckAudioReady(Action<TimeSpan> scheduleNext)
     {
@@ -326,19 +402,45 @@ internal sealed class PlaybackSession : IDisposable
                 return;
             }
 
-            if (_audio.IsLoaded)
-            {
-                if (!_audio.IsPlaying)
-                {
-                    Degrade();
-                }
-
-                return;
-            }
-
+            // 「无效」必须先于「已加载」判断：后端报无效时已不可能再开始播放
+            //（真实后端的无效态必然同时 !IsLoaded，但假件/未来实现未必，
+            // 顺序反过来会让「无效」被「已加载」吞掉，走进补播那条路白等一轮）
             if (_audio.IsInvalid)
             {
                 Degrade();
+                return;
+            }
+
+            if (_audio.IsLoaded)
+            {
+                // 「已加载但没在播放」有三种来源，必须分开处理：
+                //
+                // ① 会话**从未发出过**播放——后端在 AudioBackendFactory 里一创建就开始解析，
+                //    小文件几十毫秒就绪，而会话要等渲染器初始化完（几百毫秒）才订阅 Ready，
+                //    事件早已发过。此时必须补上播放，否则音频一次都不播、
+                //    时长正确却永远停在 0.00 秒，时间轴既不前进也不降级（真实 bug）。
+                if (!_playIssued)
+                {
+                    OnAudioReady(this, EventArgs.Empty);
+                    return;
+                }
+
+                // ② 播放**刚发出、还没真正开始**——libvlc 的 Play() 是异步的：
+                //    实测刚调用后 IsPlaying 仍为 false。立刻降级会把正常播放误杀，
+                //    因此给一段宽限（复用看门狗重试节奏，够慢机器启动解码）。
+                if (!_audio.IsPlaying)
+                {
+                    _audioPlayGraceChecks++;
+
+                    if (_audioPlayGraceChecks <= PlayGraceChecks)
+                    {
+                        scheduleNext(TimeSpan.FromMilliseconds(_options.WatchdogIntervalMs));
+                        return;
+                    }
+
+                    Degrade();
+                }
+
                 return;
             }
 
@@ -562,6 +664,7 @@ internal sealed class PlaybackSession : IDisposable
         }
     }
 
+    /// <summary>补记播完锚点。</summary>
     private void HandleMediaEnded()
     {
         if (_mediaFinished)
@@ -569,6 +672,11 @@ internal sealed class PlaybackSession : IDisposable
             // 重复的「播放到结尾」会重写结束时刻，导致时间轴回跳
             return;
         }
+
+        // 记下结束时刻的位置供宿主诊断（本层不引日志设施，见分层约束）：
+        // 短伴奏提前结束、或位置读数异常时，只有这个数字能区分
+        // 「音频真的播完了」和「位置被读成了离谱的值」
+        MediaEndedAtSeconds = _elapsedSeconds;
 
         _mediaFinished = true;
 

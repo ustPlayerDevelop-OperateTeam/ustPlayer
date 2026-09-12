@@ -157,22 +157,35 @@ public class PlaybackSessionTests
 
     // ===================== 看门狗 =====================
 
-    /// <summary>已加载但不在播放 → 立即降级为纯可视化。</summary>
+    /// <summary>播放已发出但后端始终没开始播 → 宽限一次后降级为纯可视化。</summary>
+    /// <remarks>
+    /// 「已加载 + 未播放」有两种来源，本测试覆盖的是**失败**那一种：
+    /// 会话已经发出过播放（收到过 Ready），后端却一直没有真正开始。
+    /// 另一种是「Ready 事件发生在会话订阅之前」，那时 <c>_playIssued</c> 还是 false，
+    /// 会话应当**补播**而不是降级（见 <c>PlayerFrameCompositorTests.订阅前已就绪的音频应被补播</c>）。
+    /// </remarks>
     [Fact]
-    public void 已加载但未播放时降级()
+    public void 播放发出后仍未播放时降级()
     {
         var (session, audio, _) = CreateSession(noteCount: 4);
 
+        // 先让会话发出播放（收到 Ready）
+        audio.RaiseReady();
+
+        // 后端却始终没有真正开始播
         audio.IsLoaded = true;
         audio.IsPlayingOverride = false;
 
         var scheduled = new List<TimeSpan>();
+
+        // 第一次：给宽限（Play() 是异步的，刚发出时 IsPlaying 仍为 false）
         session.CheckAudioReady(scheduled.Add);
+        Assert.True(session.IsAudioHealthy, "刚发出播放时不该立刻降级");
+        Assert.Single(scheduled);
 
-        // 降级分支不应再调度重试
-        Assert.Empty(scheduled);
-
-        Assert.False(session.IsAudioHealthy);
+        // 第二次：宽限用完仍未播放 → 降级
+        session.CheckAudioReady(scheduled.Add);
+        Assert.False(session.IsAudioHealthy, "宽限用完后仍未播放应当降级");
     }
 
     /// <summary>媒体无效 → 立即降级。</summary>

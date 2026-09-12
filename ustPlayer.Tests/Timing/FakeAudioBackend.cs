@@ -166,4 +166,9 @@ internal sealed class FakeAudioBackend : IAudioBackend
 
     /// <summary>模拟出错。</summary>
     public void RaiseFailed(string message) => Failed?.Invoke(this, message);
+
+    /// <inheritdoc />
+    public string DescribeState() =>
+        $"已加载={IsLoaded} 加载中={IsLoading} 无效={IsInvalid} 已到结尾={IsFinished}"
+        + $" 正在播放={IsPlaying} 时长={DurationSeconds:F2}秒 位置={PositionSeconds:F2}秒";
 }

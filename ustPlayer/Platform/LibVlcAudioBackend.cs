@@ -83,7 +83,22 @@ internal sealed class LibVlcAudioBackend : IAudioBackend
             var milliseconds = _player.Time;
 
             // 尚未开始播放时 libvlc 返回 -1
-            return milliseconds > 0 ? milliseconds / 1000.0 : 0.0;
+            var seconds = milliseconds > 0 ? milliseconds / 1000.0 : 0.0;
+
+            // 位置不该超过时长：超过说明读到了无效值（实测某些容器/编码组合下
+            // libvlc 会给出远超时长的 Time）。若不夹紧，调用方会把「离谱的位置」
+            // 当成播放进度，时间轴瞬间跳到结尾、播放立刻结束。
+            var duration = DurationSeconds;
+
+            if (duration <= 0 || seconds <= duration)
+            {
+                return seconds;
+            }
+
+            AppLogger.Warning(
+                $"libvlc 位置异常：读到 {seconds:F2} 秒，超过时长 {duration:F2} 秒，已按 0 处理");
+
+            return 0.0;
         }
     }
 
@@ -117,6 +132,17 @@ internal sealed class LibVlcAudioBackend : IAudioBackend
 
     /// <inheritdoc />
     public bool IsFinished => _finished;
+
+    /// <inheritdoc />
+    public string DescribeState()
+    {
+        var seconds = DurationSeconds;
+
+        return $"已加载={_loaded} 加载中={_loading} 无效={_invalid} 已到结尾={_finished}"
+            + $" 正在播放={IsPlaying} 时长={seconds:F2}秒 位置={PositionSeconds:F2}秒";
+
+        // 说明：IsPlaying 直接反映 libvlc 的播放状态；时长与位置取不到时为 0
+    }
 
     /// <inheritdoc />
     /// <remarks>

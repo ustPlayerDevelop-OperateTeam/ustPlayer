@@ -65,6 +65,9 @@ internal sealed class NullAudioBackend : IAudioBackend
     public bool IsFinished => false;
 
     /// <inheritdoc />
+    public string DescribeState() => "空后端（无伴奏或音频不可用）";
+
+    /// <inheritdoc />
     public void Load(string musicPath)
     {
         _ = musicPath;

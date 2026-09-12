@@ -39,6 +39,13 @@ internal sealed partial class PlayerWindow : Window
     /// <summary>结束文字显示时长（对应 1.1.x 的 1 秒）。</summary>
     private static readonly TimeSpan EndGrace = TimeSpan.FromSeconds(1);
 
+    /// <summary>第一次音频检查的延迟。</summary>
+    /// <remarks>
+    /// 比看门狗间隔（3 秒）短得多：音频通常几百毫秒内就绪，
+    /// 早检查能更早补上 <c>Play()</c>，也避免开头一段没有伴奏。
+    /// </remarks>
+    private static readonly TimeSpan FirstAudioCheckDelay = TimeSpan.FromMilliseconds(200);
+
     /// <summary>初始渲染尺寸上限的兜底值（拿不到屏幕信息时用）。</summary>
     private const int FallbackViewWidth = 1920;
 
@@ -47,6 +54,9 @@ internal sealed partial class PlayerWindow : Window
 
     private readonly DispatcherTimer _frameTimer;
     private readonly DispatcherTimer _closeTimer;
+
+    /// <summary>音频看门狗定时器：等就绪 / 等播放开始，超限则降级为墙钟计时。</summary>
+    private readonly DispatcherTimer _audioWatchdogTimer;
 
     private PlayerFrameCompositor? _compositor;
     private bool _suspended;
@@ -64,6 +74,11 @@ internal sealed partial class PlayerWindow : Window
         _closeTimer = new DispatcherTimer { Interval = EndGrace };
         _closeTimer.Tick += OnCloseTick;
         _closeTimer.IsEnabled = false;
+
+        // 首次检查的间隔取小值而不是看门狗间隔（3 秒）：音频通常几百毫秒内就绪，
+        // 早一点看到「已加载但未播放」就能早一点补上 Play()，不必白等 3 秒
+        _audioWatchdogTimer = new DispatcherTimer { Interval = FirstAudioCheckDelay };
+        _audioWatchdogTimer.Tick += OnAudioWatchdogTick;
     }
 
     /// <summary>
@@ -99,9 +114,71 @@ internal sealed partial class PlayerWindow : Window
         window._compositor.Start();
         window._frameTimer.Start();
 
+        // 音频看门狗必须有人周期性驱动，否则伴奏永远不会开始播
+        // （曾经漏了这一步：音频一次都没响过，而单元测试全绿）
+        window._audioWatchdogTimer.Start();
+
         AppLogger.Info($"播放器已启动（初始渲染尺寸 {viewWidth}x{viewHeight}）");
 
         return window;
+    }
+
+    /// <summary>
+    /// 音频看门狗的一次检查。
+    /// </summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    /// <remarks>
+    /// 会话在需要继续等待时会回调调度器（就是本窗口的定时器）：换上下一次的间隔再等。
+    /// 不需要等待即停表——后续状态由音频事件自己驱动。
+    /// </remarks>
+    private void OnAudioWatchdogTick(object? sender, EventArgs e)
+    {
+        if (_compositor is null || _closing)
+        {
+            _audioWatchdogTimer.Stop();
+            return;
+        }
+
+        // 先停下：本次检查若判断还需再等，回调里会按新间隔重新启动
+        _audioWatchdogTimer.Stop();
+
+        // 间隔从合成器取（与会话配置同源），不在窗口里另写一份常量
+        _audioWatchdogTimer.Interval = _compositor.WatchdogInterval;
+
+        try
+        {
+            var retry = _compositor.CheckAudioReady(new DispatcherPlaybackScheduler(_audioWatchdogTimer));
+
+            // 播放真正开始后收工。不能一发出 Play() 就停表——那是异步的，
+            // 而定时器一旦启动没人取消，3 秒后就会带着过期状态再检查一次，
+            // 把正常播放的音乐误判成「已加载但没播」并掐掉（实测正是如此）。
+            var done = !retry && (_compositor.IsAudioPlaying || !_compositor.IsAudioHealthy);
+
+            // 把「音频到底有没有在驱动时间轴」写进日志：这条链路出问题时的表现是
+            // 「画面在动但没有声音」，从界面上分不出是「没配伴奏」「后端失败」还是
+            // 「看门狗没接线」——只有日志能区分，因此把后端状态一并写出来
+            AppLogger.Info(
+                $"音频看门狗：{(retry ? "仍在等待" : "已结束检查")}，"
+                + $"音频{(_compositor.IsAudioHealthy ? "在驱动时间轴" : "已降级为墙钟计时")}"
+                + $"，{(done ? "停止检查" : "继续检查")}"
+                + $"（{_compositor.AudioState ?? "无伴奏后端"}）");
+
+            if (done)
+            {
+                _audioWatchdogTimer.Stop();
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            _audioWatchdogTimer.Stop();
+        }
+        catch (Exception exception)
+        {
+            // 看门狗自身出错不该让播放崩掉：停表并记录，时间轴仍按既有状态运行
+            _audioWatchdogTimer.Stop();
+            AppLogger.Error("音频看门狗检查失败，已停止检查", exception);
+        }
     }
 
     /// <summary>
@@ -191,7 +268,10 @@ internal sealed partial class PlayerWindow : Window
                 _closing = true;
                 _frameTimer.Stop();
                 _closeTimer.Start();
-                AppLogger.Info("播放完成，1 秒后关闭窗口");
+                AppLogger.Info(
+                    $"播放完成，1 秒后关闭窗口（位置 {frame.State.ElapsedSeconds:F2} 秒，"
+                    + $"音频到结尾时 {_compositor.AudioEndedAtSeconds?.ToString("F2") ?? "未记录"} 秒）"
+                    + $" | {_compositor.PlaybackStateDescription}");
             }
         }
         catch (ObjectDisposedException)
@@ -260,8 +340,11 @@ internal sealed partial class PlayerWindow : Window
     {
         _frameTimer.Stop();
         _closeTimer.Stop();
+        _audioWatchdogTimer.Stop();
+
         _frameTimer.Tick -= OnFrameTick;
         _closeTimer.Tick -= OnCloseTick;
+        _audioWatchdogTimer.Tick -= OnAudioWatchdogTick;
 
         // 先解绑显示源再释放位图，避免渲染线程仍引用已释放的位图
         FrameImage.Source = null;
@@ -269,8 +352,7 @@ internal sealed partial class PlayerWindow : Window
         _compositor?.Dispose();
         _compositor = null;
 
-        AppLogger.Info("播放器已关闭");
-
+        AppLogger.Info($"播放器已关闭（音频={_compositor?.AudioState ?? "已释放"}）");
         base.OnClosed(e);
     }
 }

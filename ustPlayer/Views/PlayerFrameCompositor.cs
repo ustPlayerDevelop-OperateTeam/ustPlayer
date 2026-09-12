@@ -48,6 +48,7 @@ internal sealed class PlayerFrameCompositor : IDisposable
     private readonly PlaybackSession _session;
     private readonly string _renderConfigTemplate;
     private readonly string _ustJson;
+    private readonly TimeSpan _watchdogInterval;
 
     private WriteableBitmap? _bitmap;
 
@@ -65,13 +66,46 @@ internal sealed class PlayerFrameCompositor : IDisposable
         UplRenderContext renderer,
         PlaybackSession session,
         string renderConfigTemplate,
-        string ustJson)
+        string ustJson,
+        TimeSpan watchdogInterval)
     {
         _renderer = renderer;
         _session = session;
         _renderConfigTemplate = renderConfigTemplate;
         _ustJson = ustJson;
+        _watchdogInterval = watchdogInterval;
     }
+
+    /// <summary>
+    /// 音频看门狗的重试间隔（来自会话配置，宿主据此设置定时器）。
+    /// </summary>
+    /// <remarks>
+    /// 由合成器暴露而不是让宿主自己写一个常量：两处各写一份必然会漂移，
+    /// 而漂移的后果是「宿主的定时器与会话的重试节奏不一致」这种很难看出的时序问题。
+    /// </remarks>
+    internal TimeSpan WatchdogInterval => _watchdogInterval;
+
+    /// <summary>当前是否仍由音频驱动时间轴（降级或未配伴奏时为 <see langword="false"/>）。</summary>
+    internal bool IsAudioHealthy => _session.IsAudioHealthy;
+
+    /// <summary>
+    /// 音频后端当前是否真的在播放。
+    /// </summary>
+    /// <remarks>
+    /// 看门狗靠它判断「可以收工了」：<c>Play()</c> 是异步的，刚发出时还不算在播，
+    /// 因此不能一发出就停表；真正开始播之后才停，否则定时器会在 3 秒后带着
+    /// 过期的状态再检查一次，把**正常播放的音乐误判成降级并掐掉**（真实 bug）。
+    /// </remarks>
+    internal bool IsAudioPlaying => _session.IsAudioPlaying;
+
+    /// <summary>音频后端的状态快照（无伴奏时为 <see langword="null"/>）；用于日志诊断。</summary>
+    internal string? AudioState => _session.AudioState;
+
+    /// <summary>音频被判为「已到结尾」时的时间轴位置（秒）；用于日志诊断。</summary>
+    internal double? AudioEndedAtSeconds => _session.MediaEndedAtSeconds;
+
+    /// <summary>时序会话的内部状态快照；用于日志诊断。</summary>
+    internal string PlaybackStateDescription => _session.DescribePlaybackState();
 
     /// <summary>当前渲染宽度（首次 <see cref="Advance"/> 前为 0）。</summary>
     internal int RenderWidth { get; private set; }
@@ -133,11 +167,17 @@ internal sealed class PlayerFrameCompositor : IDisposable
             throw;
         }
 
-        var session = new PlaybackSession(CreateSessionOptions(parameters), clock, audio);
+        var sessionOptions = CreateSessionOptions(parameters);
+        var session = new PlaybackSession(sessionOptions, clock, audio);
 
         AppLogger.Info($"播放器帧合成器就绪：音符 {parameters.Ust.Notes.Count} 个");
 
-        var compositor = new PlayerFrameCompositor(renderer, session, renderConfig, ustJson);
+        var compositor = new PlayerFrameCompositor(
+            renderer,
+            session,
+            renderConfig,
+            ustJson,
+            TimeSpan.FromMilliseconds(sessionOptions.WatchdogIntervalMs));
 
         // 给了初始尺寸就先分配好，使窗口能在首帧之前拿到位图绑定到 Image
         if (viewWidth is { } width && viewHeight is { } height)
@@ -161,20 +201,52 @@ internal sealed class PlayerFrameCompositor : IDisposable
         return (width, height);
     }
 
-    /// <summary>
-    /// 开始计时：锚定时间轴零点。
-    /// </summary>
+    /// <summary>开始计时：锚定时间轴零点。</summary>
     /// <remarks>
     /// <para>
     /// <b>必须在窗口真正显示之后调用</b>：全屏窗口从创建到显示要几百毫秒，
     /// 在那之前锚定会让开头一小段被跳过。可重复调用，只有第一次生效。
     /// </para>
     /// <para>
-    /// 忘记调用不会导致错误结果——<see cref="PlaybackSession.Advance"/> 会自行兜底锚定；
-    /// 这里的显式调用是为了让零点落在「窗口显示」这一刻，而不是「第一帧」这一刻。
+    /// <b>同时由这里启动音频看门狗</b>：不启动的话音频永远不会开始播
+    /// （见 <see cref="CheckAudioReady"/> 的说明）。
     /// </para>
     /// </remarks>
     internal void Start() => _session.StartOrResume();
+
+    /// <summary>
+    /// 驱动音频看门狗一次；需要再等时经 <paramref name="scheduler"/> 预约下一次。
+    /// </summary>
+    /// <param name="scheduler">调度器（窗口用定时器，测试用假件）。</param>
+    /// <returns>是否已预约下一次检查。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>为什么必须有人周期性调用它</b>：会话在「音频已加载但还没开始播」时不会自己前进，
+    /// 而「就绪 → 调 <c>Play()</c>」这条链路里，让音频真正开始的时机判断全在这里。
+    /// 曾经这个方法**只在测试里被调用**（生产接线漏了），后果是：
+    /// 音频一次都没播过，时间轴停在起点——而单元测试全绿。
+    /// </para>
+    /// <para>
+    /// 由合成器转发而不是让窗口直接调会话：窗口无法在无头环境下构造
+    /// （见 <c>docs/adr-0002-window-chrome.md</c>），放在这里才能被测试穿过。
+    /// </para>
+    /// </remarks>
+    internal bool CheckAudioReady(IPlaybackScheduler scheduler)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var retry = false;
+
+        _session.CheckAudioReady(delay =>
+        {
+            retry = true;
+            scheduler.ScheduleOnce(delay, () => CheckAudioReady(scheduler));
+        });
+
+        return retry;
+    }
 
     /// <summary>
     /// 推进一帧：渲染到缓冲并拷入位图。

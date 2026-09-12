@@ -24,13 +24,19 @@ namespace UstPlayer.Diagnostics;
 /// 主窗口启动时直接打开的页面键（<c>basic</c> / <c>file</c> / <c>player_style</c> / <c>lyric</c> /
 /// <c>settings</c>）；未指定时为 <see langword="null"/>（即基础页）。
 /// </param>
-internal sealed record StartupOptions(string? PlayUstPath, string? PageKey = null)
+/// <param name="MusicPath">
+/// 伴奏路径；指定时覆盖播放器的伴奏设置。未指定时为 <see langword="null"/>。
+/// </param>
+internal sealed record StartupOptions(string? PlayUstPath, string? PageKey = null, string? MusicPath = null)
 {
     /// <summary>播放模式的开关名。</summary>
     internal const string PlaySwitch = "--play";
 
     /// <summary>指定启动页面的开关名。</summary>
     internal const string PageSwitch = "--page";
+
+    /// <summary>指定伴奏的开关名。</summary>
+    internal const string MusicSwitch = "--music";
 
     /// <summary>默认启动参数（打开主窗口的基础页）。</summary>
     internal static readonly StartupOptions Default = new((string?)null);
@@ -62,6 +68,7 @@ internal sealed record StartupOptions(string? PlayUstPath, string? PageKey = nul
 
         string? playPath = null;
         string? pageKey = null;
+        string? musicPath = null;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -95,10 +102,24 @@ internal sealed record StartupOptions(string? PlayUstPath, string? PageKey = nul
                 {
                     pageKey = pageValue;
                 }
+
+                continue;
+            }
+
+            if (TryReadSwitch(argument, args, ref i, MusicSwitch, out var musicValue))
+            {
+                if (musicValue is null)
+                {
+                    AppLogger.Warning($"{MusicSwitch} 缺少路径参数，已忽略");
+                }
+                else
+                {
+                    musicPath = musicValue;
+                }
             }
         }
 
-        return new StartupOptions(playPath, pageKey);
+        return new StartupOptions(playPath, pageKey, musicPath);
     }
 
     /// <summary>
