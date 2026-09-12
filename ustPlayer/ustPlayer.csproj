@@ -49,6 +49,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      安全修复：Avalonia 在 Linux 上传递依赖 Tmds.DBus.Protocol，解析到 0.21.2，
+      该版本命中高危公告 GHSA-xrw6-gwf8-vvr9。本工程开了 TreatWarningsAsErrors，
+      NU1903 会直接变成编译错误把 CI 打红。
+      中央包管理只钉版本、不会把传递依赖提为直接依赖，因此这里**显式引用一次**
+      才能把版本顶到 0.21.3（见 Directory.Packages.props 的说明）。
+      Windows 上它不被使用，留着的代价可忽略。
+    -->
+    <PackageReference Include="Tmds.DBus.Protocol" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 测试工程需要访问内部类型（Interop / 时序等实现细节） -->
     <InternalsVisibleTo Include="ustPlayer.Tests" />
   </ItemGroup>

@@ -37,6 +37,22 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
   </ItemGroup>
 
+  <ItemGroup Label="安全修复（传递依赖）">
+    <!--
+      Tmds.DBus.Protocol 是 Avalonia 在 Linux 上的传递依赖，当前解析到 0.21.2，
+      该版本命中 GHSA-xrw6-gwf8-vvr9（高危：恶意 D-Bus 对端可伪造信号、
+      耗尽文件描述符、造成拒绝服务）。公告给出的受影响范围是
+      `< 0.21.3` 与 `>= 0.22.0, < 0.92.0`。
+
+      本工程开了 TreatWarningsAsErrors，NU1903 会直接变成编译错误、把 CI 打红，
+      因此**必须**处理而不是忽略。这里显式钉版本（CPM 同样作用于传递依赖），
+      取 0.21.3——与原来的 0.21.2 同属一条小版本线，是修复该公告的最小改动，
+      不像跳到 0.22+ 那样有更大的破坏风险。Avalonia 与它的兼容性由
+      Linux 作业的构建 + 测试验证。
+    -->
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.21.3" />
+  </ItemGroup>
+
   <ItemGroup Label="音频（伴奏播放）">
     <!--
       伴奏音频后端选型：**LibVLCSharp**。
