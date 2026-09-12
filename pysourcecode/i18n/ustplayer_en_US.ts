@@ -944,5 +944,9 @@ Project saved: {1}</translation>
         <source>内容预览</source>
         <translation>Preview</translation>
     </message>
+    <message>
+        <source>设置</source>
+        <translation>Settings</translation>
+    </message>
 </context>
 </TS>

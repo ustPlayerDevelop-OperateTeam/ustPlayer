@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:UstPlayer.ViewModels"
+             xmlns:controls="using:UstPlayer.Views.Controls"
+             xmlns:conv="using:UstPlayer.Views.Converters"
+             xmlns:fa="using:FluentAvalonia.UI.Controls"
+             x:Class="UstPlayer.Views.Pages.SettingsPage"
+             x:DataType="vm:SettingsPageViewModel">
+
+  <UserControl.Resources>
+    <!-- 与播放器样式页同一套：颜色字符串 ↔ Color / Brush 的双向转换 -->
+    <conv:HexToColorConverter x:Key="HexColorConverter" />
+    <conv:HexToBrushConverter x:Key="HexBrushConverter" />
+
+    <!-- 下拉项模板：显示译文，选中后把稳定 key 写回设置（由 ChoiceGroup 完成） -->
+    <DataTemplate x:Key="ChoiceTemplate" x:DataType="vm:ChoiceOption">
+      <TextBlock Text="{Binding Text}" />
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <!--
+    设置页（对应 1.1.x other_page.py；导航里叫「设置」）。
+
+    每一行直接用 **FluentAvalonia 自带的 SettingsExpander**：Header 在左、Footer 放控件，
+    自带卡片外观与主题适配，不需要我们自绘。
+    分组标题是卡片之外的普通 TextBlock（组内每一项各自一张卡片，不画分割线）。
+
+    下拉用 ChoiceGroup 做「显示译文、存稳定 key」的投影（见 ViewModels/ChoiceGroup.cs）。
+    文本一律在 code-behind 用 Translator.Tr(...) 赋值。
+  -->
+  <ScrollViewer>
+    <StackPanel Margin="24,4,24,24">
+
+      <!-- ===================== 关于软件 ===================== -->
+      <TextBlock x:Name="AboutHeader" Classes="settingsSectionHeader" />
+      <fa:SettingsExpander x:Name="AboutRow">
+        <fa:SettingsExpander.Footer>
+          <Button x:Name="CopyrightButton" Click="OnOpenBilibiliClick" />
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <!-- ===================== 外部工具与纠错 ===================== -->
+      <TextBlock x:Name="ToolsHeader" Classes="settingsSectionHeader" />
+      <fa:SettingsExpander x:Name="ErcodeRow">
+        <fa:SettingsExpander.Footer>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="UtaFormatixButton" Content="UtaFormatix" Click="OnOpenUtaFormatixClick" />
+            <Button x:Name="ErcodeButton" Click="OnOpenErcodeClick" />
+          </StackPanel>
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <!-- ===================== 工程缓存 ===================== -->
+      <TextBlock x:Name="CacheHeader" Classes="settingsSectionHeader" />
+      <fa:SettingsExpander x:Name="CacheRow" Description="{Binding CacheUsageText}">
+        <fa:SettingsExpander.Footer>
+          <Button x:Name="ClearCacheButton" Click="OnClearCacheClick" />
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <!-- ===================== 日志 ===================== -->
+      <TextBlock x:Name="LogHeader" Classes="settingsSectionHeader" />
+      <fa:SettingsExpander x:Name="LogRow">
+        <fa:SettingsExpander.Footer>
+          <Button x:Name="OpenLogButton" Click="OnOpenLogClick" />
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <!-- ===================== 主题 ===================== -->
+      <TextBlock x:Name="ThemeHeader" Classes="settingsSectionHeader" />
+
+      <fa:SettingsExpander x:Name="ThemeModeRow">
+        <fa:SettingsExpander.Footer>
+          <ComboBox x:Name="ThemeModeCombo" MinWidth="140"
+                    ItemsSource="{Binding ThemeModeChoice.Options}"
+                    SelectedItem="{Binding ThemeModeChoice.Selected, Mode=TwoWay}"
+                    ItemTemplate="{StaticResource ChoiceTemplate}" />
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <fa:SettingsExpander x:Name="AccentModeRow">
+        <fa:SettingsExpander.Footer>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <ComboBox x:Name="AccentModeCombo" MinWidth="140"
+                      ItemsSource="{Binding AccentModeChoice.Options}"
+                      SelectedItem="{Binding AccentModeChoice.Selected, Mode=TwoWay}"
+                      ItemTemplate="{StaticResource ChoiceTemplate}" />
+            <TextBox x:Name="AccentColorBox" Width="110"
+                     IsVisible="{Binding IsCustomAccent}"
+                     Text="{Binding CustomAccentColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+            <Border Width="20" Height="20" CornerRadius="3" VerticalAlignment="Center"
+                    IsVisible="{Binding IsCustomAccent}"
+                    BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}"
+                    Background="{Binding CustomAccentColor, Converter={StaticResource HexBrushConverter}}" />
+            <ColorPicker x:Name="AccentColorPicker"
+                         IsVisible="{Binding IsCustomAccent}"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         Color="{Binding CustomAccentColor, Mode=TwoWay, Converter={StaticResource HexColorConverter}}" />
+          </StackPanel>
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <fa:SettingsExpander x:Name="WindowEffectRow">
+        <fa:SettingsExpander.Footer>
+          <ComboBox x:Name="WindowEffectCombo" MinWidth="140"
+                    ItemsSource="{Binding WindowEffectChoice.Options}"
+                    SelectedItem="{Binding WindowEffectChoice.Selected, Mode=TwoWay}"
+                    ItemTemplate="{StaticResource ChoiceTemplate}" />
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <!-- ===================== 语言 ===================== -->
+      <TextBlock x:Name="LanguageHeader" Classes="settingsSectionHeader" />
+      <fa:SettingsExpander x:Name="LanguageRow">
+        <fa:SettingsExpander.Footer>
+          <ComboBox x:Name="LanguageCombo" MinWidth="180"
+                    ItemsSource="{Binding LanguageChoice.Options}"
+                    SelectedItem="{Binding LanguageChoice.Selected, Mode=TwoWay}"
+                    ItemTemplate="{StaticResource ChoiceTemplate}" />
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <!-- ===================== 协议与许可 ===================== -->
+      <TextBlock x:Name="LicenseHeader" Classes="settingsSectionHeader" />
+      <fa:SettingsExpander x:Name="LicenseRow">
+        <fa:SettingsExpander.Footer>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="TermsButton" Click="OnOpenTermsClick" />
+            <Button x:Name="GitHubButton" Click="OnOpenGitHubClick" />
+          </StackPanel>
+        </fa:SettingsExpander.Footer>
+      </fa:SettingsExpander>
+
+      <TextBlock x:Name="EasterEggText"
+                 TextWrapping="Wrap"
+                 Margin="2,14,0,0"
+                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

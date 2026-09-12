@@ -71,6 +71,25 @@ public class TranslationAssetsTests
     }
 
     /// <summary>
+    /// 设置页按钮要打开的随程序分发的文本文件，必须真的在程序目录里。
+    /// </summary>
+    /// <remarks>
+    /// 与 .ts 是同一类故障：文件只在仓库根目录，忘了复制到输出目录时**不会报错**，
+    /// 只是用户点「ERcodes纠错」/「开源协议」永远打不开。因此用测试守住这一环。
+    /// </remarks>
+    [Theory]
+    [InlineData("ERcode.txt")]
+    [InlineData("Terms.txt")]
+    public void 随程序分发的文本资源已复制到程序目录(string fileName)
+    {
+        var path = Path.Combine(ProgramDirectory, fileName);
+
+        Assert.True(
+            File.Exists(path),
+            $"未找到 {path}：工程没有把它复制到输出目录，设置页对应按钮会永远失败。");
+    }
+
+    /// <summary>
     /// 三份目录的条目数应一致（源语言文件里的条目是 unfinished 空译文）。
     /// </summary>
     /// <remarks>

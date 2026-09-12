@@ -25,4 +25,15 @@
     <Setter Property="CornerRadius" Value="4" />
   </Style>
 
+  <!--
+    分组标题（卡片之外的那行字）：比正文略重一点，与下方卡片拉开距离。
+    用在设置页 —— 那里的每一行是 FluentAvalonia 自带的 SettingsExpander，
+    分组只能靠这个标题来划分。
+  -->
+  <Style Selector="TextBlock.settingsSectionHeader">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="2,18,0,8" />
+  </Style>
+
 </Styles>

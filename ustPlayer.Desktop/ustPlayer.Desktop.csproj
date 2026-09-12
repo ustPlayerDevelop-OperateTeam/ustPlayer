@@ -69,4 +69,15 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    设置页「ERcodes纠错」与「开源协议」按钮打开的是程序目录下的文本文件，
+    因此必须把它们复制到输出目录（与 .ts 同样的道理：漏了不会报错，
+    只是点了按钮永远失败）。两条产品线共用根目录的这两份文件。
+  -->
+  <ItemGroup>
+    <None Include="..\ERcode.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Terms.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LICENSE" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

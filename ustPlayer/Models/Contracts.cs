@@ -273,6 +273,9 @@ internal static class AppInfo
     /// <summary>应用名。</summary>
     internal const string Name = "ustPlayer";
 
+    /// <summary>作者（与 1.1.x <c>contracts.APP_AUTHOR</c> 一致，用于「关于」处的版权行）。</summary>
+    internal const string Author = "SYEternal_R";
+
     /// <summary>展示用版本号（如 <c>2.0.0</c>）。</summary>
     internal static string Version { get; } = ResolveVersion();
 

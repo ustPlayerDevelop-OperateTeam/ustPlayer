@@ -942,5 +942,9 @@
         <source>内容预览</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>设置</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 </TS>

@@ -57,6 +57,12 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- 随程序分发的文本资源，同样复制过来以便测试能验证「部署」这一环 -->
+  <ItemGroup>
+    <None Include="..\ERcode.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Terms.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!--
     增量：Inputs/Outputs 让本目标在已同步过之后直接跳过，避免每次增量构建都启动一个
     PowerShell 进程并对 2.8MB 的渲染器算两遍 SHA256。

@@ -19,7 +19,7 @@
 
     导航项在 code-behind 里构造（标题需要 tr() 翻译，且页面实例要注入 ViewModel）。
   -->
-  <Grid RowDefinitions="40,Auto,*">
+  <Grid RowDefinitions="40,*">
 
     <!-- ===================== 标题栏（自绘） ===================== -->
     <!--
@@ -44,21 +44,28 @@
                  IsHitTestVisible="False" />
     </StackPanel>
 
-    <!--
-      提示条：FluentAvalonia 的 InfoBar 是控件（没有 1.1.x 那种静态弹出入口），
-      因此由主窗口持有一个，页面经 INotificationHost 使用它。
-    -->
-    <fa:InfoBar x:Name="NotificationBar" Grid.Row="1"
-                Margin="12,0,12,4"
-                IsOpen="False"
-                IsClosable="True" />
-
-    <fa:NavigationView x:Name="NavView" Grid.Row="2"
+    <fa:NavigationView x:Name="NavView" Grid.Row="1"
                        Margin="0,8,0,0"
                        IsSettingsVisible="False"
                        IsBackButtonVisible="False"
                        PaneDisplayMode="Left"
                        OpenPaneLength="200" />
+
+    <!--
+      通知浮层：右上角，**不参与布局**（所以不会把导航区挤下去），
+      每条通知由 code-behind 加进来并做滑入动画，超时后自己移除。
+
+      刻意不用放在正常布局里的 InfoBar（那是「内联提示条」的用法）：
+      1.1.x 的提示是滑入 + 自动消失，FluentAvalonia 没有等价的静态弹出入口，
+      因此这里用一个浮层 + 动画来实现。
+      浮层按内容自适应大小，只覆盖右上角，不会挡住其余区域的点击。
+    -->
+    <Panel Grid.Row="0" Grid.RowSpan="2"
+           Margin="0,46,12,0"
+           VerticalAlignment="Top"
+           HorizontalAlignment="Right">
+      <StackPanel x:Name="NotificationStack" Spacing="8" Width="360" />
+    </Panel>
   </Grid>
 
 </views:ShellWindow>

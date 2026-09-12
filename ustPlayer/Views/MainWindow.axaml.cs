@@ -5,7 +5,10 @@ using System.IO;
 using System.Threading.Tasks;
 
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Threading;
 
 using FluentAvalonia.UI.Controls;
 
@@ -48,6 +51,7 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
     private FilePage? _filePage;
     private PlayerStylePage? _playerStylePage;
     private LyricPage? _lyricPage;
+    private SettingsPage? _settingsPage;
 
     /// <summary>当前打开的播放窗口；用于避免同时打开多个全屏播放器。</summary>
     private PlayerWindow? _playerWindow;
@@ -66,6 +70,12 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         _viewModel.ApplyTheme();
         _viewModel.ApplyLanguage();
 
+        // 强调色与窗口效果也要在**启动时**应用一次：
+        // 只在设置页的 PropertyChanged 里应用的话，上次保存的非默认值
+        // 要等用户动一下下拉才生效（1.1.x 是在主窗口启动时应用的）。
+        AppearanceController.ApplyAccentColor(_services.Settings.Theme);
+        AppearanceController.ApplyWindowEffect(_services.Settings.Theme, this);
+
         BuildPages();
         BuildNavigation();
 
@@ -79,20 +89,87 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
     // ===================== 提示条 =====================
 
+    /// <summary>通知停留时长（毫秒）：成功短、错误长（与 1.1.x 的 3000 / 5000 一致）。</summary>
+    private static readonly TimeSpan SuccessLifetime = TimeSpan.FromSeconds(3);
+
+    /// <summary>错误通知停留时长。</summary>
+    private static readonly TimeSpan ErrorLifetime = TimeSpan.FromSeconds(5);
+
+    /// <summary>同时最多显示的通知条数，超出时移除最旧的一条。</summary>
+    private const int MaxNotifications = 3;
+
+    /// <summary>通知滑入 / 滑出的位移（像素）。</summary>
+    private const double NotificationSlideOffset = 40;
+
+    /// <summary>通知动画时长。</summary>
+    private static readonly TimeSpan NotificationAnimationDuration = TimeSpan.FromMilliseconds(220);
+
     /// <inheritdoc />
     public void Notify(NotificationSeverity severity, string title, string message)
     {
-        NotificationBar.Severity = severity switch
+        var bar = new InfoBar
         {
-            NotificationSeverity.Success => InfoBarSeverity.Success,
-            NotificationSeverity.Warning => InfoBarSeverity.Warning,
-            NotificationSeverity.Error => InfoBarSeverity.Error,
-            _ => InfoBarSeverity.Informational,
+            Severity = severity switch
+            {
+                NotificationSeverity.Success => InfoBarSeverity.Success,
+                NotificationSeverity.Warning => InfoBarSeverity.Warning,
+                NotificationSeverity.Error => InfoBarSeverity.Error,
+                _ => InfoBarSeverity.Informational,
+            },
+            Title = title,
+            Message = message,
+            IsOpen = true,
+            IsClosable = true,
         };
 
-        NotificationBar.Title = title;
-        NotificationBar.Message = message;
-        NotificationBar.IsOpen = true;
+        // 容器负责动画与定位；InfoBar 自身只画内容
+        var container = new Border
+        {
+            Child = bar,
+            Opacity = 0,
+            RenderTransform = new TranslateTransform(NotificationSlideOffset, 0),
+            Transitions = new Transitions
+            {
+                new DoubleTransition
+                {
+                    Property = Visual.OpacityProperty,
+                    Duration = NotificationAnimationDuration,
+                },
+                new TransformOperationsTransition
+                {
+                    Property = Visual.RenderTransformProperty,
+                    Duration = NotificationAnimationDuration,
+                },
+            },
+        };
+
+        // 超出上限时先挤掉最旧的一条，避免通知堆满整个窗口
+        while (NotificationStack.Children.Count >= MaxNotifications)
+        {
+            NotificationStack.Children.RemoveAt(0);
+        }
+
+        NotificationStack.Children.Add(container);
+
+        // 入场：必须等一帧，否则启动值与目标值在同一帧内会被合并、看不到动画
+        Dispatcher.UIThread.Post(() => container.RenderTransform = new TranslateTransform(0, 0));
+        Dispatcher.UIThread.Post(() => container.Opacity = 1);
+
+        var lifetime = severity == NotificationSeverity.Error ? ErrorLifetime : SuccessLifetime;
+
+        // 到时滑出并移除
+        DispatcherTimer.RunOnce(
+            () =>
+            {
+                container.Opacity = 0;
+                container.RenderTransform = new TranslateTransform(NotificationSlideOffset, 0);
+
+                // 等动画结束再真正移除，否则元素会瞬间消失
+                DispatcherTimer.RunOnce(
+                    () => NotificationStack.Children.Remove(container),
+                    NotificationAnimationDuration);
+            },
+            lifetime);
     }
 
     // ===================== 装配 =====================
@@ -112,6 +189,9 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
 
         _lyricPage = new LyricPage(new LyricPageViewModel(_services), this);
         _pages["lyric"] = _lyricPage;
+
+        _settingsPage = new SettingsPage(new SettingsPageViewModel(_services), this);
+        _pages["settings"] = _settingsPage;
     }
 
     /// <summary>
@@ -129,7 +209,7 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         AddNavItem("file", "文件", Symbol.Document, footer: false);
         AddNavItem("player_style", "播放器", Symbol.ColorFill, footer: false);
         AddNavItem("lyric", "歌词", Symbol.Audio, footer: false);
-        AddNavItem("other", "其他", Symbol.Important, footer: true);
+        AddNavItem("settings", "设置", Symbol.Setting, footer: true);
 
         NavView.SelectionChanged += OnNavigationSelectionChanged;
     }
@@ -222,6 +302,7 @@ internal sealed partial class MainWindow : ShellWindow, INotificationHost
         _filePage?.Retranslate();
         _playerStylePage?.Retranslate();
         _lyricPage?.Retranslate();
+        _settingsPage?.Retranslate();
 
         if (NavView.Content is TextBlock placeholder)
         {

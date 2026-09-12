@@ -944,5 +944,9 @@
         <source>内容预览</source>
         <translation>內容預覽</translation>
     </message>
+    <message>
+        <source>设置</source>
+        <translation>設置</translation>
+    </message>
 </context>
 </TS>
