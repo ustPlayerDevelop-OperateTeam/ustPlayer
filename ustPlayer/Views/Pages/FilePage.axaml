@@ -20,7 +20,7 @@
       <StackPanel>
         <controls:SettingsRow x:Name="UstRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="OpenFile" FontSize="20" />
+              <fa:SymbolIconSource Symbol="OpenFile" FontSize="22" />
             </controls:SettingsRow.Icon>
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBox x:Name="UstPathBox" MinWidth="320"
@@ -31,14 +31,14 @@
 
         <controls:SettingsRow x:Name="CurveShowRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="ColorLine" FontSize="20" />
+              <fa:SymbolIconSource Symbol="ColorLine" FontSize="22" />
             </controls:SettingsRow.Icon>
           <ToggleSwitch IsChecked="{Binding File.CurveShow, Mode=TwoWay}" />
         </controls:SettingsRow>
 
         <controls:SettingsRow x:Name="EncodingRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Globe" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Globe" FontSize="22" />
             </controls:SettingsRow.Icon>
           <StackPanel Orientation="Horizontal" Spacing="8">
             <ComboBox x:Name="EncodingCombo" MinWidth="130"

@@ -39,10 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 设置 .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -65,10 +65,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 设置 .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -78,7 +78,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 uPlRender 构建
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: ${{ runner.temp }}/ustplayer-uplrender/uPlRender
 
@@ -136,10 +136,10 @@ jobs:
         os: [macos-latest, ubuntu-latest]
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 设置 .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -166,10 +166,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 设置 .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -191,10 +191,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 设置 .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -202,7 +202,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 uPlRender 构建
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: ${{ runner.temp }}/ustplayer-uplrender/uPlRender
 
@@ -230,7 +230,7 @@ jobs:
       # 即使打包校验失败也把目录传上来，便于事后看清到底缺了什么
       - name: 上传产物
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ustPlayer-win-x64
           path: artifacts/ustPlayer-win-x64/
@@ -252,10 +252,10 @@ jobs:
       contents: write
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 设置 .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -263,7 +263,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 uPlRender 构建
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: ${{ runner.temp }}/ustplayer-uplrender/uPlRender
 

@@ -18,14 +18,14 @@
         <StackPanel>
           <controls:SettingsRow x:Name="ShowLyricRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Comment" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Comment" FontSize="22" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowLyric, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="LrcRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="OpenFile" FontSize="20" />
+              <fa:SymbolIconSource Symbol="OpenFile" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBox x:Name="LrcPathBox" MinWidth="320"

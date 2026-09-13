@@ -37,7 +37,7 @@
         <StackPanel>
           <controls:SettingsRow x:Name="BackgroundColorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="ColorBackground" FontSize="20" />
+              <fa:SymbolIconSource Symbol="ColorBackground" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="BackgroundColorBox" Width="110"
@@ -53,7 +53,7 @@
 
           <controls:SettingsRow x:Name="NoteColorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="ColorFill" FontSize="20" />
+              <fa:SymbolIconSource Symbol="ColorFill" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="NoteColorBox" Width="110"
@@ -69,7 +69,7 @@
 
           <controls:SettingsRow x:Name="LyricColorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="FontColor" FontSize="20" />
+              <fa:SymbolIconSource Symbol="FontColor" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="LyricColorBox" Width="110"
@@ -85,7 +85,7 @@
 
           <controls:SettingsRow x:Name="LyricTextColorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="FontColor" FontSize="20" />
+              <fa:SymbolIconSource Symbol="FontColor" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="LyricTextColorBox" Width="110"
@@ -101,7 +101,7 @@
 
           <controls:SettingsRow x:Name="PitchCurveColorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="ColorLine" FontSize="20" />
+              <fa:SymbolIconSource Symbol="ColorLine" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="PitchCurveColorBox" Width="110"
@@ -117,7 +117,7 @@
 
           <controls:SettingsRow x:Name="OtherTextColorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="FontColor" FontSize="20" />
+              <fa:SymbolIconSource Symbol="FontColor" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="OtherTextColorBox" Width="110"
@@ -133,7 +133,7 @@
 
           <controls:SettingsRow x:Name="LyricPositionRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="DockBottom" FontSize="20" />
+              <fa:SymbolIconSource Symbol="DockBottom" FontSize="22" />
             </controls:SettingsRow.Icon>
             <ComboBox x:Name="LyricPositionCombo" MinWidth="150"
                       ItemsSource="{Binding LyricPositionChoice.Options}"
@@ -148,7 +148,7 @@
         <StackPanel>
           <controls:SettingsRow x:Name="FontNoteRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Font" FontSize="22" />
             </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontNoteCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
@@ -158,7 +158,7 @@
 
           <controls:SettingsRow x:Name="FontUstLyricRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Font" FontSize="22" />
             </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontUstLyricCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
@@ -168,7 +168,7 @@
 
           <controls:SettingsRow x:Name="FontLrcRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Font" FontSize="22" />
             </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontLrcCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
@@ -178,7 +178,7 @@
 
           <controls:SettingsRow x:Name="FontOtherRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Font" FontSize="22" />
             </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontOtherCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
@@ -193,7 +193,7 @@
         <StackPanel>
           <controls:SettingsRow x:Name="PitchPlaceholderRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Character" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Character" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <ComboBox x:Name="PitchPlaceholderCombo" MinWidth="150"
@@ -208,7 +208,7 @@
 
           <controls:SettingsRow x:Name="SilentDisplayRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Stop" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Stop" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <ComboBox x:Name="SilentDisplayCombo" MinWidth="150"
@@ -223,7 +223,7 @@
 
           <controls:SettingsRow x:Name="EndDisplayRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Flag" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Flag" FontSize="22" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <ComboBox x:Name="EndDisplayCombo" MinWidth="150"

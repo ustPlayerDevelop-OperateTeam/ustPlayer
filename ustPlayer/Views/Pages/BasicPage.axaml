@@ -23,7 +23,7 @@
         <StackPanel>
           <controls:SettingsRow x:Name="ProjectNameRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Document" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Document" FontSize="24" />
             </controls:SettingsRow.Icon>
             <TextBox x:Name="ProjectNameBox" MinWidth="320"
                      Text="{Binding Project.ProjectName, Mode=TwoWay}" />
@@ -31,7 +31,7 @@
 
           <controls:SettingsRow x:Name="SongNameRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Edit" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Edit" FontSize="24" />
             </controls:SettingsRow.Icon>
             <TextBox x:Name="SongNameBox" MinWidth="320"
                      Text="{Binding Project.SongName, Mode=TwoWay}" />
@@ -39,7 +39,7 @@
 
           <controls:SettingsRow x:Name="SongAuthorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="ContactInfo" FontSize="20" />
+              <fa:SymbolIconSource Symbol="ContactInfo" FontSize="24" />
             </controls:SettingsRow.Icon>
             <TextBox x:Name="SongAuthorBox" MinWidth="320"
                      Text="{Binding Project.SongAuthor, Mode=TwoWay}" />
@@ -47,7 +47,7 @@
 
           <controls:SettingsRow x:Name="UstAuthorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Keyboard" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Keyboard" FontSize="24" />
             </controls:SettingsRow.Icon>
             <TextBox x:Name="UstAuthorBox" MinWidth="320"
                      Text="{Binding Project.UstAuthor, Mode=TwoWay}" />
@@ -55,7 +55,7 @@
 
           <controls:SettingsRow x:Name="MusicRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Audio" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Audio" FontSize="24" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBox x:Name="MusicPathBox" MinWidth="320"
@@ -66,7 +66,7 @@
 
           <controls:SettingsRow x:Name="ProjectFileRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Save" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Save" FontSize="24" />
             </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Button x:Name="ImportButton" Click="OnImportClick" />
@@ -82,56 +82,56 @@
         <StackPanel>
           <controls:SettingsRow x:Name="ShowBpmRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Clock" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Clock" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowBpm, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowPlayTimeRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Clock" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Clock" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowPlayTime, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowSongNameRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Edit" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Edit" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowSongName, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowSongAuthorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="ContactInfo" FontSize="20" />
+              <fa:SymbolIconSource Symbol="ContactInfo" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowSongAuthor, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowUstAuthorRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Keyboard" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Keyboard" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowUstAuthor, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowNoteNameRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Font" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowNoteName, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowUstLyricRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Comment" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Comment" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowUstLyric, Mode=TwoWay}" />
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="ShowCopyrightRow">
             <controls:SettingsRow.Icon>
-              <fa:SymbolIconSource Symbol="Library" FontSize="20" />
+              <fa:SymbolIconSource Symbol="Library" FontSize="24" />
             </controls:SettingsRow.Icon>
             <ToggleSwitch IsChecked="{Binding Display.ShowCopyright, Mode=TwoWay}" />
           </controls:SettingsRow>
