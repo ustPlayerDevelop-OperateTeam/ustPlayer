@@ -44,4 +44,44 @@
     <Setter Property="Margin" Value="0,0,0,4" />
   </Style>
 
+  <!--
+    ===================== 页面进入动画（卡片错峰上浮淡入）=====================
+
+    做法与参数对齐 ClassIsland 的 StackPanelIntroAnimationBehavior（其 animated-intro 样式）：
+    子元素先置为「透明 + 下移 50px」，随后由 code-behind 按 25ms 节奏逐个加上
+    intro-play 类，样式里的动画在 0.6 秒内把它带回原位并淡入。
+
+    为什么用两个类而不是直接改属性：
+    · intro-armed 加在页面根上，表示「本页的子元素尚未入场」——它必须与
+      intro-play 分开，否则动画一加类就立刻重放，错峰效果会消失；
+    · 播放结束由 code-behind 撤掉 intro-armed，样式中的 Animation 以
+      FillMode=Both 保持终止值，无需逐元素清理。
+
+    缓动 (0.00, 1.00, 0.00, 1.00) 与 ClassIsland 一致：起步极快、末段极缓，
+    观感是「轻盈地浮上来」而不是匀速平移。
+  -->
+  <Style Selector="Panel.intro-armed > :is(Control):not(.intro-play)">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform">
+      <Setter.Value>
+        <TranslateTransform Y="50" />
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style Selector="Panel.intro-armed > :is(Control).intro-play">
+    <Style.Animations>
+      <Animation Duration="0:0:0.6" FillMode="Both" Easing="0.00, 1.00, 0.00, 1.00">
+        <KeyFrame Cue="0%">
+          <Setter Property="TranslateTransform.Y" Value="50" />
+          <Setter Property="Opacity" Value="0" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="TranslateTransform.Y" Value="0" />
+          <Setter Property="Opacity" Value="1" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
 </Styles>

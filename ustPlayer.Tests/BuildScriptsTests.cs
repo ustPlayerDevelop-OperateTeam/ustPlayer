@@ -51,6 +51,60 @@ public class BuildScriptsTests
     }
 
     /// <summary>
+    /// <c>build/*.ps1</c> 不得把 <c>$IsWindows</c> 当成自己的变量名来赋值。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// PowerShell 变量名**大小写不敏感**，且 <c>$IsWindows</c>（同 <c>$IsMacOS</c> /
+    /// <c>$IsLinux</c>）在 PowerShell 7 里是**只读**自动变量。因此
+    /// <c>$isWindows = $RuntimeIdentifier -like 'win-*'</c> 这种看似无害的写法
+    /// 实际会去写内置变量，一赋值就抛：
+    /// <c>Cannot overwrite variable IsWindows because it is read-only or constant.</c>
+    /// </para>
+    /// <para>
+    /// 这个坑真实发生过，且**同时命中 <c>publish.ps1</c> 与 <c>fetch-ffmpeg.ps1</c>**：
+    /// 本地只有 <c>powershell.exe</c> 5.1（没有该自动变量）时一切正常，
+    /// 直到首次跑 CI（用 <c>pwsh</c> 7）才整片失败。
+    /// 更要命的是 <c>fetch-ffmpeg.ps1</c> 那一步在 workflow 里挂了
+    /// <c>continue-on-error: true</c>，失败被显示成 ✓，错误被推到下游测试里才现形。
+    /// 读取 <c>$IsWindows</c>（作为平台判断的一部分）是允许的，**赋值不允许**。
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void 构建脚本不得用_IsWindows_当变量名()
+    {
+        var directory = Path.Combine(FindRepositoryRoot(), "build");
+        var scripts = Directory.GetFiles(directory, "*.ps1");
+        Assert.NotEmpty(scripts);
+
+        // 赋值形态：$IsWindows =、$IsWindows += 之类（大小写不敏感）
+        var assignment = new System.Text.RegularExpressions.Regex(
+            @"\$(IsWindows|IsMacOS|IsLinux)\s*(=|\+=|\+\+|--)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        foreach (var script in scripts)
+        {
+            foreach (var line in File.ReadAllLines(script))
+            {
+                // 注释行不算（说明文档里会提到这个坑）
+                var trimmed = line.TrimStart();
+                if (trimmed.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                var match = assignment.Match(line);
+
+                Assert.False(
+                    match.Success,
+                    $"{Path.GetFileName(script)} 给只读自动变量赋值：{match.Value.Trim()}"
+                    + "。PowerShell 变量名大小写不敏感，$IsWindows 在 7+ 里只读；"
+                    + "请改用 $isWindowsTarget 之类的名字。");
+            }
+        }
+    }
+
+    /// <summary>
     /// 由测试程序集位置向上定位仓库根目录。
     /// </summary>
     /// <returns>仓库根目录的绝对路径。</returns>

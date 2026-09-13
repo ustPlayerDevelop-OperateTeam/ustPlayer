@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:UstPlayer.ViewModels"
              xmlns:controls="using:UstPlayer.Views.Controls"
+             xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:conv="using:UstPlayer.Views.Converters"
              x:Class="UstPlayer.Views.Pages.PlayerStylePage"
              x:DataType="vm:PlayerStylePageViewModel">
@@ -28,12 +29,16 @@
   </UserControl.Resources>
 
   <ScrollViewer>
-    <StackPanel Margin="24,4,24,24">
+    <StackPanel Margin="24,4,24,24"
+                controls:PageIntroAnimation.IsEnabled="True">
 
       <!-- ===================== 播放器样式 ===================== -->
       <controls:SettingsSection x:Name="StyleSection">
         <StackPanel>
           <controls:SettingsRow x:Name="BackgroundColorRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="ColorBackground" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="BackgroundColorBox" Width="110"
                        Text="{Binding Color.BackgroundColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -47,6 +52,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="NoteColorRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="ColorFill" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="NoteColorBox" Width="110"
                        Text="{Binding Color.NoteColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -60,6 +68,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="LyricColorRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="FontColor" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="LyricColorBox" Width="110"
                        Text="{Binding Color.LyricColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -73,6 +84,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="LyricTextColorRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="FontColor" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="LyricTextColorBox" Width="110"
                        Text="{Binding Color.LyricTextColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -86,6 +100,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="PitchCurveColorRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="ColorLine" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="PitchCurveColorBox" Width="110"
                        Text="{Binding Color.PitchCurveColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -99,6 +116,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="OtherTextColorRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="FontColor" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBox x:Name="OtherTextColorBox" Width="110"
                        Text="{Binding Color.OtherTextColor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -112,6 +132,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="LyricPositionRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="DockBottom" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <ComboBox x:Name="LyricPositionCombo" MinWidth="150"
                       ItemsSource="{Binding LyricPositionChoice.Options}"
                       SelectedItem="{Binding LyricPositionChoice.Selected, Mode=TwoWay}"
@@ -124,6 +147,9 @@
       <controls:SettingsSection x:Name="FontSection">
         <StackPanel>
           <controls:SettingsRow x:Name="FontNoteRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontNoteCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
                       SelectedItem="{Binding FontNote, Mode=TwoWay}"
@@ -131,6 +157,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="FontUstLyricRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontUstLyricCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
                       SelectedItem="{Binding FontUstLyric, Mode=TwoWay}"
@@ -138,6 +167,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="FontLrcRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontLrcCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
                       SelectedItem="{Binding FontLrc, Mode=TwoWay}"
@@ -145,6 +177,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="FontOtherRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Font" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <ComboBox x:Name="FontOtherCombo" MinWidth="240"
                       ItemsSource="{Binding FontFamilies}"
                       SelectedItem="{Binding FontOther, Mode=TwoWay}"
@@ -157,6 +192,9 @@
       <controls:SettingsSection x:Name="OtherSection">
         <StackPanel>
           <controls:SettingsRow x:Name="PitchPlaceholderRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Character" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <ComboBox x:Name="PitchPlaceholderCombo" MinWidth="150"
                         ItemsSource="{Binding PitchPlaceholderChoice.Options}"
@@ -169,6 +207,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="SilentDisplayRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Stop" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <ComboBox x:Name="SilentDisplayCombo" MinWidth="150"
                         ItemsSource="{Binding SilentDisplayChoice.Options}"
@@ -181,6 +222,9 @@
           </controls:SettingsRow>
 
           <controls:SettingsRow x:Name="EndDisplayRow">
+            <controls:SettingsRow.Icon>
+              <fa:SymbolIconSource Symbol="Flag" FontSize="20" />
+            </controls:SettingsRow.Icon>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <ComboBox x:Name="EndDisplayCombo" MinWidth="150"
                         ItemsSource="{Binding EndDisplayChoice.Options}"

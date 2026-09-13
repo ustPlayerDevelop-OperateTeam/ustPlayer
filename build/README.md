@@ -48,6 +48,22 @@ CI（GitHub Actions）使用 `pwsh`（PowerShell 7），本地可能只有 `powe
 `$IsWindows` / `$IsMacOS` / `$IsLinux` 是 7+ 的自动变量，5.1 下为 `$null`，
 因此平台判断要带兜底条件（例如 `$env:OS -eq 'Windows_NT' -or $IsWindows`）。
 
+> [!IMPORTANT]
+> **`$IsWindows` 在 PowerShell 7 里是只读的，不能当自己的变量名用。**
+> PowerShell 变量名**大小写不敏感**，所以 `$isWindows = $RuntimeIdentifier -like 'win-*'`
+> 这种写法会解析成内置的 `$IsWindows`，一赋值就抛：
+>
+> ```
+> Cannot overwrite variable IsWindows because it is read-only or constant.
+> ```
+>
+> 这个坑真实发生过，而且**同时打到两个脚本**上（`publish.ps1`、`fetch-ffmpeg.ps1`），
+> 直到首次跑 CI 才暴露：本地 `powershell.exe` 5.1 下没有这个自动变量，一切正常。
+> 要表达「目标是 Windows」请换名字，例如 `$isWindowsTarget`。
+> `BuildScriptsTests.构建脚本不得用_IsWindows_当变量名` 已守住这一点。
+> 同理：`fetch-ffmpeg.ps1` 那类步骤若在 CI 里挂了 `continue-on-error: true`，
+> 失败会被显示成 ✓ 并一路把错误推到下游测试——排查时要直接看步骤日志。
+
 ### 3. 不要写死个人机器路径
 
 `sync-native-assets.ps1` 通过参数与环境变量定位渲染器

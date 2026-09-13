@@ -501,6 +501,61 @@ public class PlaybackSessionTests
         Assert.Equal(481, session.TotalTicks);
     }
 
+    // ===================== 释放（关闭播放器）=====================
+
+    /// <summary>
+    /// 释放会话必须**停止并释放**音频后端：播放中关窗（按 ESC）不能留下音乐继续播。
+    /// </summary>
+    /// <remarks>
+    /// <b>回归测试</b>：<see cref="PlaybackSession.Dispose"/> 曾经只退订事件，
+    /// 把后端留给「调用方」释放——而实际上没有任何调用方做这件事，
+    /// 于是按 ESC 关掉播放窗口后，伴奏仍在后台一直播到曲末。
+    /// 这里断言的是「关窗之后后端确实停了且被释放」，正是用户能听见的那个现象。
+    /// </remarks>
+    [Fact]
+    public void 释放会话时停止并释放音频后端()
+    {
+        var (session, audio, _) = CreateSession(noteCount: 4);
+
+        // 走到「正在播放」状态
+        session.StartOrResume();
+        audio.RaiseReady();
+        Assert.Equal(1, audio.PlayCount);
+        Assert.True(audio.IsPlaying, "前置条件：此时应在播放");
+
+        session.Dispose();
+
+        Assert.False(audio.IsPlaying, "释放后不应仍在播放（否则关窗后音乐继续响）");
+        Assert.True(audio.StopCount >= 1, "释放时应调用过 Stop");
+        Assert.True(audio.Disposed, "释放时应释放音频后端（原生播放器与解码线程要回收）");
+    }
+
+    /// <summary>重复释放安全，且不会重复停表 / 抛异常。</summary>
+    [Fact]
+    public void 重复释放会话安全()
+    {
+        var (session, audio, _) = CreateSession(noteCount: 2);
+
+        session.Dispose();
+        var stopsAfterFirst = audio.StopCount;
+
+        session.Dispose();
+
+        Assert.Equal(stopsAfterFirst, audio.StopCount);
+        Assert.True(audio.Disposed);
+    }
+
+    /// <summary>无音频（未配伴奏）时会话释放不应抛异常。</summary>
+    [Fact]
+    public void 无音频时释放会话安全()
+    {
+        var clock = new FakeClock();
+        var session = new PlaybackSession(CreateOptions(noteCount: 2), clock, audio: null);
+
+        session.Dispose();
+        session.Dispose();
+    }
+
     // ===================== 辅助 =====================
 
     private static (PlaybackSession Session, FakeAudioBackend Audio, FakeClock Clock) CreateSession(

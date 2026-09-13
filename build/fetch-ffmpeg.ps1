@@ -48,8 +48,8 @@ if (-not $Destination -or $Destination.Count -eq 0) {
     )
 }
 
-$isWindows = $env:OS -eq 'Windows_NT' -or $IsWindows
-$names = if ($isWindows) { @('ffmpeg.exe', 'ffprobe.exe') } else { @('ffmpeg', 'ffprobe') }
+$isWindowsTarget = $env:OS -eq 'Windows_NT' -or $IsWindows
+$names = if ($isWindowsTarget) { @('ffmpeg.exe', 'ffprobe.exe') } else { @('ffmpeg', 'ffprobe') }
 
 function Test-AllPresent {
     param([string]$Directory)
@@ -88,7 +88,7 @@ $sourceRoot = $SourceDirectory
 
 try {
     if (-not $sourceRoot) {
-        if (-not $isWindows) {
+        if (-not $isWindowsTarget) {
             Write-Host '本脚本的自动下载仅支持 Windows。'
             Write-Host '请用系统包管理器安装 ffmpeg，然后用 -SourceDirectory 指向其所在目录：'
             Write-Host '  pwsh -File build/fetch-ffmpeg.ps1 -SourceDirectory /usr/bin'

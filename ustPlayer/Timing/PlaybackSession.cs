@@ -266,7 +266,7 @@ internal sealed class PlaybackSession : IDisposable
     }
 
     /// <summary>
-    /// 释放会话：退订音频事件并标记为已释放。
+    /// 释放会话：退订音频事件、**停止并释放音频后端**，然后标记为已释放。
     /// </summary>
     /// <remarks>
     /// <para>
@@ -275,12 +275,16 @@ internal sealed class PlaybackSession : IDisposable
     /// 直接移植会漏掉退订而形成泄漏。
     /// </para>
     /// <para>
-    /// <b>不释放音频后端</b>：其所有权归宿主（宿主可能与其他组件共享同一后端）。
-    /// 本方法只做退订。
+    /// <b>音频后端由本会话释放</b>：后端在构造时传入、只被本会话使用（一对一），
+    /// 因此所有权随会话走。这里曾经写的是「不释放，所有权归宿主（宿主可能共享后端）」，
+    /// 但实际上**没有任何宿主释放过它**，那个「可能共享」的假设也从未成立——
+    /// 后果是播放中按 ESC 关窗后，音乐仍在后台一直播到曲末。
     /// </para>
     /// </remarks>
     public void Dispose()
     {
+        IAudioBackend? audio;
+
         lock (_syncRoot)
         {
             if (_disposed)
@@ -289,13 +293,34 @@ internal sealed class PlaybackSession : IDisposable
             }
 
             _disposed = true;
+            audio = _audio;
 
-            if (_audio is not null)
+            if (audio is not null)
             {
-                _audio.Ready -= OnAudioReady;
-                _audio.Ended -= OnAudioEnded;
-                _audio.Failed -= OnAudioFailed;
+                audio.Ready -= OnAudioReady;
+                audio.Ended -= OnAudioEnded;
+                audio.Failed -= OnAudioFailed;
             }
+        }
+
+        // 停止与释放在锁外做：Stop 会同步进 libvlc，持锁做外部调用容易拖住音频回调线程
+        if (audio is null)
+        {
+            return;
+        }
+
+        try
+        {
+            audio.Stop();
+        }
+        catch (Exception)
+        {
+            // 释放路径上不抛：停不下来也不该妨碍后面的释放
+        }
+        finally
+        {
+            // 无论 Stop 是否抛都要释放：否则原生播放器与解码线程会一直留着
+            audio.Dispose();
         }
     }
 

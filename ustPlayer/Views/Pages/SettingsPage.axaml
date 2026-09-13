@@ -29,11 +29,15 @@
     文本一律在 code-behind 用 Translator.Tr(...) 赋值。
   -->
   <ScrollViewer>
-    <StackPanel Margin="24,4,24,24">
+    <StackPanel Margin="24,4,24,24"
+                controls:PageIntroAnimation.IsEnabled="True">
 
       <!-- ===================== 关于软件 ===================== -->
       <TextBlock x:Name="AboutHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="AboutRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="BulletList" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <Button x:Name="CopyrightButton" Click="OnOpenBilibiliClick" />
         </fa:SettingsExpander.Footer>
@@ -53,6 +57,9 @@
       <!-- ===================== 外部工具与纠错 ===================== -->
       <TextBlock x:Name="ToolsHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="ErcodeRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="Repair" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button x:Name="UtaFormatixButton" Content="UtaFormatix" Click="OnOpenUtaFormatixClick" />
@@ -64,6 +71,9 @@
       <!-- ===================== 工程缓存 ===================== -->
       <TextBlock x:Name="CacheHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="CacheRow" Description="{Binding CacheUsageText}">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="Delete" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <Button x:Name="ClearCacheButton" Click="OnClearCacheClick" />
         </fa:SettingsExpander.Footer>
@@ -72,6 +82,9 @@
       <!-- ===================== 日志 ===================== -->
       <TextBlock x:Name="LogHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="LogRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="Document" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <Button x:Name="OpenLogButton" Click="OnOpenLogClick" />
         </fa:SettingsExpander.Footer>
@@ -81,6 +94,9 @@
       <TextBlock x:Name="ThemeHeader" Classes="settingsSectionHeader" />
 
       <fa:SettingsExpander x:Name="ThemeModeRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="WeatherSunny" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <ComboBox x:Name="ThemeModeCombo" MinWidth="140"
                     ItemsSource="{Binding ThemeModeChoice.Options}"
@@ -90,6 +106,9 @@
       </fa:SettingsExpander>
 
       <fa:SettingsExpander x:Name="AccentModeRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="ColorFill" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <StackPanel Orientation="Horizontal" Spacing="10">
             <ComboBox x:Name="AccentModeCombo" MinWidth="140"
@@ -112,6 +131,9 @@
       </fa:SettingsExpander>
 
       <fa:SettingsExpander x:Name="WindowEffectRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="ColorBackground" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <ComboBox x:Name="WindowEffectCombo" MinWidth="140"
                     ItemsSource="{Binding WindowEffectChoice.Options}"
@@ -123,6 +145,9 @@
       <!-- ===================== 语言 ===================== -->
       <TextBlock x:Name="LanguageHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="LanguageRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="Globe" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <ComboBox x:Name="LanguageCombo" MinWidth="180"
                     ItemsSource="{Binding LanguageChoice.Options}"
@@ -134,6 +159,9 @@
       <!-- ===================== 协议与许可 ===================== -->
       <TextBlock x:Name="LicenseHeader" Classes="settingsSectionHeader" />
       <fa:SettingsExpander x:Name="LicenseRow">
+        <fa:SettingsExpander.IconSource>
+          <fa:SymbolIconSource Symbol="ProtectedDocument" />
+        </fa:SettingsExpander.IconSource>
         <fa:SettingsExpander.Footer>
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button x:Name="TermsButton" Click="OnOpenTermsClick" />

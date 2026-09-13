@@ -96,9 +96,11 @@ jobs:
       - name: 获取内置 FFmpeg
         shell: pwsh
         # 渲染器编码 MP4 本身就依赖 ffmpeg（只从 PATH 查找），因此导出集成测试需要它。
-        # 缺失时本步骤以 0 退出，导出集成测试随后**明确失败**——同样是不静默跳过。
+        #
+        # **刻意不挂 continue-on-error**：曾经挂着它，结果脚本因只读变量报错时
+        # 这一步仍显示 ✓，失败被推到最后才在下游测试里以「未找到 ffmpeg」现形，
+        # 根因（脚本自己挂了）反而看不见。让它在原地失败，定位成本低得多。
         run: ./build/fetch-ffmpeg.ps1
-        continue-on-error: true
 
       - name: 还原
         run: dotnet restore UstPlayer.slnx
@@ -216,8 +218,8 @@ jobs:
 
       - name: 获取内置 FFmpeg
         shell: pwsh
+        # 同 windows 作业：不挂 continue-on-error，失败要在原地可见
         run: ./build/fetch-ffmpeg.ps1
-        continue-on-error: true
 
       # publish.ps1 会逐项校验产物里该有的文件（可执行文件、三份 .ts、
       # ERcode.txt / Terms.txt / LICENSE、Windows 上的渲染器与 ffmpeg），缺一个就失败。
@@ -278,8 +280,8 @@ jobs:
       - name: 获取内置 FFmpeg
         shell: pwsh
         # 发版产物要自带 ffmpeg（导出视频依赖它），publish.ps1 会校验它在不在。
+        # 不挂 continue-on-error：发版产物缺 ffmpeg 是硬失败，不该往下走。
         run: ./build/fetch-ffmpeg.ps1
-        continue-on-error: true
 
       # 标签名直接当版本号传进程序集
       - name: 打包并校验产物
