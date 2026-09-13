@@ -96,74 +96,6 @@ public class RenderBufferBlitTests
         Assert.Contains(pixels, value => value != 0);
     }
 
-    /// <summary>
-    /// 「渲染 + 拷入位图」的单帧总耗时应在 60fps 预算内。
-    /// </summary>
-    /// <remarks>
-    /// 测的是 1920×1080：这是播放器的目标分辨率（4K 屏按 ADR 0001 的决策降到此值再放大）。
-    /// 阈值取整个 16.6ms 预算而非 Spike 0a 的 8ms 判定线——CI 机器可能明显慢于开发机，
-    /// 这里要守住的是「能不能实时」，而不是复现开发机的性能数字。
-    /// </remarks>
-    [AvaloniaFact]
-    public void 渲染加上传应在六十帧预算内()
-    {
-        RequireNativeRenderer();
-
-        const int Width = 1920;
-        const int Height = 1080;
-        const int Frames = 240;
-        const int WarmupFrames = 20;
-
-        using var context = UplRenderContext.Create();
-        context.SetConfig(BuildConfig(Width, Height));
-        context.SetUstText(BuildUstJson(notes: 500));
-
-        using var bitmap = new WriteableBitmap(
-            new PixelSize(Width, Height),
-            new Vector(96, 96),
-            RendererPixelFormat.BitmapFormat,
-            RendererPixelFormat.BitmapAlphaFormat);
-
-        // 复用同一份缓冲，避免把每帧分配算进耗时
-        var pixels = new byte[RendererPixelFormat.BufferSize(Width, Height)];
-        var renderTimes = new List<double>(Frames);
-        var blitTimes = new List<double>(Frames);
-
-        for (var i = 0; i < Frames + WarmupFrames; i++)
-        {
-            var elapsed = i / 60.0;
-
-            var start = System.Diagnostics.Stopwatch.GetTimestamp();
-            context.RenderToBuffer(elapsed, pixels, Width, Height);
-            var afterRender = System.Diagnostics.Stopwatch.GetTimestamp();
-
-            Blit(bitmap, pixels);
-            var afterBlit = System.Diagnostics.Stopwatch.GetTimestamp();
-
-            // 预热帧计入渲染器内部的首次字体加载与缓存构建，不计入统计
-            if (i < WarmupFrames)
-            {
-                continue;
-            }
-
-            renderTimes.Add(ToMilliseconds(afterRender - start));
-            blitTimes.Add(ToMilliseconds(afterBlit - afterRender));
-        }
-
-        var total = renderTimes.Zip(blitTimes, (render, blit) => render + blit).ToArray();
-        var meanTotal = total.Average();
-        var p95Total = Percentile(total, 95);
-
-        _output.WriteLine($"分辨率 {Width}x{Height}，采样 {Frames} 帧");
-        _output.WriteLine($"渲染    mean {renderTimes.Average():F2} ms / p95 {Percentile(renderTimes.ToArray(), 95):F2} ms");
-        _output.WriteLine($"上传    mean {blitTimes.Average():F2} ms / p95 {Percentile(blitTimes.ToArray(), 95):F2} ms");
-        _output.WriteLine($"合计    mean {meanTotal:F2} ms / p95 {p95Total:F2} ms（预算 {FrameBudgetMs:F2} ms）");
-
-        Assert.True(
-            p95Total <= FrameBudgetMs,
-            $"「渲染 + 上传」p95 = {p95Total:F2} ms，超出 60fps 预算 {FrameBudgetMs:F2} ms");
-    }
-
     /// <summary>把渲染器输出拷入位图帧缓冲（与宿主播放器的做法一致）。</summary>
     /// <param name="bitmap">目标位图。</param>
     /// <param name="pixels">渲染器输出（RGBA8888 预乘，行距紧凑）。</param>
@@ -172,7 +104,7 @@ public class RenderBufferBlitTests
     /// <c>RowBytes == 宽度 × 4</c>，可整块拷贝；仍显式校验行距，
     /// 以免将来换成非紧凑格式时**静默**画出错位的画面。
     /// </remarks>
-    private static unsafe void Blit(WriteableBitmap bitmap, byte[] pixels)
+    internal static unsafe void Blit(WriteableBitmap bitmap, byte[] pixels)
     {
         using var framebuffer = bitmap.Lock();
 
@@ -202,7 +134,7 @@ public class RenderBufferBlitTests
         return sorted[Math.Clamp(index, 0, sorted.Length - 1)];
     }
 
-    private static string BuildConfig(int width, int height)
+    internal static string BuildConfig(int width, int height)
     {
         var parameters = new PlayerLaunchParams
         {
@@ -215,7 +147,7 @@ public class RenderBufferBlitTests
         return RenderConfig.Build(parameters, width, height, fps: 60);
     }
 
-    private static string BuildUstJson(int notes) => RenderConfig.BuildUstJson(BuildUst(notes));
+    internal static string BuildUstJson(int notes) => RenderConfig.BuildUstJson(BuildUst(notes));
 
     private static UstInfo BuildUst(int notes)
     {

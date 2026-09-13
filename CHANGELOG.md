@@ -1,5 +1,9 @@
 # 2.0.0 Alpha 1
 
+> [!WARNING]
+>
+> 我们不推荐您在日常环境和生产环境中使用本版本，请使用[1.0.0](https://github.com/ustPlayerDevelop-OperateTeam/ustPlayer/releases/tag/1.0.0)版本！
+
 > [!IMPORTANT]
 > **ustPlayer 2.0.0 Alpha 1 是把整个程序从 Python / PySide6 重写为 C# / .NET 10 + Avalonia 11 的迁移版本。**
 > 界面、播放与视频导出的行为以 1.1.x 为基准对齐；设置文件与 `.uplr` / `.uprd` 工程格式保持兼容。
