@@ -101,11 +101,13 @@ else {
     Write-Host "未找到日志文件：$logPath"
 }
 
+# 播放器画面是**自绘**的（见 ViewModels/../Views/Rendering/PlayerCanvasRenderer.cs），
+# 不再经过 uPlRender 渲染器，因此这里断言的是自绘链路的两条日志。
+# 曾经断言「播放器帧合成器就绪 + 首帧已渲染」——那是把画面交给渲染器出帧时的标记。
 $markers = @(
     '已进入直接播放模式',
-    '播放器帧合成器就绪',
     '播放器已启动',
-    '首帧已渲染'
+    '首帧已绘制'
 )
 
 $missing = @()
@@ -133,7 +135,7 @@ $endedEarly = $exited -or
     $newLog.Contains('播放器已关闭')
 
 if ($missing.Count -eq 0 -and $errors.Count -eq 0 -and -not $endedEarly) {
-    Write-Host '播放链路验证通过：UST 解析 → 渲染器就绪 → 播放窗口已显示 → 首帧已渲染 → 播放进行中'
+    Write-Host '播放链路验证通过：UST 解析 → 播放窗口已显示 → 首帧已自绘 → 播放进行中'
     Remove-Item $ustDir -Recurse -Force -ErrorAction SilentlyContinue
     exit 0
 }

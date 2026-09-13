@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -56,6 +57,9 @@ internal sealed class PlayerFrameCompositor : IDisposable
     private byte[] _buffer = [];
 
     private bool _disposed;
+
+    /// <summary>【临时诊断】是否已导出过一帧。</summary>
+    private bool _frameDumped;
 
     /// <summary>创建帧合成器（尚未分配缓冲）。</summary>
     /// <param name="renderer">渲染上下文（调用方负责其生命周期）。</param>
@@ -263,9 +267,57 @@ internal sealed class PlayerFrameCompositor : IDisposable
 
         EnsureTargetSize(viewWidth, viewHeight);
         _renderer.RenderToBuffer(state.ElapsedSeconds, _buffer, RenderWidth, RenderHeight);
+
+        // 【临时诊断】把渲染器真实输出的帧落盘，用于判断「画面全黑」是渲染器的问题
+        // 还是显示链路的问题（PrintWindow 对 DirectComposition 窗口可能只抓到黑图）
+        DumpFrameForDiagnostics(state.ElapsedSeconds);
+
         Blit();
 
         return new ComposedFrame(_bitmap!, state);
+    }
+
+    /// <summary>【临时诊断】把当前帧缓冲写成 PPM（P6）文件。</summary>
+    /// <param name="seconds">当前播放位置（秒）。</param>
+    /// <remarks>
+    /// PPM 无需任何图像库即可写出，转换与查看都容易。仅在设置了
+    /// <c>USTPLAYER_DUMP_FRAME</c> 时生效，写完一个文件后即停止（避免每帧写盘）。
+    /// </remarks>
+    private void DumpFrameForDiagnostics(double seconds)
+    {
+        if (_frameDumped || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("USTPLAYER_DUMP_FRAME")))
+        {
+            return;
+        }
+
+        _frameDumped = true;
+
+        try
+        {
+            var path = Environment.GetEnvironmentVariable("USTPLAYER_DUMP_FRAME");
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                path = Path.Combine(Path.GetTempPath(), "ustplayer-frame.ppm");
+            }
+
+            using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
+            var header = System.Text.Encoding.ASCII.GetBytes($"P6\n{RenderWidth} {RenderHeight}\n255\n");
+            stream.Write(header);
+
+            // 渲染器是 BGRA（见 RendererPixelFormat），PPM 要 RGB
+            for (var i = 0; i + 3 < _buffer.Length; i += 4)
+            {
+                stream.WriteByte(_buffer[i + 2]);
+                stream.WriteByte(_buffer[i + 1]);
+                stream.WriteByte(_buffer[i]);
+            }
+
+            AppLogger.Info($"【诊断】已导出播放帧：{path}（{RenderWidth}x{RenderHeight}，位置 {seconds:F2} 秒）");
+        }
+        catch (Exception exception)
+        {
+            AppLogger.Warning($"【诊断】导出播放帧失败：{exception.Message}");
+        }
     }
 
     /// <summary>按给定窗口尺寸确保位图与缓冲就绪（尺寸变化时重建）。</summary>
@@ -363,53 +415,11 @@ internal sealed class PlayerFrameCompositor : IDisposable
         _bitmap?.Dispose();
     }
 
-    /// <summary>构造会话选项（把设置与播放参数映射为时序配置）。</summary>
+    /// <summary>构造会话选项（映射规则与会话工厂共用一份，见 PlaybackSessionFactory）。</summary>
     /// <param name="parameters">播放参数。</param>
     /// <returns>会话选项。</returns>
-    private static PlaybackSessionOptions CreateSessionOptions(PlayerLaunchParams parameters)
-    {
-        var text = new PlaybackTextOptions(
-            ParseSilentMode(parameters.Style.SilentDisplay),
-            parameters.Style.SilentCustomText,
-            ParseEndMode(parameters.Style.EndDisplay),
-            parameters.Style.EndCustomText,
-            ParsePitchMode(parameters.Style.PitchPlaceholder),
-            parameters.Style.PitchCustomText);
-
-        return new PlaybackSessionOptions(parameters.Ust.Tempo, parameters.Ust.Notes, text);
-    }
-
-    /// <summary>把存储层稳定 key 映射为静默显示方式。</summary>
-    /// <param name="key">稳定 key。</param>
-    /// <returns>显示方式。</returns>
-    private static SilentDisplayMode ParseSilentMode(string key) => key switch
-    {
-        "r" => SilentDisplayMode.Rest,
-        "dash" => SilentDisplayMode.Dash,
-        "custom" => SilentDisplayMode.Custom,
-        _ => SilentDisplayMode.None,
-    };
-
-    /// <summary>把存储层稳定 key 映射为结束显示方式。</summary>
-    /// <param name="key">稳定 key。</param>
-    /// <returns>显示方式。</returns>
-    private static EndDisplayMode ParseEndMode(string key) => key switch
-    {
-        "end" => EndDisplayMode.End,
-        "dash" => EndDisplayMode.Dash,
-        "custom" => EndDisplayMode.Custom,
-        _ => EndDisplayMode.None,
-    };
-
-    /// <summary>把存储层稳定 key 映射为音名占位符方式。</summary>
-    /// <param name="key">稳定 key。</param>
-    /// <returns>占位符方式。</returns>
-    private static PitchPlaceholderMode ParsePitchMode(string key) => key switch
-    {
-        "dash" => PitchPlaceholderMode.Dash,
-        "custom" => PitchPlaceholderMode.Custom,
-        _ => PitchPlaceholderMode.None,
-    };
+    private static PlaybackSessionOptions CreateSessionOptions(PlayerLaunchParams parameters) =>
+        PlaybackSessionFactory.CreateOptions(parameters);
 
     /// <summary>把解析好的歌词行还原为渲染器需要的 LRC 文本。</summary>
     /// <param name="lines">歌词行。</param>

@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:rendering="using:UstPlayer.Views.Rendering"
         x:Class="UstPlayer.Views.PlayerWindow"
         Title="ustPlayer"
         Background="Black"
@@ -8,12 +9,12 @@
         Topmost="True">
 
   <!--
-    全屏播放器：画面完全来自渲染器出帧（见 docs/adr-0001-renderer-strategy.md），
-    因此这里只有一个 Image —— 文字、音高曲线、歌词都由渲染器画好。
-    Stretch=Fill：渲染尺寸已按窗口尺寸 clamp，直接铺满即可。
+    全屏播放器：画面由**播放器自己绘制**（版式见 Views/Rendering/PlayerCanvasRenderer.cs）。
+
+    刻意不经过 uPlRender 渲染器：渲染器是为视频导出设计的，其版式与 1.1.x
+    播放器的观感不一致（实测音名与歌字重叠、缺少播放器应有的布局）。
+    播放器画面是播放器自己的职责，渲染器只留给导出。
   -->
-  <Image Name="FrameImage"
-         Stretch="Fill"
-         RenderOptions.BitmapInterpolationMode="HighQuality" />
+  <rendering:PlayerCanvas Name="Canvas" />
 
 </Window>

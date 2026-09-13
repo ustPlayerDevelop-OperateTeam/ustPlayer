@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 
 using UstPlayer.Diagnostics;
@@ -12,17 +14,25 @@ using UstPlayer.Models;
 using UstPlayer.Platform;
 using UstPlayer.Settings;
 using UstPlayer.Timing;
+using UstPlayer.Views.Rendering;
 
 namespace UstPlayer.Views;
 
 /// <summary>
-/// 全屏播放窗口 — 把帧合成器的输出显示出来，并驱动帧循环。
+/// 全屏播放器 —— 自绘画面，并驱动帧循环。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 本类刻意保持**很薄**：画面由 <see cref="PlayerFrameCompositor"/> 产出，
-/// 时序与文字规则在 <see cref="PlaybackSession"/>，
-/// 这里只负责窗口、定时器、键盘与关闭时机。
+/// <b>画面由本窗口自己画</b>（<see cref="PlayerCanvasRenderer"/> 按 1.1.x 的
+/// <c>paintEvent</c> 版式绘制到 <see cref="PlayerCanvas"/> 上），
+/// **不经过 uPlRender 渲染器**：渲染器是为视频导出设计的，它的版式与 1.1.x
+/// 播放器的观感不一致（实测音名与歌字重叠、缺少播放器应有的布局）。
+/// 播放器画面属于播放器自己的职责，渲染器只留给导出。
+/// </para>
+/// <para>
+/// 本类刻意保持**薄**：时序与文字规则在 <see cref="PlaybackSession"/>，
+/// 版式在 <see cref="PlayerCanvasRenderer"/>，这里只负责窗口、定时器、
+/// 键盘，以及把「会话状态 + 设置」组装成每一帧的快照。
 /// </para>
 /// <para>
 /// 与 1.1.x <c>NotePlayerLauncher</c> 相同的教训：<b>窗口标志必须在显示之前设好</b>，
@@ -33,7 +43,7 @@ namespace UstPlayer.Views;
 /// </remarks>
 internal sealed partial class PlayerWindow : Window
 {
-    /// <summary>帧间隔：约 60fps。</summary>
+    /// <summary>帧间隔：约 60fps（与 1.1.x 的定时器节奏一致）。</summary>
     private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(16);
 
     /// <summary>结束文字显示时长（对应 1.1.x 的 1 秒）。</summary>
@@ -46,11 +56,9 @@ internal sealed partial class PlayerWindow : Window
     /// </remarks>
     private static readonly TimeSpan FirstAudioCheckDelay = TimeSpan.FromMilliseconds(200);
 
-    /// <summary>初始渲染尺寸上限的兜底值（拿不到屏幕信息时用）。</summary>
-    private const int FallbackViewWidth = 1920;
-
-    /// <summary>初始渲染尺寸上限的兜底值。</summary>
-    private const int FallbackViewHeight = 1080;
+    /// <summary>版权文案（1.1.x 同款）。</summary>
+    private static readonly string CopyrightText =
+        $"Presented with {AppInfo.Name} - {AppInfo.Version}";
 
     private readonly DispatcherTimer _frameTimer;
     private readonly DispatcherTimer _closeTimer;
@@ -58,7 +66,13 @@ internal sealed partial class PlayerWindow : Window
     /// <summary>音频看门狗定时器：等就绪 / 等播放开始，超限则降级为墙钟计时。</summary>
     private readonly DispatcherTimer _audioWatchdogTimer;
 
-    private PlayerFrameCompositor? _compositor;
+    private PlaybackSession? _session;
+    private PlayerLaunchParams? _parameters;
+    private SettingsManager? _settings;
+
+    /// <summary>已解析的 LRC 歌词行（可能为空）。</summary>
+    private IReadOnlyList<LrcLine> _lrcLines = [];
+
     private bool _suspended;
     private bool _closing;
     private bool _firstFrameLogged;
@@ -89,7 +103,6 @@ internal sealed partial class PlayerWindow : Window
     /// <param name="lrcLines">已解析的歌词行。</param>
     /// <param name="audio">音频后端；为 <see langword="null"/> 时走纯可视化计时。</param>
     /// <returns>播放窗口。</returns>
-    /// <exception cref="RendererException">渲染器缺失或配置失败。</exception>
     internal static PlayerWindow Show(
         PlayerLaunchParams parameters,
         SettingsManager settings,
@@ -99,28 +112,64 @@ internal sealed partial class PlayerWindow : Window
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(settings);
 
-        var window = new PlayerWindow();
-        var (viewWidth, viewHeight) = window.EstimateViewSize();
+        var window = new PlayerWindow
+        {
+            _parameters = parameters,
+            _settings = settings,
+            _lrcLines = lrcLines ?? [],
+        };
 
-        window._compositor = PlayerFrameCompositor.Create(
-            parameters, settings, lrcLines, new SystemClock(), audio, viewWidth, viewHeight);
+        // 会话直接由工厂创建：播放器不再需要渲染器（画面自绘）
+        window._session = PlaybackSessionFactory.Create(parameters, new SystemClock(), audio);
 
-        window.FrameImage.Source = window._compositor.Bitmap;
+        // 字体族来自显示设置（空则用默认）；音名与歌字分槽，与 1.1.x 的字体槽一致
+        window.Canvas.FontFamilyName = ResolveFontFamily(parameters.Show.FontNote);
 
         // 先设好窗口标志（XAML 已声明）再显示：全屏与置顶在显示后调整会漏出边角
         window.Show();
 
         // 时间轴零点锚在「窗口已显示」这一刻（创建到显示之间的几百毫秒不应被计入播放）
-        window._compositor.Start();
+        window._session.StartOrResume();
         window._frameTimer.Start();
 
         // 音频看门狗必须有人周期性驱动，否则伴奏永远不会开始播
         // （曾经漏了这一步：音频一次都没响过，而单元测试全绿）
         window._audioWatchdogTimer.Start();
 
-        AppLogger.Info($"播放器已启动（初始渲染尺寸 {viewWidth}x{viewHeight}）");
+        window.RenderFrame();
+
+        AppLogger.Info(
+            $"播放器已启动（画面自绘，窗口 {window.ClientSize.Width:F0}x{window.ClientSize.Height:F0}）");
 
         return window;
+    }
+
+    /// <summary>
+    /// 解析字体族：设置为空或本机没有该字体时回退默认。
+    /// </summary>
+    /// <param name="configured">设置里的字体族名。</param>
+    /// <returns>可用的字体族名；用默认时返回 <see langword="null"/>。</returns>
+    /// <remarks>
+    /// Avalonia 没有运行时字体注册 API（见 <c>docs/plan-deviations.md</c> D9），
+    /// 因此这里只做「名字可用就用、否则回默认」，不假装能加载字体文件。
+    /// </remarks>
+    private static string? ResolveFontFamily(string? configured)
+    {
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return null;
+        }
+
+        try
+        {
+            return FontManager.Current.TryGetGlyphTypeface(new Typeface(configured), out _)
+                ? configured
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -134,7 +183,7 @@ internal sealed partial class PlayerWindow : Window
     /// </remarks>
     private void OnAudioWatchdogTick(object? sender, EventArgs e)
     {
-        if (_compositor is null || _closing)
+        if (_session is null || _closing)
         {
             _audioWatchdogTimer.Stop();
             return;
@@ -143,35 +192,28 @@ internal sealed partial class PlayerWindow : Window
         // 先停下：本次检查若判断还需再等，回调里会按新间隔重新启动
         _audioWatchdogTimer.Stop();
 
-        // 间隔从合成器取（与会话配置同源），不在窗口里另写一份常量
-        _audioWatchdogTimer.Interval = _compositor.WatchdogInterval;
+        // 间隔与会话配置同源，不在窗口里另写一份常量
+        _audioWatchdogTimer.Interval = WatchdogInterval;
 
         try
         {
-            var retry = _compositor.CheckAudioReady(new DispatcherPlaybackScheduler(_audioWatchdogTimer));
+            var retry = CheckAudioReady();
 
             // 播放真正开始后收工。不能一发出 Play() 就停表——那是异步的，
             // 而定时器一旦启动没人取消，3 秒后就会带着过期状态再检查一次，
             // 把正常播放的音乐误判成「已加载但没播」并掐掉（实测正是如此）。
-            var done = !retry && (_compositor.IsAudioPlaying || !_compositor.IsAudioHealthy);
+            var done = !retry && (_session.IsAudioPlaying || !_session.IsAudioHealthy);
 
-            // 把「音频到底有没有在驱动时间轴」写进日志：这条链路出问题时的表现是
-            // 「画面在动但没有声音」，从界面上分不出是「没配伴奏」「后端失败」还是
-            // 「看门狗没接线」——只有日志能区分，因此把后端状态一并写出来
             AppLogger.Info(
                 $"音频看门狗：{(retry ? "仍在等待" : "已结束检查")}，"
-                + $"音频{(_compositor.IsAudioHealthy ? "在驱动时间轴" : "已降级为墙钟计时")}"
+                + $"音频{(_session.IsAudioHealthy ? "在驱动时间轴" : "已降级为墙钟计时")}"
                 + $"，{(done ? "停止检查" : "继续检查")}"
-                + $"（{_compositor.AudioState ?? "无伴奏后端"}）");
+                + $"（{_session.AudioState ?? "无伴奏后端"}）");
 
             if (done)
             {
                 _audioWatchdogTimer.Stop();
             }
-        }
-        catch (ObjectDisposedException)
-        {
-            _audioWatchdogTimer.Stop();
         }
         catch (Exception exception)
         {
@@ -181,97 +223,67 @@ internal sealed partial class PlayerWindow : Window
         }
     }
 
+    /// <summary>看门狗重试间隔（与会话配置同源，见会话工厂）。</summary>
+    private static TimeSpan WatchdogInterval => TimeSpan.FromMilliseconds(3000);
+
     /// <summary>
-    /// 在显示之前估算窗口内容尺寸，用于决定初始渲染分辨率。
+    /// 驱动会话的音频看门狗一次，必要时预约下一次。
     /// </summary>
-    /// <returns>估算的内容尺寸（像素）。</returns>
-    /// <remarks>
-    /// 全屏窗口在 <c>Show()</c> 之前拿不到最终客户区尺寸，这里按主屏的**物理像素**估算；
-    /// 首帧之后 <see cref="PlayerFrameCompositor"/> 会按真实客户区尺寸自行修正。
-    /// </remarks>
-    private (int Width, int Height) EstimateViewSize()
+    /// <returns>是否已预约下一次检查。</returns>
+    private bool CheckAudioReady()
     {
-        try
+        if (_session is null)
         {
-            var primary = Screens.Primary;
-            if (primary is not null)
-            {
-                var scaling = primary.Scaling <= 0 ? 1.0 : primary.Scaling;
-                var width = (int)Math.Round(primary.Bounds.Width * scaling);
-                var height = (int)Math.Round(primary.Bounds.Height * scaling);
-
-                if (width > 0 && height > 0)
-                {
-                    return (width, height);
-                }
-            }
-        }
-        catch (Exception exception)
-        {
-            AppLogger.Warning($"读取主屏尺寸失败，使用兜底值：{exception.Message}");
+            return false;
         }
 
-        return (FallbackViewWidth, FallbackViewHeight);
+        var retry = false;
+
+        _session.CheckAudioReady(delay =>
+        {
+            retry = true;
+            _audioWatchdogTimer.Interval = delay;
+            _audioWatchdogTimer.Start();
+        });
+
+        return retry;
     }
 
-    /// <summary>当前窗口内容尺寸（像素），已按渲染器的 DPI 缩放换算。</summary>
-    /// <returns>内容尺寸。</returns>
-    private (int Width, int Height) CurrentViewSize()
-    {
-        var size = ClientSize;
-        var scaling = RenderScaling <= 0 ? 1.0 : RenderScaling;
-
-        var width = (int)Math.Round(size.Width * scaling);
-        var height = (int)Math.Round(size.Height * scaling);
-
-        if (width <= 0 || height <= 0)
-        {
-            return (FallbackViewWidth, FallbackViewHeight);
-        }
-
-        return (width, height);
-    }
-
-    /// <summary>推进一帧并刷新画面。</summary>
+    /// <summary>推进一帧并重绘。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>
     private void OnFrameTick(object? sender, EventArgs e)
     {
-        if (_compositor is null || _closing)
+        if (_session is null || _closing)
         {
             return;
         }
 
         try
         {
-            var (width, height) = CurrentViewSize();
-            var frame = _compositor.Advance(width, height);
+            var state = _session.Advance();
 
-            // 位图可能因尺寸变化被重建，需要重新绑定
-            if (!ReferenceEquals(FrameImage.Source, frame.Bitmap))
-            {
-                FrameImage.Source = frame.Bitmap;
-            }
+            RenderFrame(state);
 
             if (!_firstFrameLogged)
             {
-                // 只记一次：证明渲染器真的出了帧并拷进了位图。
+                // 只记一次：证明画面真的画出来了。
                 // 部署验证（build/verify-player-launch.ps1）依赖这条日志——
                 // 没有它，「窗口开着但一帧都没画出来」会被误判为通过。
                 _firstFrameLogged = true;
-                AppLogger.Info($"首帧已渲染（{_compositor.RenderWidth}x{_compositor.RenderHeight}）");
+                AppLogger.Info(
+                    $"首帧已绘制（自绘 {ClientSize.Width:F0}x{ClientSize.Height:F0}）");
             }
 
-            if (frame.State.IsPlayerFinished)
+            if (state.IsPlayerFinished)
             {
                 // 结束画面已画出：停帧、停留 1 秒后关闭（与 1.1.x 的时序一致）
                 _closing = true;
                 _frameTimer.Stop();
                 _closeTimer.Start();
                 AppLogger.Info(
-                    $"播放完成，1 秒后关闭窗口（位置 {frame.State.ElapsedSeconds:F2} 秒，"
-                    + $"音频到结尾时 {_compositor.AudioEndedAtSeconds?.ToString("F2") ?? "未记录"} 秒）"
-                    + $" | {_compositor.PlaybackStateDescription}");
+                    $"播放完成，1 秒后关闭窗口（位置 {state.ElapsedSeconds:F2} 秒，"
+                    + $"音频到结尾时 {_session.MediaEndedAtSeconds?.ToString("F2", CultureInfo.InvariantCulture) ?? "未记录"} 秒）");
             }
         }
         catch (ObjectDisposedException)
@@ -285,6 +297,70 @@ internal sealed partial class PlayerWindow : Window
             AppLogger.Error("播放帧渲染失败，已停止播放", exception);
             _frameTimer.Stop();
         }
+    }
+
+    /// <summary>
+    /// 按当前会话状态重绘画面。
+    /// </summary>
+    /// <param name="state">本帧时序状态；为 <see langword="null"/> 时自己推进一次。</param>
+    private void RenderFrame(PlaybackState? state = null)
+    {
+        if (_session is null || _parameters is null || _settings is null)
+        {
+            return;
+        }
+
+        state ??= _session.Advance();
+
+        // 当前音符要用来画音高曲线；会话把「当前音符」放在状态里，直接取用
+        var note = state.CurrentNote;
+
+        var snapshot = PlayerCanvasRenderer.Build(
+            _parameters.Style,
+            ProjectInfoOf(_parameters, _settings),
+            _parameters.Show,
+            state,
+            note,
+            tempo: _parameters.Ust.Tempo,
+            showPlayTime: state.Step != PlaybackEndStep.End,
+            CopyrightText);
+
+        Canvas.Snapshot = WithLrc(snapshot, state.ElapsedSeconds);
+        Canvas.InvalidateVisual();
+    }
+
+    /// <summary>取项目信息：优先用设置里的实时值（导入工程后立即反映）。</summary>
+    /// <param name="parameters">播放参数。</param>
+    /// <param name="settings">设置管理器。</param>
+    /// <returns>项目信息。</returns>
+    private static ProjectInfo ProjectInfoOf(PlayerLaunchParams parameters, SettingsManager settings) =>
+        new()
+        {
+            ProjectName = settings.Project.ProjectName,
+            SongName = settings.Project.SongName,
+            SongAuthor = settings.Project.SongAuthor,
+            UstAuthor = settings.Project.UstAuthor,
+        };
+
+    /// <summary>补上当前 LRC 歌词行。</summary>
+    /// <param name="snapshot">快照。</param>
+    /// <param name="elapsedSeconds">当前播放位置（秒）。</param>
+    /// <returns>带 LRC 文本的快照。</returns>
+    private PlayerCanvasSnapshot WithLrc(PlayerCanvasSnapshot snapshot, double elapsedSeconds)
+    {
+        if (_lrcLines.Count == 0)
+        {
+            return snapshot;
+        }
+
+        var index = LrcTimeline.FindLineIndex(_lrcLines, elapsedSeconds);
+
+        if (index < 0 || index >= _lrcLines.Count)
+        {
+            return snapshot;
+        }
+
+        return snapshot with { LrcText = _lrcLines[index].Text };
     }
 
     private void OnCloseTick(object? sender, EventArgs e)
@@ -334,7 +410,7 @@ internal sealed partial class PlayerWindow : Window
         }
     }
 
-    /// <summary>关闭时释放合成器与定时器。</summary>
+    /// <summary>关闭时释放会话与定时器。</summary>
     /// <param name="e">事件参数。</param>
     protected override void OnClosed(EventArgs e)
     {
@@ -346,13 +422,12 @@ internal sealed partial class PlayerWindow : Window
         _closeTimer.Tick -= OnCloseTick;
         _audioWatchdogTimer.Tick -= OnAudioWatchdogTick;
 
-        // 先解绑显示源再释放位图，避免渲染线程仍引用已释放的位图
-        FrameImage.Source = null;
+        // 会话释放会停止并释放音频后端（否则关窗后音乐继续播到曲末）
+        _session?.Dispose();
+        _session = null;
 
-        _compositor?.Dispose();
-        _compositor = null;
+        AppLogger.Info("播放器已关闭");
 
-        AppLogger.Info($"播放器已关闭（音频={_compositor?.AudioState ?? "已释放"}）");
         base.OnClosed(e);
     }
 }

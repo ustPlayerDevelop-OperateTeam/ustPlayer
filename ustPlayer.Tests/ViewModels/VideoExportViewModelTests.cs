@@ -240,18 +240,31 @@ public class VideoExportViewModelTests : IDisposable
         Assert.Equal(Path.Combine(_tempDirectory, "我的歌"), viewModel.OutputPath);
     }
 
-    /// <summary>项目名为空 / 全空白时用「未命名」。</summary>
+    /// <summary>项目名为空 / 全空白时回退到译文表里的名字，两侧空白被裁掉。</summary>
     /// <param name="projectName">设置里的项目名。</param>
-    /// <param name="expectedName">期望的文件名。</param>
+    /// <remarks>
+    /// <b>期望值取自 <see cref="Translator.Tr"/> 而不是写死中文</b>：
+    /// 回退名是界面文案，随语言变化（CI 是 en-US，会译成 Untitled）。
+    /// 曾经这里写死「未命名」，于是同一份代码在中文开发机上全绿、
+    /// 在 en-US 的 CI 上必红——测试不该依赖运行机器的语言。
+    /// </remarks>
     [Theory]
-    [InlineData("", "未命名")]
-    [InlineData("   ", "未命名")]
-    [InlineData("  我的歌  ", "我的歌")]
-    public void 默认输出路径用项目名或未命名(string projectName, string expectedName)
+    [InlineData("")]
+    [InlineData("   ")]
+    public void 项目名为空时用译文表的未命名(string projectName)
     {
         var path = VideoExportViewModel.DefaultOutputPath(_tempDirectory, projectName);
 
-        Assert.Equal(Path.Combine(_tempDirectory, expectedName), path);
+        Assert.Equal(Path.Combine(_tempDirectory, Translator.Tr("未命名")), path);
+    }
+
+    /// <summary>项目名两侧的空白要被裁掉（不能生成带尾随空格的文件名）。</summary>
+    [Fact]
+    public void 项目名两侧空白被裁掉()
+    {
+        var path = VideoExportViewModel.DefaultOutputPath(_tempDirectory, "  我的歌  ");
+
+        Assert.Equal(Path.Combine(_tempDirectory, "我的歌"), path);
     }
 
     /// <summary>
