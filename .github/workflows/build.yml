@@ -332,9 +332,30 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "${{ github.ref_name }}"
-          --draft
-          --title "${{ github.ref_name }}"
-          --notes-file release-notes.md
-          artifacts/*.zip
+        # 预发布标记按 tag 推导：`2.0.0-Alpha-1` / `1.1.0-Beta-2` 这类带预发布标签的
+        # 必须标成 prerelease——否则 alpha 会被当成正式版展示给用户，
+        # GitHub 甚至会把它当成「最新版本」（1.1.0 Beta 1/2 两个历史版本都是 Pre-release）。
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $isPrerelease = $tag -match '-'
+
+          if ($isPrerelease) {
+            Write-Host "「$tag」含预发布标签，标为 Pre-release"
+          } else {
+            Write-Host "「$tag」视为正式版"
+          }
+
+          $arguments = @(
+            'release', 'create', $tag,
+            '--draft',
+            '--title', $tag,
+            '--notes-file', 'release-notes.md'
+          )
+
+          if ($isPrerelease) { $arguments += '--prerelease' }
+
+          $arguments += 'artifacts/ustPlayer-win-x64.zip'
+
+          gh @arguments
+
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
