@@ -25,7 +25,7 @@
 
 ## 构建与运行
 
-主线版本（2.0）是 **C# / .NET 10 + Avalonia 11 + FluentAvalonia**，工作目录为仓库根目录：
+本分支是 **C# / .NET 10 + Avalonia 11 + FluentAvalonia**，工作目录为仓库根目录：
 
 ```powershell
 dotnet build UstPlayer.slnx -c Debug      # 构建（0 警告是硬要求）
