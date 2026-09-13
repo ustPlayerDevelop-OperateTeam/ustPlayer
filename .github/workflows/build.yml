@@ -117,22 +117,28 @@ jobs:
         # （实测同一份代码在并行套件里 p95 17.09 ms 超预算，单独跑 8.6 ms 通过）。
         # 因此 RenderPerformanceTests 默认不测，这里单独跑一次。
         #
-        # 必须断言「真的测出了数字」：它未开通时是提前返回，
+        # 必须校验「真的测出了数字」：该用例未开通时是提前返回，
         # 报告里看不出跳过——不校验就会让性能基线静默失效。
+        # 判据是测试写出的报告文件，而不是标准输出：xUnit 在用例通过时既不打印
+        # ITestOutputHelper，也会吞掉 Console 输出，靠输出判断会误判。
         env:
           USTPLAYER_RUN_PERF_TESTS: "1"
+          USTPLAYER_PERF_REPORT: ${{ github.workspace }}/artifacts/render-perf.txt
         run: |
-          $output = dotnet test ustPlayer.Tests -c Release --no-build --nologo `
-            --filter "FullyQualifiedName~RenderPerformanceTests" 2>&1
-          $output | Write-Host
+          $report = "artifacts/render-perf.txt"
+          Remove-Item $report -ErrorAction SilentlyContinue
+
+          dotnet test ustPlayer.Tests -c Release --no-build --nologo `
+            --filter "FullyQualifiedName~RenderPerformanceTests"
 
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          $joined = $output -join "`n"
-          if ($joined -notmatch '合计\s+mean') {
-            Write-Host "性能基线未真正执行：输出里没有实测数字（门禁或被过滤条件改坏了？）"
+          if (-not (Test-Path $report)) {
+            Write-Host "性能基线未真正执行：没有产出报告文件 $report（门禁或被过滤条件改坏了？）"
             exit 1
           }
+
+          Write-Host "实测结果：$(Get-Content $report -Raw)"
 
       - name: 真实窗口启动验证
         shell: pwsh

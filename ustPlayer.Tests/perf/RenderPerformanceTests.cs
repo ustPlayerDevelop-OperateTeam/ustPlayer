@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 using Avalonia;
@@ -122,17 +123,65 @@ public class RenderPerformanceTests
         var total = renderTimes.Zip(blitTimes, (render, blit) => render + blit).ToArray();
         var meanTotal = total.Average();
         var p95Total = Percentile(total, 95);
+        var renderP95 = Percentile(renderTimes.ToArray(), 95);
+        var blitP95 = Percentile(blitTimes.ToArray(), 95);
 
         _output.WriteLine($"分辨率 {Width}x{Height}，采样 {Frames} 帧");
-        _output.WriteLine(
-            $"渲染    mean {renderTimes.Average():F2} ms / p95 {Percentile(renderTimes.ToArray(), 95):F2} ms");
-        _output.WriteLine(
-            $"上传    mean {blitTimes.Average():F2} ms / p95 {Percentile(blitTimes.ToArray(), 95):F2} ms");
+        _output.WriteLine($"渲染    mean {renderTimes.Average():F2} ms / p95 {renderP95:F2} ms");
+        _output.WriteLine($"上传    mean {blitTimes.Average():F2} ms / p95 {blitP95:F2} ms");
         _output.WriteLine($"合计    mean {meanTotal:F2} ms / p95 {p95Total:F2} ms（预算 {FrameBudgetMs:F2} ms）");
+
+        // 另外把实测数字**写进文件**：xUnit 在测试通过时既不打印 ITestOutputHelper，
+        // 也会吞掉 Console 输出，因此靠标准输出无法判断「性能基线到底跑了没有」。
+        // 文件是否存在是明确的证据，不依赖任何输出转发机制。
+        WriteMeasurementFile(meanTotal, p95Total, renderP95, blitP95);
 
         Assert.True(
             p95Total <= FrameBudgetMs,
             $"「渲染 + 上传」p95 = {p95Total:F2} ms，超出 60fps 预算 {FrameBudgetMs:F2} ms");
+    }
+
+    /// <summary>
+    /// 把本次实测结果写到文件，供 CI 校验「性能基线确实执行了」。
+    /// </summary>
+    /// <param name="meanTotal">渲染 + 上传的均值（毫秒）。</param>
+    /// <param name="p95Total">渲染 + 上传的 p95（毫秒）。</param>
+    /// <param name="renderP95">渲染 p95（毫秒）。</param>
+    /// <param name="blitP95">上传 p95（毫秒）。</param>
+    /// <remarks>
+    /// 路径由 <c>USTPLAYER_PERF_REPORT</c> 指定（CI 里指向仓库的 artifacts 目录）；
+    /// 未指定时写到临时目录。写失败只记输出、不让用例失败——
+    /// 测量本身已经由上面的断言守住，这里只是给 CI 一个「跑过了」的凭据。
+    /// </remarks>
+    private void WriteMeasurementFile(double meanTotal, double p95Total, double renderP95, double blitP95)
+    {
+        try
+        {
+            var path = Environment.GetEnvironmentVariable("USTPLAYER_PERF_REPORT");
+
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                path = Path.Combine(Path.GetTempPath(), "ustplayer-render-perf.txt");
+            }
+
+            var directory = Path.GetDirectoryName(path);
+
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(
+                path,
+                $"mean={meanTotal:F2}ms p95={p95Total:F2}ms renderP95={renderP95:F2}ms "
+                + $"blitP95={blitP95:F2}ms budget={FrameBudgetMs:F2}ms");
+
+            _output.WriteLine($"实测结果已写入：{path}");
+        }
+        catch (Exception exception)
+        {
+            _output.WriteLine($"实测结果写入文件失败（不影响测量结论）：{exception.Message}");
+        }
     }
 
     private static double ToMilliseconds(long ticks) =>
