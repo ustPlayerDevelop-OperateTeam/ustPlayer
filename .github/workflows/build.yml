@@ -2,20 +2,29 @@ name: Build / Release
 
 on:
   push:
-    branches: [ "main" ]
+    # 所有分支提交都会触发构建；任何标签推送也触发（发版只走标签，见 release job）
+    branches:
+      - "**"
     tags:
-      - "v*"
+      - "**"
   pull_request:
-    branches: [ "main" ]
+    # 所有分支的 PR 都会触发构建
   workflow_dispatch:
+
+# 同一 ref 的并发运行自动取消旧的，避免连续提交时构建堆积
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ============================================================
-  # 构建：常规提交 + PR + 手动触发（pass 开头的消息跳过）
+  # 构建：所有分支提交 + PR + 手动触发（分支提交以 pass 开头跳过；tag 发版不跳过）
   # ============================================================
   build:
     if: |
-      github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'pass')
+      github.event_name != 'push' ||
+      github.ref_type == 'tag' ||
+      !startsWith(github.event.head_commit.message, 'pass')
     runs-on: windows-latest
     outputs:
       artifact_name: ${{ steps.artifact.outputs.name }}
@@ -29,21 +38,72 @@ jobs:
         shell: bash
         run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
+      - name: 记录构建产物名
+        id: artifact
+        shell: bash
+        # upload-artifact@v4 不输出 name（只有 artifact-id/artifact-url），
+        # 由本步骤显式记录，供 release job 下载主包。
+        run: echo "name=ustPlayer-${{ steps.sha.outputs.short }}-Windows" >> "$GITHUB_OUTPUT"
+
       - name: 设置 Python 3.13.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.13.12"
           architecture: "x64"
-          cache: "pip"
-          cache-dependency-path: "requirements.txt"
 
-      - name: 安装依赖
+      - name: 缓存 uv 依赖缓存
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: 安装依赖（按 uv.lock 锁定解析）
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # 项目本体必须安装，否则 Nuitka 找不到 src/ 布局下的 ustplayer 包，
-          # 产出的 exe 启动即崩（ModuleNotFoundError）
-          pip install . --no-deps
+          python -m pip install uv
+          # 从 uv.lock 导出带哈希的精确依赖，保证 CI 与本地/发版一致；
+          # 同时安装 build backend（uv_build），Nuitka 可找到 src/ 布局下的 ustplayer 包
+          uv export --locked --no-dev --format requirements-txt -o ci-requirements.txt
+          uv pip install --system -r ci-requirements.txt
+
+      - name: 运行测试
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        run: |
+          # pytest 在 dev 依赖组，CI 用 uv pip install（不解析 group），故单独安装
+          uv pip install --system pytest
+          # offscreen 平台由 tests/conftest.py 顶层设置，无显示器也能跑 Qt 测试
+          python -m pytest tests/ -v --tb=short
+
+      # ============================================================
+      # 检出并编译 uPlRender 渲染器（Rust cdylib → ustplayer_renderer.dll）
+      # 产物放到仓库根 renderer/ 目录，供下方 Nuitka include-data-files 打包
+      # ============================================================
+      - name: 检出 uPlRender 源码
+        shell: pwsh
+        run: git clone https://github.com/ustPlayerDevelop-OperateTeam/uPlRender.git "${{ runner.temp }}/uPlRender"
+
+      - name: 设置 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 uPlRender cargo 构建
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/uPlRender
+
+      - name: 编译 uPlRender 并复制渲染器 DLL
+        shell: pwsh
+        run: |
+          cargo build --release --manifest-path "${{ runner.temp }}/uPlRender/Cargo.toml"
+          $dll = Get-ChildItem "${{ runner.temp }}/uPlRender/target/release" -Filter *.dll -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) { throw "uPlRender 编译失败：未在 release 目录找到 .dll" }
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE/renderer" | Out-Null
+          Copy-Item $dll.FullName "$env:GITHUB_WORKSPACE/renderer/ustplayer_renderer.dll" -Force
+          Get-Item "$env:GITHUB_WORKSPACE/renderer/ustplayer_renderer.dll" | Select-Object Name, Length
 
       - name: 使用 Nuitka 打包
         uses: Nuitka/Nuitka-Action@main
@@ -52,17 +112,79 @@ jobs:
           nuitka-version: main
           mode: standalone
           output-file: ustPlayer
+          # 并行编译：windows-latest 为 4 vCPU
+          jobs: 4
+          # 编译增量缓存默认开启（disable-cache=false）：Action 内置
+          # actions/cache 自动恢复上次构建的 Nuitka 缓存，代码小改动时
+          # 只重编受影响的模块，大幅缩短构建时间
           include-data-files: |
             ERcode.txt=ERcode.txt
-            Terms.txt=Terms.txt
             LICENSE=LICENSE
             icon.ico=icon.ico
+            i18n/ustplayer_zh_CN.qm=i18n/ustplayer_zh_CN.qm
+            i18n/ustplayer_en_US.qm=i18n/ustplayer_en_US.qm
+            i18n/ustplayer_zh_classic.qm=i18n/ustplayer_zh_classic.qm
+            renderer/ustplayer_renderer.dll=renderer/ustplayer_renderer.dll
           windows-icon-from-ico: icon.ico
           enable-plugins: pyside6
+          # QtMultimedia 媒体后端插件（ffmpegmediaplugin.dll 等）与 FFmpeg 动态库
+          # （avcodec-61.dll / swresample-5.dll 等）由官方插件参数自动带入：
+          # 内部走 Dependency Walker 分析依赖，比手工复制更可靠（2026-08 实测
+          # Nuitka 4.2：multimedia 一键带齐 2 个 media 插件 + 5 个 FFmpeg DLL）。
+          include-qt-plugins: multimedia
           windows-console-mode: disable
 
+      # ============================================================
+      # 内置完整 FFmpeg（ffmpeg.exe / ffprobe.exe 进产物 ffmpeg/ 子目录）：
+      # 视频导出的「混流」与「伴奏时长探测」优先使用程序目录内置版本，
+      # 用户无需自行安装 FFmpeg 或配置 PATH。
+      # ============================================================
+      - name: 内置 FFmpeg 可执行文件（ffmpeg / ffprobe）
+        shell: pwsh
+        run: |
+          # 多候选源 + 每源重试：gyan.dev 主源失败时回退 BtbN 的 GitHub Release
+          # （同网络环境更稳）。curl -L 跟随重定向，-f 让 HTTP 错误返回非零退出码。
+          $urls = @(
+            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"
+          )
+          $zip = Join-Path $env:RUNNER_TEMP "ffmpeg.zip"
+          $downloaded = $false
+          foreach ($url in $urls) {
+            for ($attempt = 1; $attempt -le 2; $attempt++) {
+              Write-Host "尝试下载 FFmpeg（第 $attempt 次）：$url"
+              try {
+                & curl.exe -L -f -sS --retry 2 -o $zip $url
+                if ($LASTEXITCODE -ne 0) { throw "curl 退出码 $LASTEXITCODE" }
+                if (-not (Test-Path $zip) -or (Get-Item $zip).Length -lt 10MB) {
+                  throw "下载文件无效或过小（疑似 404/被拦截）"
+                }
+                $downloaded = $true
+                break
+              } catch {
+                Write-Warning "下载失败：$_"
+              }
+            }
+            if ($downloaded) { break }
+          }
+          if (-not $downloaded) { throw "FFmpeg 下载失败：所有候选源均不可用" }
+          $extract = Join-Path $env:RUNNER_TEMP "ffmpeg-extract"
+          if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $root = Get-ChildItem $extract -Directory |
+            Where-Object { $_.Name -like "ffmpeg-*" } | Select-Object -First 1
+          if (-not $root) { throw "FFmpeg 解压后未找到 ffmpeg-* 目录" }
+          $bin = Join-Path $root.FullName "bin"
+          $distFfmpeg = Join-Path "build/main.dist" "ffmpeg"
+          New-Item -ItemType Directory -Force -Path $distFfmpeg | Out-Null
+          Copy-Item (Join-Path $bin "ffmpeg.exe") $distFfmpeg -Force
+          Copy-Item (Join-Path $bin "ffprobe.exe") $distFfmpeg -Force
+          Write-Output "已内置 FFmpeg（来源：$url）："
+          Get-ChildItem $distFfmpeg -File | Select-Object Name, Length
+
       - name: 上传构建产物
-        id: artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: ustPlayer-${{ steps.sha.outputs.short }}-Windows
@@ -70,12 +192,37 @@ jobs:
           include-hidden-files: true
 
   # ============================================================
-  # 发版：tag 推送 或 commit 消息以 v 开头时触发
+  # 旧版 → 新版 .uplr 转换器（C++17，windows-latest 自带 MSVC）
+  # ============================================================
+  uplr-converter:
+    if: |
+      github.event_name != 'push' ||
+      github.ref_type == 'tag' ||
+      !startsWith(github.event.head_commit.message, 'pass')
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 构建转换器
+        run: |
+          cmake -S tools/uplr_converter -B build/converter
+          cmake --build build/converter --config Release
+
+      - name: 上传转换器
+        uses: actions/upload-artifact@v4
+        with:
+          name: uplr-converter-Windows
+          path: build/converter/Release/uplr_converter.exe
+
+  # ============================================================
+  # 发版：仅由标签推送触发（git tag <版本> && git push origin <版本>）；
+  # 版本号以标签为单一事实源，提交信息不再参与发版判定
   # ============================================================
   release:
-    if: |
-      (startsWith(github.ref, 'refs/tags/') || startsWith(github.event.head_commit.message, 'v')) && !startsWith(github.event.head_commit.message, 'pass')
-    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, uplr-converter]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -90,59 +237,132 @@ jobs:
           name: ${{ needs.build.outputs.artifact_name }}
           path: build/main.dist/
 
+      - name: 下载转换器
+        uses: actions/download-artifact@v4
+        with:
+          name: uplr-converter-Windows
+          path: build/converter/
+
       - name: 解析版本号
         id: ver
         shell: bash
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            tag="${{ github.ref_name }}"
-            full="${{ github.ref_name }}"
-          else
-            msg="${{ github.event.head_commit.message }}"
-            tag=$(echo "$msg" | cut -d' ' -f1)
-            full=$(echo "$msg" | tr ' ' '-')
-          fi
+          # 标签触发：标签名即版本来源（带不带 v 前缀均可，校验步骤会归一化比对）
+          tag="${{ github.ref_name }}"
+          full="${{ github.ref_name }}"
           echo "tag=${tag}" >> $GITHUB_OUTPUT
           echo "file=$(echo "${full}" | tr ' ' '-' | sed 's/Beta/beta/g; s/Alpha/alpha/g')" >> $GITHUB_OUTPUT
           echo "title=${full#v}" >> $GITHUB_OUTPUT
+          # 兼容语义化预发布标签：1.1.0b2 / v1.1.0-beta-2 / 1.1.0-rc1 等
           case "$full" in
-            *[Bb]eta*|*[Aa]lpha*) echo "prerelease=true" >> $GITHUB_OUTPUT ;;
-            *)                    echo "prerelease=false" >> $GITHUB_OUTPUT ;;
+            *[Bb]eta*|*[Aa]lpha*|*[Rr][Cc]*|*[Aa][0-9]*|*[Bb][0-9]*)
+              echo "prerelease=true" >> $GITHUB_OUTPUT ;;
+            *)
+              echo "prerelease=false" >> $GITHUB_OUTPUT ;;
           esac
 
-      - name: 从 UPDATELOG.md 提取版本信息
+      - name: 从 CHANGELOG.md 提取版本信息
         id: changelog
         run: |
+          $ErrorActionPreference = 'Stop'
           $tag = '${{ steps.ver.outputs.tag }}'
-          $content = Get-Content UPDATELOG.md -Raw -Encoding UTF8
-          if ($content -match "(?ms)^(# $tag\b[^\n]*)\n(.*?)(?=\r?\n# |\Z)") {
-              $heading = ($matches[1] -replace '^# v?', '').Trim()
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+              throw "版本号为空，无法提取更新说明。请检查「解析版本号」步骤的输出（tag/title/file）"
+          }
+          # 兼容多种小节标题写法：# v1.1.0 Beta 2 / # 1.1.0 Beta 2 / #1.1.0-Beta-2 均可匹配；
+          # (?i) 大小写不敏感：tag 写 v1.1.0-beta-2（小写）也能匹配到「# 1.1.0 Beta 2」；
+          # (?!#) 排除 ## 二级小节；(?!数字) 防止 v1.1.0 误配到 v1.1.01 之类的前缀重叠版本
+          $ver = $tag.Trim() -replace '^v', ''
+          $pattern = ([regex]::Escape($ver) -replace '-', '[ -]')
+          $content = Get-Content CHANGELOG.md -Raw -Encoding UTF8
+          if ($content -match "(?ims)^(#(?!#)[ \t]*v?$pattern(?!\d)[^\r\n]*)\r?\n(.*?)(?=\r?\n#(?!#)|\Z)") {
+              $heading = ($matches[1] -replace '^#[ \t]*v?', '').Trim()
               $section = $matches[2].Trim()
-              "Found changelog section for $tag" | Write-Host
+              "Found changelog section: $heading" | Write-Host
           } else {
-              $heading = '${{ steps.ver.outputs.title }}'
-              $section = "<!-- 未在 UPDATELOG.md 中找到 $tag 的更新说明 -->"
-              "WARNING: No changelog section found for $tag" | Write-Host
+              # 找不到对应小节：直接中止发版，绝不带着占位符/错误标题发布
+              $candidates = (Select-String -Path CHANGELOG.md -Pattern '^#(?!#)' |
+                  ForEach-Object { $_.Line.Trim() } | Select-Object -First 10) -join ' / '
+              $msg = @(
+                  "未在 CHANGELOG.md 中找到版本 $tag 对应的小节，已中止发版。",
+                  "请在 CHANGELOG.md 顶部添加小节标题（形如「# $ver」，v 前缀与连字符/空格均可），修正后重新发版。",
+                  "当前检测到的顶层标题：$candidates"
+              ) -join "`n"
+              throw $msg
           }
           $section | Set-Content changelog_body.md -Encoding UTF8
           "title=$heading" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "tag_name=$($heading -replace ' ', '-')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          # Release 直接挂在被推送的标签上（不再从标题二次派生 tag 名，避免造出第二个 tag）
+          "tag_name=${{ github.ref_name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: 打包产物
+      - name: 校验版本一致性（发版号 ↔ contracts.APP_VERSION）
+        run: |
+          # 防「提交信息/tag 版本写错」（如 v1.0.0 vs v1.1.0）：发版号必须与代码内
+          # APP_VERSION 一致（忽略 v 前缀、空格/连字符与大小写差异后比较）
+          $ErrorActionPreference = 'Stop'
+          $m = Select-String -Path src/ustplayer/core/contracts.py -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
+          if (-not $m) { throw "未能从 src/ustplayer/core/contracts.py 读取 APP_VERSION" }
+          $appVer = $m.Matches[0].Groups[1].Value.Trim()
+          $rel = '${{ steps.changelog.outputs.title }}'.Trim()
+          $norm = { param($s) (($s -replace '^[Vv]', '') -replace '[\s\-]+', '').ToLowerInvariant() }
+          if ((& $norm $appVer) -ne (& $norm $rel)) {
+              throw "版本不一致，已中止发版：contracts.APP_VERSION='$appVer'，本次发版='$rel'。请先统一 pyproject.toml / contracts.py / CHANGELOG.md 的版本号。"
+          }
+          "版本一致性校验通过: $appVer" | Write-Host
+
+      - name: 打包 ustPlayer 主包（定位产物目录后只打包其内容，不含任何外层目录）
         run: |
           $name = "ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip"
-          $files = (Get-ChildItem -Path build/main.dist -Force).FullName
-          Compress-Archive -Path $files -DestinationPath $name -Force
-          "Artifact: $name" | Write-Host
+          # download-artifact 解压后 build/main.dist 下可能嵌套一层与 artifact 同名的目录，
+          # 因此以 ustPlayer.exe 为锚定位真正的产物目录，再只打包该目录里的内容，
+          # 避免把整个 main.dist / artifact 同名目录原样打进发布包
+          $exe = Get-ChildItem -Path build/main.dist -Recurse -Filter ustPlayer.exe -File | Select-Object -First 1
+          if (-not $exe) {
+              throw "未找到 ustPlayer.exe，无法打包"
+          }
+          $dist = $exe.Directory
+          $items = @(Get-ChildItem -Path $dist -Force)
+          if ($items.Count -eq 0) {
+              throw "产物目录为空，无法打包"
+          }
+          Compress-Archive -Path $items.FullName -DestinationPath $name -Force
+          "Artifact: $name（打包自 $($dist.FullName)）" | Write-Host
 
-      - name: 创建 tag（commit 消息触发时）
-        if: github.ref_type != 'tag'
-        shell: bash
+      - name: 打包转换器（独立发布，不再并入主包）
         run: |
-          if ! git rev-parse "${{ steps.changelog.outputs.tag_name }}" >/dev/null 2>&1; then
-            git tag "${{ steps.changelog.outputs.tag_name }}"
-            git push origin "${{ steps.changelog.outputs.tag_name }}"
-          fi
+          $cname = "uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip"
+          if (-not (Test-Path "build/converter/uplr_converter.exe")) {
+              "WARNING: 未找到 uplr_converter.exe，跳过转换器打包" | Write-Host
+              exit 0
+          }
+          Compress-Archive -Path "build/converter/uplr_converter.exe" -DestinationPath $cname -Force
+          "Artifact: $cname" | Write-Host
+
+      - name: 生成 SHA256 校验表（附加到发布说明）
+        run: |
+          # 对本次发布的全部 zip 计算 SHA256，把「核对校验值」提示与表格追加到
+          # CHANGELOG 正文之后；用户可离线比对，不依赖 API
+          $ErrorActionPreference = 'Stop'
+          $names = @(
+              "ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip",
+              "uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip"
+          ) | Where-Object { Test-Path $_ }
+          if (-not $names) { throw "未找到任何待发布的 zip，无法生成校验表" }
+          $lines = @(
+              '',
+              '> [!IMPORTANT]',
+              '>',
+              '> **下载后请核对文件的 SHA256**，与下表一致再使用：',
+              '',
+              '| 文件 | SHA256 |',
+              '| --- | --- |'
+          )
+          foreach ($f in $names) {
+              $hash = (Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant()
+              $lines += '| `{0}` | `{1}` |' -f $f, $hash
+          }
+          Add-Content -Path changelog_body.md -Value $lines -Encoding UTF8
+          "已附加 {0} 个文件的校验表" -f $names.Count | Write-Host
 
       - name: 创建 Release 并上传产物
         uses: softprops/action-gh-release@v2
@@ -150,8 +370,11 @@ jobs:
           tag_name: ${{ steps.changelog.outputs.tag_name }}
           name: ${{ steps.changelog.outputs.title }}
           body_path: changelog_body.md
-          files: ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip
+          files: |
+            ustPlayer-${{ steps.ver.outputs.file }}-Windows-x64.zip
+            uplr_converter-${{ steps.ver.outputs.file }}-Windows-x64.zip
           prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
-          draft: false
+          # 先建草稿：人工核对标题/说明/产物无误后手动 Publish，防误发
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

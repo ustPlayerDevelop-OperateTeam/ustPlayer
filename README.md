@@ -1,3 +1,7 @@
+>[!NOTE]
+>
+>欢迎您加入ustPlayer的dev分支开发！贡献准则请看<a href="CONTRIBUTING.md">CONTRIBUTING.md</a>！
+
 <div align="center">
 
 <image src="icon.png" height="90" width="90"/>
@@ -11,7 +15,7 @@
 ![Star](https://img.shields.io/github/stars/ustPlayerDevelop-OperateTeam/ustPlayer?style=for-the-badge)
 
 
-[配布视频](https://www.bilibili.com/video/BV1YjcwzVEcX "bilibili弹幕网") | <a href="UPDATELOG.md">更新日志</a>
+[配布视频](https://www.bilibili.com/video/BV1YjcwzVEcX "bilibili弹幕网") | <a href="CHANGELOG.md">更新日志</a>
 
 </div>
 
@@ -37,8 +41,8 @@
 **使用前请务必阅读并同意相关使用协议。**
 
 本工具在开发过程中使用了 AI 工具进行辅助开发。
-开源协议详情可查看：
-- 程序目录下`LICENSE`
+项目使用`GPL v3.0`协议开源，详情可查看：
+- 程序目录 / 仓库下`LICENSE`
 - 或软件内入口：`其他 > 协议与许可 > 开源协议`
 
 ## 贡献

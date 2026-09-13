@@ -13,7 +13,7 @@ body:
     attributes:
       label: ustPlayer 版本
       description: 你使用的 ustPlayer 版本号（可在"其他"页面或更新日志中查看）。
-      placeholder: 例如 v26a31
+      placeholder: 例如 1.1.0 Beta 2
     validations:
       required: true
 
@@ -69,7 +69,7 @@ body:
       label: 日志 / 截图
       description: |
         如有相关日志或截图，请拖拽到此处。
-        日志文件通常位于程序目录下的 `logs/` 文件夹中。
+        日志文件为程序目录下的 `ustPlayer.log`（程序目录不可写时位于 `%LOCALAPPDATA%\ustPlayer\`）。
       placeholder: 拖拽日志文件或截图到此处...
 
   - type: textarea

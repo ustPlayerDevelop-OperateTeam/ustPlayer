@@ -1,18 +1,32 @@
 [project]
 name = "ustplayer"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.1.0b2"
+description = "中文的、面向 UTAU/UST 工程文件的可视化播放器（PySide6 + Fluent Design）"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "loguru>=0.7.3",
-    "pyside6>=6.11.1",
-    "pyside6-fluent-widgets[full]>=1.11.3",
+    "pyside6>=6.5.0",
+    # 注意：不使用 [full] extra——其额外引入的 scipy/numpy/pillow/colorthief
+    # 仅服务于 qfluentwidgets.common.image_utils（高斯模糊/主色调），
+    # 该模块在 1.11.x 中已无任何引用，纯属 ~120MB 死依赖
+    "pyside6-fluent-widgets>=1.11.2",
 ]
 
 [project.scripts]
-ustplayer = "ustplayer:main"
+ustplayer = "ustplayer.app:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0.0"]
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# offscreen 平台在 conftest.py 顶层设置（避免依赖 pytest-env 插件）
+filterwarnings = [
+    "ignore::DeprecationWarning:PySide6",
+]

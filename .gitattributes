@@ -1,0 +1,30 @@
+# Auto detect text files and normalize to LF in the repo
+* text=auto
+
+# Sources
+*.py text diff=python
+*.cpp text diff=cpp
+*.h text
+*.c text
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Config / docs
+*.yml text
+*.yaml text
+*.json text
+*.md text
+*.toml text
+*.txt text
+
+# Dotfiles
+*.gitignore text
+.gitattributes text
+
+# Binary (never normalize)
+*.ico binary
+*.png binary
+*.jpg binary
+*.qm binary
+*.exe binary
+*.dll binary
