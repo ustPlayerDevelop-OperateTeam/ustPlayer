@@ -1,6 +1,6 @@
 >[!NOTE]
 >
->欢迎您加入ustPlayer的dev分支开发！贡献准则请看<a href="CONTRIBUTING.md">CONTRIBUTING.md</a>！
+>欢迎您加入ustPlayer的csharp分支开发！贡献准则请看<a href="CONTRIBUTING.md">CONTRIBUTING.md</a>！
 
 <div align="center">
 
@@ -28,7 +28,7 @@
 本分支是 **C# / .NET 10 + Avalonia 11 + FluentAvalonia**，工作目录为仓库根目录：
 
 ```powershell
-dotnet build UstPlayer.slnx -c Debug      # 构建（0 警告是硬要求）
+dotnet build UstPlayer.slnx -c Debug      # 构建（0 警告）
 dotnet test  UstPlayer.slnx -c Debug      # 测试
 dotnet run --project ustPlayer.Desktop    # 运行
 
@@ -38,7 +38,7 @@ pwsh -File build/fetch-ffmpeg.ps1         # 内置 FFmpeg（视频导出必需�
 
 更细的约定、易踩的坑与真实进程验证方式见 [`AGENTS.md`](AGENTS.md)。
 
-`pysourcecode/` 保留的是**已冻结的 1.1.x 实现**（Python / PySide6），
+`pysourcecode/` 保留的是**1.1.x 实现**（Python / PySide6），
 作为 2.0 的行为与格式比对基准；它的命令一律以该目录为工作目录。
 
 ## 致谢
@@ -51,8 +51,9 @@ pwsh -File build/fetch-ffmpeg.ps1         # 内置 FFmpeg（视频导出必需�
 - [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet)
 - [uPlRender](https://github.com/ustPlayerDevelop-OperateTeam/uPlRender)（画面与视频渲染）
 - [FFmpeg](https://ffmpeg.org/)（视频编码与混流）
+- [ClassIsland](https://www.classisland.tech/)（对2.0的动效提供了非常大的参考）
 
-1.1.x（`pysourcecode/`，已冻结）：
+1.1.x（`pysourcecode/`）：
 
 - [PySide6](https://www.qt.io/)
 - [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6)
